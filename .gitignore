@@ -1,0 +1,10 @@
+*.exe
+*~
+*.lnk
+*.sln
+\#*\#
+build
+ruinenglass/.vs
+ruinenglass/data
+ruinenglass/misc
+ruinenglass/code/.vs
