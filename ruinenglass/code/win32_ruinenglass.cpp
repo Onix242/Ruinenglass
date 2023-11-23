@@ -48,10 +48,7 @@ Win32LoadXInput(void)
         // TODO(chowie): A big advantage is assigning to a struct or
         // an array of function pointers, since you can use a loop.
         *(void **)(&XInputGetState) = GetProcAddress(XInputLibrary, "XInputGetState");
-        if(!XInputGetState) {XInputGetState = XInputGetStateStub;}
-
         *(void **)(&XInputSetState) = GetProcAddress(XInputLibrary, "XInputSetState");
-        if(!XInputSetState) {XInputSetState = XInputSetStateStub;}
 
 //        XInputGetState = (x_input_get_state *)GetProcAddress(XInputLibrary, "XInputGetState");
     }
@@ -199,6 +196,86 @@ Win32ProcessPendingMessages(void)
                 GlobalRunning = false;
             } break;
 
+            case WM_SYSKEYDOWN:
+            case WM_SYSKEYUP:
+            case WM_KEYDOWN:
+            case WM_KEYUP:
+            {
+                u32 VKCode = (u32)Message.wParam;
+                // RESOURCE(chowie): https://learn.microsoft.com/en-us/windows/win32/inputdev/wm-keydown
+                // STUDY(chowie): Instead of returning either
+                // (1 << 30) or 0. "!= 0" forces 1 or 0.
+#define KeyMessageWasDownBit (1 << 30)
+#define KeyMessageWasUpBit (1 << 31)
+                b32 WasDown = ((Message.lParam & KeyMessageWasDownBit) != 0);
+                b32 IsDown = ((Message.lParam & KeyMessageWasUpBit) == 0);
+
+                // NOTE(chowie): Holding down a key would otherwise
+                // display both WasDown and IsDown messages!
+                if(WasDown != IsDown)
+                {
+                    if(VKCode == 'W')
+                    {
+//                    OutputDebugStringA("W\n");
+                    }
+                    else if(VKCode == 'A')
+                    {
+                    }
+                    else if(VKCode == 'S')
+                    {
+                    }
+                    else if(VKCode == 'D')
+                    {
+                    }
+                    else if(VKCode == 'Q')
+                    {
+                    }
+                    else if(VKCode == 'E')
+                    {
+                    }
+                    else if(VKCode == VK_UP)
+                    {
+                    }
+                    else if(VKCode == VK_DOWN)
+                    {
+                    }
+                    else if(VKCode == VK_LEFT)
+                    {
+                    }
+                    else if(VKCode == VK_RIGHT)
+                    {
+                    }
+                    else if(VKCode == VK_ESCAPE)
+                    {
+                        // TODO(chowie): This is for testing only REMOVE!
+                        OutputDebugStringA("ESCAPE: ");
+                        if(IsDown)
+                        {
+                            OutputDebugStringA("IsDown ");
+                        }
+                        if(WasDown)
+                        {
+                            OutputDebugStringA("WasDown");
+                        }
+                        OutputDebugStringA("\n");
+                    }
+                    else if(VKCode == VK_SPACE)
+                    {
+                    }
+                }
+
+                if(IsDown)
+                {
+#define AltKeyWasDownBit (1 << 29)
+                    b32 AltKeyWasDown = (Message.lParam & AltKeyWasDownBit);
+                    if((VKCode == VK_F4) && AltKeyWasDown)
+                    {
+                        GlobalRunning = false;
+                    }
+                }
+
+            } break;
+
             default:
             {
                 TranslateMessage(&Message);
@@ -208,6 +285,10 @@ Win32ProcessPendingMessages(void)
     }
 }
 
+// STUDY(chowie): WParam and LParam wants to call us in a single
+// function, but it has messages with different params of different
+// types. Encumbant on user to cast the values. Anonymous parameters
+// takes on whatever meaning it needs to for the message in question.
 LRESULT CALLBACK
 Win32MainWindowCallback(HWND   Window,
                         UINT   Message,
@@ -242,6 +323,14 @@ Win32MainWindowCallback(HWND   Window,
             // TODO(chowie): Handle an error - recreate window?
             GlobalRunning = false;
             OutputDebugStringA("WM_DESTROY\n");
+        } break;
+
+        case WM_SYSKEYDOWN:
+        case WM_SYSKEYUP:
+        case WM_KEYDOWN:
+        case WM_KEYUP:
+        {
+            Assert(!"Keyboard came in a non-dispatched message!");
         } break;
 
         case WM_SETCURSOR:
@@ -358,10 +447,8 @@ WinMain(HINSTANCE Instance,
                         s16 StickX = Pad->sThumbLX;
                         s16 StickY = Pad->sThumbLY;
 
-                        if(AButton)
-                        {
-                            Offset.y += 2;
-                        }
+                        Offset.x += (StickX >> 12);
+                        Offset.y += (StickY >> 12);
                     }
                     else
                     {
@@ -369,11 +456,17 @@ WinMain(HINSTANCE Instance,
                     }
                 }
 
+#if 0
+                XINPUT_VIBRATION Vibration;
+                Vibration.wLeftMotorSpeed = 6000;
+                Vibration.wRightMotorSpeed = 6000;
+                XInputSetState(0, &Vibration);
+#endif
+
                 RenderWeirdGradient(&GlobalBackbuffer, Offset);
 
-                win32_window_dim Dim = Win32GetWindowDim(Window);
-
                 HDC DeviceContext = GetDC(Window);
+                win32_window_dim Dim = Win32GetWindowDim(Window);
                 Win32DisplayBufferInWindow(&GlobalBackbuffer, DeviceContext,
                                            Dim.Width, Dim.Height);
                 ReleaseDC(Window, DeviceContext);
