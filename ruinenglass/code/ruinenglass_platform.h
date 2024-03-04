@@ -3,7 +3,7 @@
    $File: $
    $Date: $
    $Revision: $
-   $Creator: Talia ... & Michael Chow $
+   $Creator: Michael Chow $
    $Notice: $
    ======================================================================== */
 
@@ -135,6 +135,21 @@ typedef double r64;
 
 #define BITMAP_BYTES_PER_PIXEL 4
 
+// TODO(chowie): Field array for memory arenas
+#define CONCAT(a, b) a##b
+
+#define FIELD_ARRAY_IMPL(type, name, structDefinition, counter)\
+typedef struct structDefinition CONCAT(_anon_array, counter);\
+union {\
+    struct structDefinition;\
+    type name[sizeof(CONCAT(_anon_array, counter))/sizeof(type)];\
+};\
+static_assert(sizeof(CONCAT(_anon_array, counter)) % sizeof(type) == 0,\
+              "Field Array of type '" #type "' must be a multiple of sizeof(" #type ")")\
+
+#define FIELD_ARRAY(type, structDefinition, name)\
+FIELD_ARRAY_IMPL(type, name, structDefinition, __COUNTER__)
+
 //
 // NOTE: Math types
 //
@@ -265,6 +280,25 @@ StringLength(char *String)
     }
     return(Count);
 }
+
+//
+// NOTE: Services that the platform layer provides to game
+//
+
+//
+// NOTE: Services that the game provides to the platform layer.
+//
+
+// Takes - timing, controller/keyboard input, bitmap buffer to use, sound buffer to use.
+
+typedef struct game_sound_output_buffer
+{
+    int SamplesPerSecond;
+    int SampleCount;
+
+    // IMPORTANT(chowie): Samples must be padded to a multiple of 4!
+    s16 *Samples;
+} game_sound_output_buffer;
 
 #ifdef __cplusplus
 }

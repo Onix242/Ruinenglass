@@ -2,18 +2,22 @@
    $File: $
    $Date: $
    $Revision: $
-   $Creator: Talia ... & Michael Chow $
+   $Creator: Michael Chow $
    $Notice: $
    ======================================================================== */
 
 // NOTE(chowie): Win32/Compiler defines. Must be above windows.h!!!!
 #define WIN32_LEAN_AND_MEAN
 #define VC_EXTRA_LEAN
+#define NOMINMAX
 
 #include "ruinenglass_platform.h"
 
 #include <windows.h>
 #include <xinput.h>
+#include <mmdeviceapi.h>
+#include <audioclient.h>
+
 #include "ruinenglass_intrinsics.h"
 #include "win32_ruinenglass.h"
 
@@ -21,6 +25,8 @@
 global_variable b32 GlobalRunning;
 global_variable b32 GlobalShowCursor;
 global_variable win32_offscreen_buffer GlobalBackbuffer;
+global_variable IAudioClient *GlobalSoundClient;
+global_variable IAudioRenderClient *GlobalSoundRenderClient;
 
 internal void
 Win32LoadXInput(void)
@@ -40,22 +46,116 @@ Win32LoadXInput(void)
 
     if(XInputLibrary)
     {
-        // TODO(chowie): Logging/Diagnostic
-//        OutputDebugStringA("Xinput1_4 loaded successfully\n");
-
         // RESOURCE(chowie): https://hero.handmade.network/forums/code-discussion/t/2686-function_pointer_assignment_trick#13360
         // RESOURCE(chowie): https://man7.org/linux/man-pages/man3/dlopen.3.html
         // TODO(chowie): A big advantage is assigning to a struct or
         // an array of function pointers, since you can use a loop.
         *(void **)(&XInputGetState) = GetProcAddress(XInputLibrary, "XInputGetState");
         *(void **)(&XInputSetState) = GetProcAddress(XInputLibrary, "XInputSetState");
+        // STUDY(chowie): Compare "XInputGetState = (x_input_get_state *)GetProcAddress(XInputLibrary, "XInputGetState");"
 
-//        XInputGetState = (x_input_get_state *)GetProcAddress(XInputLibrary, "XInputGetState");
+        // TODO(chowie): Logging/Diagnostic
+//        OutputDebugStringA("Xinput1_4 loaded successfully\n");
     }
     else
     {
         OutputDebugStringA("Xinput1_4 failed to load\n");
     }
+}
+
+internal void
+Win32LoadWASAPI(void)
+{
+    HMODULE WASAPILibrary = LoadLibraryA("ole32.dll");
+
+    if(WASAPILibrary)
+    {
+#if 1
+        *(void **)(&CoInitializeEx) = GetProcAddress(WASAPILibrary, "CoInitializeEx");
+        *(void **)(&CoCreateInstance) = GetProcAddress(WASAPILibrary, "CoCreateInstance");
+#else
+        for(u32 LibraryIndex = 0;
+            LibraryIndex < ArrayCount(GlobalAudioContext);
+            ++LibraryIndex)
+        {
+            *(void **)(&GlobalAudioContext[LibraryIndex]) = GetProcAddress(WASAPILibrary, "CoInitializeEx");
+        }
+#endif
+        // TODO(chowie): Logging/Diagnostic
+    }
+    else
+    {
+        OutputDebugStringA("Ole32 failed to load\n");
+    }
+}
+
+// TODO(chowie): This is really not a good way to use WASAPI, make a thread-queue first before multithreading this!
+// RESOURCE: https://hero.handmade.network/forums/code-discussion/t/8433-correct_implementation_of_wasapi
+// RESOURCE: By Nickav, https://gist.github.com/nickav/8be2ded8a8363d5993b2f4e5aa601bd3
+// NOTE(chowie): Thank you Martins for providing introductory code!
+// RESOURCE: https://gist.github.com/mmozeiko/38c64bb65855d783645c
+internal void
+Win32InitWASAPI(s32 SamplesPerSecond, s32 BufferSizeInSamples)
+{
+    // TODO(chowie): Abstract the audio api architecture?
+    // TODO: Output HRESULT to be able to be inspected in watch window!
+
+    // TODO(chowie): Test that FAILED = !SUCCEEDED
+    if(FAILED(CoInitializeEx(0, COINIT_SPEED_OVER_MEMORY)))
+    {
+        Assert(!"Error");
+    }
+
+    IMMDeviceEnumerator *Enumerator;
+    if(FAILED(CoCreateInstance(__uuidof(MMDeviceEnumerator), 0, CLSCTX_ALL, IID_PPV_ARGS(&Enumerator))))
+    {
+        Assert(!"Error");
+    }
+
+    IMMDevice *Device;
+    if(FAILED(Enumerator->GetDefaultAudioEndpoint(eRender, eConsole, &Device)))
+    {
+        Assert(!"Error");
+    }
+
+    if(FAILED(Device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, 0, (LPVOID*)&GlobalSoundClient)))
+    {
+        Assert(!"Error");
+    }
+
+    // NOTE(chowie): I reckon this duplicates the two sound buffers [LEFT RIGHT], compared to DSound.
+    WAVEFORMATEXTENSIBLE WaveFormat = {};
+
+    WaveFormat.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
+    WaveFormat.Format.nChannels = 2;
+    WaveFormat.Format.nSamplesPerSec = (DWORD)SamplesPerSecond;
+    WaveFormat.Format.wBitsPerSample = 16; // NOTE(chowie): Really means how many bits per half a sample
+    WaveFormat.Format.nBlockAlign = (WORD)((WaveFormat.Format.nChannels * WaveFormat.Format.wBitsPerSample) / 8); // NOTE(chowie): Interleaved bytes [LEFT RIGHT], "s16 for each channel (2) / 8 (in bytes)", just equals 4!
+    WaveFormat.Format.nAvgBytesPerSec = WaveFormat.Format.nSamplesPerSec * WaveFormat.Format.nBlockAlign;
+    WaveFormat.Format.cbSize = sizeof(WaveFormat);
+    WaveFormat.Samples.wValidBitsPerSample = 16;
+    WaveFormat.dwChannelMask = KSAUDIO_SPEAKER_STEREO;
+    WaveFormat.SubFormat = KSDATAFORMAT_SUBTYPE_PCM;
+
+    REFERENCE_TIME BufferDuration = 10000000ULL * BufferSizeInSamples / SamplesPerSecond; // NOTE(martins): Buffer size in 100 nanoseconds
+    if(FAILED(GlobalSoundClient->Initialize(AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_NOPERSIST, BufferDuration, 0, &WaveFormat.Format, 0)))
+    {
+        Assert(!"Error");
+    }
+
+    if(FAILED(GlobalSoundClient->GetService(IID_PPV_ARGS(&GlobalSoundRenderClient))))
+    {
+        Assert(!"Error");
+    }
+
+    UINT32 SoundFrameCount;
+    if(FAILED(GlobalSoundClient->GetBufferSize(&SoundFrameCount)))
+    {
+        Assert(!"Error");
+    }
+
+    // NOTE(martins): Check if we got what we requested (better would to pass this value back as real buffer size)
+    Assert(BufferSizeInSamples <= (s32)SoundFrameCount);
 }
 
 // TODO(chowie): See what optimiser does!
@@ -91,11 +191,6 @@ RenderWeirdGradient(win32_offscreen_buffer *Buffer,
     }
 }
 
-struct win32_window_dim
-{
-    s32 Width;
-    s32 Height;
-};
 internal win32_window_dim
 Win32GetWindowDim(HWND Window)
 {
@@ -126,7 +221,7 @@ Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, int Width, int Height)
     // from the second one since it was occupying too much memory.
 
 #if 1
-    // TODO(chowie): This is techincally only called once now! REMOVE!
+    // TODO(chowie): This is technically only called once now! REMOVE!
     if(Buffer->Memory)
     {
         // STUDY(chowie): If this was MEM_DECOMMIT. Use VirtualProtect
@@ -251,7 +346,7 @@ Win32ProcessPendingMessages(void)
                         OutputDebugStringA("ESCAPE: ");
                         if(IsDown)
                         {
-                            OutputDebugStringA("IsDown ");
+                            OutputDebugStringA("IsDown");
                         }
                         if(WasDown)
                         {
@@ -365,6 +460,89 @@ Win32MainWindowCallback(HWND   Window,
     return(Result);
 }
 
+internal void
+Win32FillSoundBuffer(win32_sound_output *SoundOutput, int SamplesToWrite,
+                     game_sound_output_buffer *SourceBuffer)
+{
+    BYTE *SoundBufferData;
+    if(SUCCEEDED(GlobalSoundRenderClient->GetBuffer((UINT32)SamplesToWrite, &SoundBufferData)))
+    {
+        s16 *SourceSample = SourceBuffer->Samples;
+        s16 *DestSample = (s16 *)SoundBufferData;
+        for(s32 SampleIndex = 0;
+            SampleIndex < SamplesToWrite;
+            ++SampleIndex)
+        {
+            *DestSample++ = *SourceSample++;
+            *DestSample++ = *SourceSample++;
+            ++SoundOutput->RunningSampleIndex; // TODO(chowie): Record this!
+        }
+
+        GlobalSoundRenderClient->ReleaseBuffer((UINT32)SamplesToWrite, 0);
+    }
+}
+
+// TODO(chowie): Not quite sure how interested I'd be to explore custom math functions like sine?
+// RESOURCE: https://hero.handmade.network/forums/code-discussion/t/8593-was_sine_implemented_from_scratch_in_some_episode
+internal void
+GameOutputSound(game_sound_output_buffer *SoundBuffer, s32 ToneHz)
+{
+#if 0
+    local_persist r32 tSine;
+    s16 ToneVolume = 3000;
+    int WavePeriod = SoundBuffer->SamplesPerSecond/ToneHz;
+
+    s16 *SampleOut = SoundBuffer->Samples;
+    for(s32 SampleIndex = 0;
+        SampleIndex < SoundBuffer->SampleCount;
+        ++SampleIndex)
+    {
+        r32 SineValue = sinf(tSine);
+        s16 SampleValue = (s16)(SineValue * ToneVolume);
+        *SampleOut++ = SampleValue;
+        *SampleOut++ = SampleValue;
+
+        tSine += Tau32*1.0f / (r32)WavePeriod;
+        if(tSine > Tau32)
+        {
+            tSine -= Tau32;
+            // NOTE(chowie): Normalising it to its period
+        }
+    }
+#else
+    // RESOURCE: https://hero.handmade.network/forums/code-discussion/t/1380-day_20_tiny_bit_of_fun_with_the_code
+    local_persist r32 tSine1;
+    local_persist r32 tSine2;
+    s16 ToneVolume = 3000;
+    int WavePeriod1 = SoundBuffer->SamplesPerSecond / 350;
+    int WavePeriod2 = SoundBuffer->SamplesPerSecond / 440;
+
+    s16 *SampleOut = SoundBuffer->Samples;
+    for(s32 SampleIndex = 0;
+        SampleIndex < SoundBuffer->SampleCount;
+        ++SampleIndex)
+    {
+        r32 SineValue1 = Sin(tSine1);
+        r32 SineValue2 = Sin(tSine2);
+        s16 SampleValue = (s16)((SineValue1 + SineValue2) * ToneVolume);
+        *SampleOut++ = SampleValue;
+        *SampleOut++ = SampleValue;
+
+        // TODO(chowie): I could be wrong, but I'm almost certain that I can collapse these mathematically
+        tSine1 += Tau32*1.0f / (r32)WavePeriod1;
+        if(tSine1 > Tau32)
+        {
+            tSine1 -= Tau32;
+        }
+        tSine2 += Tau32*1.0f / (r32)WavePeriod2;
+        if(tSine2 > Tau32)
+        {
+            tSine2 -= Tau32;
+        }
+    }
+#endif
+}
+
 // NOTE(chowie): wWinMain is the newer version and is not necessary!
 int CALLBACK
 WinMain(HINSTANCE Instance,
@@ -386,92 +564,158 @@ WinMain(HINSTANCE Instance,
     WindowClass.lpszClassName = "RuinenglassWindowClass";
 
     Win32LoadXInput();
+    Win32LoadWASAPI();
 
 #if RUINENGLASS_INTERNAL
     GlobalShowCursor = true;
 #endif
 
+#define FramesOfAudioLatency 1
+#define MonitorRefreshHz 60
+#define GameUpdateHz (MonitorRefreshHz / 2)
+    r32 TargetSecondsPerFrame = 1.0f / (r32)GameUpdateHz;
+
     if(RegisterClassA(&WindowClass))
     {
         HWND Window =
-            CreateWindowExA(
-                0,
-                WindowClass.lpszClassName,
-                "Ruinenglass",
-                WS_OVERLAPPEDWINDOW|WS_VISIBLE, // NOTE(chowie): WS_VISIBLE can be ShowWindow!
-                CW_USEDEFAULT,
-                CW_USEDEFAULT,
-                CW_USEDEFAULT,
-                CW_USEDEFAULT,
-                0,
-                0,
-                Instance,
-                0);
+            CreateWindowExA(0, WindowClass.lpszClassName, "Ruinenglass",
+                            WS_OVERLAPPEDWINDOW|WS_VISIBLE, // NOTE(chowie): WS_VISIBLE can be ShowWindow!
+                            CW_USEDEFAULT, CW_USEDEFAULT,
+                            CW_USEDEFAULT, CW_USEDEFAULT,
+                            0, 0, Instance, 0);
         if(Window)
         {
-            GlobalRunning = true;
             v2 Offset = {};
-            // NOTE(chowie): Messages don't always field in the
-            // dispatch queue, Windows reserves the rights to
-            // 'cold-call' sometimes (in Win32MainWindowCallback).
-            while(GlobalRunning)
+
+            win32_sound_output SoundOutput = {};
+
+            // TODO(chowie): Set to 60 seconds?
+            SoundOutput.SamplesPerSecond = 48000;
+            SoundOutput.BytesPerSample = sizeof(s16)*2;
+            SoundOutput.SecondaryBufferSize = SoundOutput.SamplesPerSecond*SoundOutput.BytesPerSample; // NOTE(chowie): Allocates a 2 sec buffer
+            SoundOutput.LatencySampleCount = FramesOfAudioLatency*(SoundOutput.SamplesPerSecond / GameUpdateHz);
+            Win32InitWASAPI(SoundOutput.SamplesPerSecond, SoundOutput.SecondaryBufferSize);
+
+            GlobalRunning = true;
+
+            // TODO(chowie): Pool with bitmap VirtualAlloc
+            s16 *Samples = (s16 *)VirtualAlloc(0, SoundOutput.SecondaryBufferSize,
+                                               MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+
+            if(Samples)
             {
-                Win32ProcessPendingMessages();
-
-                // TODO(chowie): Should we poll this more frequently?
-                DWORD MaxControllerCount = XUSER_MAX_COUNT;
-                for(DWORD ControllerIndex = 0;
-                    ControllerIndex < MaxControllerCount;
-                    ++ControllerIndex)
+                // NOTE(chowie): Messages don't always field in the
+                // dispatch queue, Windows reserves the rights to
+                // 'cold-call' sometimes (in Win32MainWindowCallback).
+                while(GlobalRunning)
                 {
-                    XINPUT_STATE ControllerState;
-                    if(XInputGetState(ControllerIndex, &ControllerState) == ERROR_SUCCESS)
+                    Win32ProcessPendingMessages();
+
+                    // TODO(chowie): Should we poll this more frequently?
+                    DWORD MaxControllerCount = XUSER_MAX_COUNT;
+                    for(DWORD ControllerIndex = 0;
+                        ControllerIndex < MaxControllerCount;
+                        ++ControllerIndex)
                     {
-                        // NOTE(chowie): The controller is plugged in
-                        // TODO(chowie): See if ControllerState.dwPacketNumber increments too rapidly
-                        XINPUT_GAMEPAD *Pad = &ControllerState.Gamepad; // STUDY(chowie): Syntactic convience by snapping the pointer
+                        XINPUT_STATE ControllerState;
+                        if(XInputGetState(ControllerIndex, &ControllerState) == ERROR_SUCCESS)
+                        {
+                            // NOTE(chowie): The controller is plugged in
+                            // TODO(chowie): See if ControllerState.dwPacketNumber increments too rapidly
+                            XINPUT_GAMEPAD *Pad = &ControllerState.Gamepad; // STUDY(chowie): Syntactic convience by snapping the pointer
 
-                        b32 Up = (Pad->wButtons & XINPUT_GAMEPAD_DPAD_UP);
-                        b32 Down = (Pad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN);
-                        b32 Left = (Pad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT);
-                        b32 Right = (Pad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT);
-                        b32 Start = (Pad->wButtons & XINPUT_GAMEPAD_START);
-                        b32 Back = (Pad->wButtons & XINPUT_GAMEPAD_BACK);
-                        b32 LeftShoulder = (Pad->wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER);
-                        b32 RightShoulder = (Pad->wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER);
-                        b32 AButton = (Pad->wButtons & XINPUT_GAMEPAD_A);
-                        b32 BButton = (Pad->wButtons & XINPUT_GAMEPAD_B);
-                        b32 XButton = (Pad->wButtons & XINPUT_GAMEPAD_X);
-                        b32 YButton = (Pad->wButtons & XINPUT_GAMEPAD_Y);
+                            b32 Up = (Pad->wButtons & XINPUT_GAMEPAD_DPAD_UP);
+                            b32 Down = (Pad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN);
+                            b32 Left = (Pad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT);
+                            b32 Right = (Pad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT);
+                            b32 Start = (Pad->wButtons & XINPUT_GAMEPAD_START);
+                            b32 Back = (Pad->wButtons & XINPUT_GAMEPAD_BACK);
+                            b32 LeftShoulder = (Pad->wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER);
+                            b32 RightShoulder = (Pad->wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER);
+                            b32 AButton = (Pad->wButtons & XINPUT_GAMEPAD_A);
+                            b32 BButton = (Pad->wButtons & XINPUT_GAMEPAD_B);
+                            b32 XButton = (Pad->wButtons & XINPUT_GAMEPAD_X);
+                            b32 YButton = (Pad->wButtons & XINPUT_GAMEPAD_Y);
 
-                        s16 StickX = Pad->sThumbLX;
-                        s16 StickY = Pad->sThumbLY;
+                            s16 StickX = Pad->sThumbLX;
+                            s16 StickY = Pad->sThumbLY;
 
-                        Offset.x += (StickX >> 12);
-                        Offset.y += (StickY >> 12);
+                            Offset.x += (StickX >> 12);
+                            Offset.y += (StickY >> 12);
+                        }
+                        else
+                        {
+                            // NOTE(chowie): The controller is unavailable
+                        }
                     }
-                    else
+
+                    // RESOURCE: https://hero.handmade.network/forums/code-discussion/t/102-day_19_-_audio_latency
+                    // NOTE(chowie): Computes how much sound to write and where.
+#if 1
+                    // NOTE(chowie): For calculating samples to write,
+                    // this is more accurate. We want x samples (1
+                    // frames worth + latency).
+                    int SamplesToWrite = 0;
+                    UINT32 SoundPaddingSize;
+                    if(SUCCEEDED(GlobalSoundClient->GetCurrentPadding(&SoundPaddingSize)))
                     {
-                        // NOTE(chowie): The controller is unavailable
+                        // NOTE(chowie): Number of samples that are
+                        // ready and have not been read into the
+                        // buffer. Therefore, number of samples to
+                        // write should be x - padding.
+                        int MaxSampleCount = (int)(SoundOutput.SecondaryBufferSize - SoundPaddingSize);
+                        SamplesToWrite = (int)(SoundOutput.LatencySampleCount - SoundPaddingSize);
+                        if(SamplesToWrite < 0)
+                        {
+                            SamplesToWrite = 0;
+                        }
+                        Assert(SamplesToWrite <= MaxSampleCount);
                     }
-                }
+#else
+                    int SamplesToWrite = 0;
+                    UINT32 SoundPaddingSize;
+                    if (SUCCEEDED(GlobalSoundClient->GetCurrentPadding(&SoundPaddingSize)))
+                    {
+                        SamplesToWrite = (int)(SoundOutput.SecondaryBufferSize - SoundPaddingSize);
+                        if (SamplesToWrite > SoundOutput.LatencySampleCount)
+                        {
+                            SamplesToWrite = SoundOutput.LatencySampleCount;
+                        }
+                    }
+#endif
+                    game_sound_output_buffer SoundBuffer = {};
+                    SoundBuffer.SamplesPerSecond = SoundOutput.SamplesPerSecond;
+                    SoundBuffer.SampleCount = SamplesToWrite;
+                    SoundBuffer.Samples = Samples;
+
+                    // NOTE(chowie): This is a test!
+                    GameOutputSound(&SoundBuffer, 256);
+
+                    Win32FillSoundBuffer(&SoundOutput, SamplesToWrite, &SoundBuffer);
+                    GlobalSoundClient->Start();
+                    // NOTE(chowie): Starts buffer the first time we
+                    // fill data in it, rather than filling the audio
+                    // buffer at init as it would introduce latency
+                    // (we cannot overwrite previous samples). Call
+                    // after audio engine has been initially loaded.
 
 #if 0
-                XINPUT_VIBRATION Vibration;
-                Vibration.wLeftMotorSpeed = 6000;
-                Vibration.wRightMotorSpeed = 6000;
-                XInputSetState(0, &Vibration);
+                    XINPUT_VIBRATION Vibration;
+                    Vibration.wLeftMotorSpeed = 6000;
+                    Vibration.wRightMotorSpeed = 6000;
+                    XInputSetState(0, &Vibration);
 #endif
 
-                RenderWeirdGradient(&GlobalBackbuffer, Offset);
+                    RenderWeirdGradient(&GlobalBackbuffer, Offset);
 
-                HDC DeviceContext = GetDC(Window);
-                win32_window_dim Dim = Win32GetWindowDim(Window);
-                Win32DisplayBufferInWindow(&GlobalBackbuffer, DeviceContext,
-                                           Dim.Width, Dim.Height);
-                ReleaseDC(Window, DeviceContext);
+                    HDC DeviceContext = GetDC(Window);
+                    win32_window_dim Dim = Win32GetWindowDim(Window);
+                    Win32DisplayBufferInWindow(&GlobalBackbuffer, DeviceContext,
+                                               Dim.Width, Dim.Height);
+                    ReleaseDC(Window, DeviceContext);
 
-                ++Offset.x;
+                    ++Offset.x;
+                }
             }
         }
         else

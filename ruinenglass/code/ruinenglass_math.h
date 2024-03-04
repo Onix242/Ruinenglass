@@ -3,7 +3,7 @@
    $File: $
    $Date: $
    $Revision: $
-   $Creator: Talia ... & Michael Chow $
+   $Creator: Michael Chow $
    $Notice: $
    ======================================================================== */
 

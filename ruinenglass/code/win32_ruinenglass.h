@@ -3,7 +3,7 @@
    $File: $
    $Date: $
    $Revision: $
-   $Creator: Talia ... & Michael Chow $
+   $Creator: Michael Chow $
    $Notice: $
    ======================================================================== */
 
@@ -28,12 +28,33 @@ struct win32_offscreen_buffer
     s32 BytesPerPixel;
 };
 
+struct win32_window_dim
+{
+    s32 Width;
+    s32 Height;
+};
+
+struct win32_sound_output
+{
+    int SamplesPerSecond;
+    u32 RunningSampleIndex; // TODO(chowie): Record this!
+    int BytesPerSample;
+    DWORD SecondaryBufferSize;
+    int LatencySampleCount;
+    // TODO(chowie): BytesPerSecond field would make for easier computation
+    // TODO(chowie): Should RunningSampleIndex be in bytes?
+};
+
 /*
   RESOURCE(chowie): https://d3s.mff.cuni.cz/legacy/~holub/c_features.html
   STUDY(chowie): Defining an array at the end of a struct e.g.
   BITMAPINFO, allows variable-length arrays accessor-wise. Don't
   recommend.
 */
+
+//
+// NOTE: Late bindings (manually calls GetProcAddress)
+//
 
 // NOTE(chowie): XInputGetState
 // STUDY(chowie): This avoids execution violations by declaring a
@@ -56,6 +77,34 @@ X_INPUT_SET_STATE(XInputSetStateStub)
 }
 global_variable x_input_set_state *XInputSetState_ = XInputSetStateStub;
 #define XInputSetState XInputSetState_
+
+// NOTE(chowie): CoInitalizeEx
+#define CO_INITIALIZE_EX(name) HRESULT WINAPI name(LPVOID pvReserved, DWORD dwCoInit)
+typedef CO_INITIALIZE_EX(co_initalize_ex);
+global_variable co_initalize_ex *CoInitializeEx_;
+#define CoInitializeEx CoInitializeEx_
+
+// NOTE(chowie): CoCreateInstance
+#define CO_CREATE_INSTANCE(name) HRESULT WINAPI name(REFCLSID rclsid, LPUNKNOWN pUnkOuter, DWORD dwClsContext, REFIID riid, LPVOID *ppv)
+typedef CO_CREATE_INSTANCE(co_create_instance);
+global_variable co_create_instance *CoCreateInstance_;
+#define CoCreateInstance CoCreateInstance_
+
+#if 0
+struct win32_audio_context
+{
+    co_initalize_ex *CoInitializeEx;
+    co_create_instance *CoCreateInstance;
+};
+global_variable win32_audio_context GlobalAudioContext = {};
+
+// TODO(chowie): Try looping over function pointers?
+global_variable void *GlobalAudioContext[] =
+{
+    CoInitializeEx,
+    CoCreateInstance,
+};
+#endif
 
 #define WIN32_RUINENGLASS_H
 #endif
