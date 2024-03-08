@@ -97,6 +97,9 @@ Win32LoadWASAPI(void)
 internal void
 Win32InitWASAPI(s32 SamplesPerSecond, s32 BufferSizeInSamples)
 {
+    // STUDY(chowie): WASAPI is COM! Stepping over the func looks though a jump table
+    // RESOURCE: https://kodi.wiki/view/Windows_audio_APIs
+
     // TODO(chowie): Abstract the audio api architecture?
     // TODO: Output HRESULT to be able to be inspected in watch window!
 
@@ -127,7 +130,7 @@ Win32InitWASAPI(s32 SamplesPerSecond, s32 BufferSizeInSamples)
     WAVEFORMATEXTENSIBLE WaveFormat = {};
 
     WaveFormat.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
-    WaveFormat.Format.nChannels = 2;
+    WaveFormat.Format.nChannels = 2; // TODO(chowie): Explore multi-channel audio?
     WaveFormat.Format.nSamplesPerSec = (DWORD)SamplesPerSecond;
     WaveFormat.Format.wBitsPerSample = 16; // NOTE(chowie): Really means how many bits per half a sample
     WaveFormat.Format.nBlockAlign = (WORD)((WaveFormat.Format.nChannels * WaveFormat.Format.wBitsPerSample) / 8); // NOTE(chowie): Interleaved bytes [LEFT RIGHT], "s16 for each channel (2) / 8 (in bytes)", just equals 4!
@@ -156,6 +159,97 @@ Win32InitWASAPI(s32 SamplesPerSecond, s32 BufferSizeInSamples)
 
     // NOTE(martins): Check if we got what we requested (better would to pass this value back as real buffer size)
     Assert(BufferSizeInSamples <= (s32)SoundFrameCount);
+}
+
+internal void
+Win32FillSoundBuffer(win32_sound_output *SoundOutput, u32 SamplesToWrite,
+                     game_sound_output_buffer *SourceBuffer)
+{
+    BYTE *SoundBufferData;
+    if(SUCCEEDED(GlobalSoundRenderClient->GetBuffer((UINT32)SamplesToWrite, &SoundBufferData)))
+    {
+        s16 *SourceSample = SourceBuffer->Samples;
+        s16 *DestSample = (s16 *)SoundBufferData;
+        for(u32 SampleIndex = 0;
+            SampleIndex < SamplesToWrite;
+            ++SampleIndex)
+        {
+            *DestSample++ = *SourceSample++;
+            *DestSample++ = *SourceSample++;
+            ++SoundOutput->RunningSampleIndex; // TODO(chowie): Record with this!
+        }
+
+        GlobalSoundRenderClient->ReleaseBuffer((UINT32)SamplesToWrite, 0);
+    }
+}
+
+// RESOURCE: https://hero.handmade.network/forums/code-discussion/t/1380-day_20_tiny_bit_of_fun_with_the_code
+struct wilwa_dial_tone
+{
+    char *Tag; // TODO(chowie): Display this?
+
+    s32 Period;
+    s32 ToneHz; // NOTE(chowie): For testing 200-500hz is a good range!
+    r32 Value; // NOTE(chowie): Sine value
+};
+struct test_output_sound
+{
+    s16 ToneVolume;
+    FIELD_ARRAY(wilwa_dial_tone,
+    {
+        wilwa_dial_tone Wave1;
+        wilwa_dial_tone Wave2;
+    });
+};
+internal void
+TestOutputWilwaDialTone(game_sound_output_buffer *SoundBuffer)
+{
+    local_persist r32 tSine1; // TODO(chowie): Move this out to game_state!
+    local_persist r32 tSine2;
+
+    test_output_sound WilwaDialTone = {};
+    WilwaDialTone.ToneVolume = 3000;
+
+    wilwa_dial_tone *Wave1 = &WilwaDialTone.Wave1;
+    Wave1->Tag = "Wave 1";
+    Wave1->ToneHz = 350;
+    Wave1->Period = SoundBuffer->SamplesPerSecond / Wave1->ToneHz;
+    wilwa_dial_tone *Wave2 = &WilwaDialTone.Wave2;
+    Wave2->Tag = "Wave 2";
+    Wave2->ToneHz = 440;
+    Wave2->Period = SoundBuffer->SamplesPerSecond / Wave2->ToneHz;
+
+    s16 *SampleOut = SoundBuffer->Samples;
+    for(s32 SampleIndex = 0;
+        SampleIndex < SoundBuffer->SampleCount;
+        ++SampleIndex)
+    {
+        Wave1->Value = Sin(tSine1);
+        Wave2->Value = Sin(tSine2);
+
+        r32 TotalValue = 0;
+        for(s32 ToneIndex = 0;
+            ToneIndex < ArrayCount(WilwaDialTone.E); // STUDY(chowie): I'm really proud to be able to convert a range-based for loop into a regular one!
+            ++ToneIndex)
+        {
+            wilwa_dial_tone *Sound = WilwaDialTone.E + ToneIndex;
+            TotalValue += Sound->Value;
+        }
+        s16 SampleValue = (s16)(TotalValue * WilwaDialTone.ToneVolume);
+        *SampleOut++ = SampleValue;
+        *SampleOut++ = SampleValue;
+
+        tSine1 += Tau32*1.0f / (r32)Wave1->Period; // NOTE(chowie): 2*Pi is how many wave periods elapsed since we started
+        if(tSine1 > Tau32)
+        {
+            tSine1 -= Tau32; // NOTE(chowie): Normalising it to its period
+        }
+        tSine2 += Tau32*1.0f / (r32)Wave2->Period;
+        if(tSine2 > Tau32)
+        {
+            tSine2 -= Tau32;
+        }
+    }
 }
 
 // TODO(chowie): See what optimiser does!
@@ -247,7 +341,7 @@ Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, int Width, int Height)
     Buffer->Info.bmiHeader.biCompression = BI_RGB;
 
     /*
-      RESOURCE(chowie): https://learn.microsoft.com/en-us/windows/win32/medfound/image-stride
+      RESOURCE: https://learn.microsoft.com/en-us/windows/win32/medfound/image-stride
 
       STUDY(chowie): Storing a 2D image in a 1D "block" of memory
 
@@ -460,89 +554,6 @@ Win32MainWindowCallback(HWND   Window,
     return(Result);
 }
 
-internal void
-Win32FillSoundBuffer(win32_sound_output *SoundOutput, int SamplesToWrite,
-                     game_sound_output_buffer *SourceBuffer)
-{
-    BYTE *SoundBufferData;
-    if(SUCCEEDED(GlobalSoundRenderClient->GetBuffer((UINT32)SamplesToWrite, &SoundBufferData)))
-    {
-        s16 *SourceSample = SourceBuffer->Samples;
-        s16 *DestSample = (s16 *)SoundBufferData;
-        for(s32 SampleIndex = 0;
-            SampleIndex < SamplesToWrite;
-            ++SampleIndex)
-        {
-            *DestSample++ = *SourceSample++;
-            *DestSample++ = *SourceSample++;
-            ++SoundOutput->RunningSampleIndex; // TODO(chowie): Record this!
-        }
-
-        GlobalSoundRenderClient->ReleaseBuffer((UINT32)SamplesToWrite, 0);
-    }
-}
-
-// TODO(chowie): Not quite sure how interested I'd be to explore custom math functions like sine?
-// RESOURCE: https://hero.handmade.network/forums/code-discussion/t/8593-was_sine_implemented_from_scratch_in_some_episode
-internal void
-GameOutputSound(game_sound_output_buffer *SoundBuffer, s32 ToneHz)
-{
-#if 0
-    local_persist r32 tSine;
-    s16 ToneVolume = 3000;
-    int WavePeriod = SoundBuffer->SamplesPerSecond/ToneHz;
-
-    s16 *SampleOut = SoundBuffer->Samples;
-    for(s32 SampleIndex = 0;
-        SampleIndex < SoundBuffer->SampleCount;
-        ++SampleIndex)
-    {
-        r32 SineValue = sinf(tSine);
-        s16 SampleValue = (s16)(SineValue * ToneVolume);
-        *SampleOut++ = SampleValue;
-        *SampleOut++ = SampleValue;
-
-        tSine += Tau32*1.0f / (r32)WavePeriod;
-        if(tSine > Tau32)
-        {
-            tSine -= Tau32;
-            // NOTE(chowie): Normalising it to its period
-        }
-    }
-#else
-    // RESOURCE: https://hero.handmade.network/forums/code-discussion/t/1380-day_20_tiny_bit_of_fun_with_the_code
-    local_persist r32 tSine1;
-    local_persist r32 tSine2;
-    s16 ToneVolume = 3000;
-    int WavePeriod1 = SoundBuffer->SamplesPerSecond / 350;
-    int WavePeriod2 = SoundBuffer->SamplesPerSecond / 440;
-
-    s16 *SampleOut = SoundBuffer->Samples;
-    for(s32 SampleIndex = 0;
-        SampleIndex < SoundBuffer->SampleCount;
-        ++SampleIndex)
-    {
-        r32 SineValue1 = Sin(tSine1);
-        r32 SineValue2 = Sin(tSine2);
-        s16 SampleValue = (s16)((SineValue1 + SineValue2) * ToneVolume);
-        *SampleOut++ = SampleValue;
-        *SampleOut++ = SampleValue;
-
-        // TODO(chowie): I could be wrong, but I'm almost certain that I can collapse these mathematically
-        tSine1 += Tau32*1.0f / (r32)WavePeriod1;
-        if(tSine1 > Tau32)
-        {
-            tSine1 -= Tau32;
-        }
-        tSine2 += Tau32*1.0f / (r32)WavePeriod2;
-        if(tSine2 > Tau32)
-        {
-            tSine2 -= Tau32;
-        }
-    }
-#endif
-}
-
 // NOTE(chowie): wWinMain is the newer version and is not necessary!
 int CALLBACK
 WinMain(HINSTANCE Instance,
@@ -570,11 +581,6 @@ WinMain(HINSTANCE Instance,
     GlobalShowCursor = true;
 #endif
 
-#define FramesOfAudioLatency 1
-#define MonitorRefreshHz 60
-#define GameUpdateHz (MonitorRefreshHz / 2)
-    r32 TargetSecondsPerFrame = 1.0f / (r32)GameUpdateHz;
-
     if(RegisterClassA(&WindowClass))
     {
         HWND Window =
@@ -587,17 +593,33 @@ WinMain(HINSTANCE Instance,
         {
             v2 Offset = {};
 
-            win32_sound_output SoundOutput = {};
+            // STUDY(chowie): Audio latency is determined not by the size of
+            // the buffer, but by how far ahead of the PlayCursor you
+            // write. The optimal amount of latency is the amount that will
+            // cause this frame's audio to coincide with the display of this
+            // frame's image.
+            int FramesOfAudioLatency = 1;
+            int MonitorRefreshHz = 60;
+            HDC RefreshDC = GetDC(Window);
+            int Win32RefreshRate = GetDeviceCaps(RefreshDC, VREFRESH);
+            ReleaseDC(Window, RefreshDC);
+            if(Win32RefreshRate > 1)
+            {
+                MonitorRefreshHz = Win32RefreshRate;
+            }
+            r32 GameUpdateHz = (r32)(MonitorRefreshHz / 2.0f);
+            r32 TargetSecondsPerFrame = 1.0f / (r32)GameUpdateHz;
 
-            // TODO(chowie): Set to 60 seconds?
-            SoundOutput.SamplesPerSecond = 48000;
+            win32_sound_output SoundOutput = {};
+            SoundOutput.SamplesPerSecond = 48000; // TODO(chowie): Set to 60 seconds?
             SoundOutput.BytesPerSample = sizeof(s16)*2;
-            SoundOutput.SecondaryBufferSize = SoundOutput.SamplesPerSecond*SoundOutput.BytesPerSample; // NOTE(chowie): Allocates a 2 sec buffer
-            SoundOutput.LatencySampleCount = FramesOfAudioLatency*(SoundOutput.SamplesPerSecond / GameUpdateHz);
+            SoundOutput.SecondaryBufferSize = SoundOutput.SamplesPerSecond*SoundOutput.BytesPerSample; // TODO(chowie): Allocate a 2 sec buffer?
+            SoundOutput.LatencySampleCount = FramesOfAudioLatency*(int)(SoundOutput.SamplesPerSecond / GameUpdateHz);
             Win32InitWASAPI(SoundOutput.SamplesPerSecond, SoundOutput.SecondaryBufferSize);
 
             GlobalRunning = true;
 
+            // STUDY(chowie): Remember that modulo op transforms an absolute size to relative!
             // TODO(chowie): Pool with bitmap VirtualAlloc
             s16 *Samples = (s16 *)VirtualAlloc(0, SoundOutput.SecondaryBufferSize,
                                                MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
@@ -688,8 +710,7 @@ WinMain(HINSTANCE Instance,
                     SoundBuffer.SampleCount = SamplesToWrite;
                     SoundBuffer.Samples = Samples;
 
-                    // NOTE(chowie): This is a test!
-                    GameOutputSound(&SoundBuffer, 256);
+                    TestOutputWilwaDialTone(&SoundBuffer); // TODO(chowie): Move this out!
 
                     Win32FillSoundBuffer(&SoundOutput, SamplesToWrite, &SoundBuffer);
                     GlobalSoundClient->Start();
