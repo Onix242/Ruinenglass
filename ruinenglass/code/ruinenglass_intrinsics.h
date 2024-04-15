@@ -108,7 +108,7 @@ TruncateR32ToS32(r32 R32)
 inline r32
 Sin(r32 Angle)
 {
-    r32 Result = sinf(Angle);
+    r32 Result = sinf(Angle); // TODO(chowie): Replace with SSE2 instruction of sin?
     return(Result);
 }
 
@@ -160,6 +160,24 @@ FindLeastSignificantSetBit(u32 Value)
     }
 #endif
 
+    return(Result);
+}
+
+// RESOURCE: https://www.evanmiller.org/mathematical-hacker.html
+// TODO(chowie): Any more than can be replaced with intrinsics?
+inline s32
+Fibonacci(u32 Value)
+{
+    u32 Result = lround((pow(0.5 + 0.5 * SquareRoot(5.0), Value) - 
+                         pow(0.5 - 0.5 * SquareRoot(5.0), Value)) / 
+                        SquareRoot(5.0));
+    return(Result);
+}
+
+inline s32
+Factorial(u32 Value)
+{
+    u32 Result = lround(exp(lgamma(Value+1)));
     return(Result);
 }
 

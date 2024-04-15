@@ -29,13 +29,16 @@
   TODO(chowie): For performance critical code, check where
   pointer-aliasing could happen!
 
-  NOTE(chowie): Pointer-aliasing is when two pointers could point to
+  STUDY(chowie): Pointer-aliasing is when two pointers could point to
   the same memory and the compiler doesn't know if a _write_ to one of
   those pointers might effect a read from the other pointer. (Assuming
   it's non-volatile).
   *A = *B;
   *D = 5;
   *C = *B;
+
+  STUDY(chowie): Bitshifting a negative value can never equal 0, it
+  becomes -1.
 */
 
 #ifdef __cplusplus
@@ -106,6 +109,11 @@ typedef size_t memory_index;
 typedef float r32;
 typedef double r64;
 
+#if COMPILER_LLVM
+typedef unsigned __int128 u128;
+typedef __int128 s128;
+#endif
+
 #define Pi32 3.14159265359f
 #define Tau32 6.28318530717958647692f
 
@@ -119,6 +127,10 @@ typedef double r64;
 #define InvalidCodePath Assert(!"InvalidCodePath")
 #define InvalidDefaultCase default: {InvalidCodePath;} break
 
+// RESOURCE: https://handmade.network/p/64/geometer/blog/p/3048-1_year_of_geometer_-_lessons_learnt
+// TODO(chowie): Try this out? See how I like this?
+#define foreach(type, Value, array) (type Value = 0; Value < ArrayCount(array); ++Value)
+
 // TODO(chowie): Should these always be 64-bit?
 #define Kilobytes(Value) ((Value)*1024LL)
 #define Megabytes(Value) (Kilobytes(Value)*1024LL)
@@ -127,35 +139,40 @@ typedef double r64;
 
 #define ArrayCount(arr) (sizeof((arr)) / (sizeof((arr)[0])))
 
+#define Swap(type, A, B) {type Temp = (A); (A) = (B); (B) = Temp;}
 #define Minimum(A, B) ((A < B) ? (A) : (B))
 #define Maximum(A, B) ((A > B) ? (A) : (B))
+
+// RESOURCE: https://github.com/gingerBill/gb/blob/master/gb.h
+// STUDY: Utilise these!
+#define BitSet(Bit) (1 << (Bit))
+#define MaskSet(Var, Set, Mask) do {            \
+        if(Set) (Var) |= (Mask);                \
+        else    (Var) &= ~(Mask);               \
+} while(0)
 
 #define R32Maximum FLT_MAX
 #define R32Minimum -FLT_MAX
 
-#define BITMAP_BYTES_PER_PIXEL 4
-
 // RESOURCE: https://hero.handmade.network/forums/code-discussion/t/3190-field_array_implementation_union_of_fields_and_array
-// NOTE(chowie): This is an alternative version that comes from
-// rationalcoder Blake Martin. Thanks! Syntactical sugar for
-// vector-likes (see below). The downside is bad introspection,
-// usually you don't care for this kind of struct.
-
+// NOTE(chowie): From Blake "rationalcoder" Martin. Syntactic sugar
+// for vector likes (e.g. v2, v3). The downside is bad introspection,
+// usually you wouldn't care for this kind of struct.
 // TODO(chowie): Field array for memory arenas
 
-#define CONCAT(a, b) a##b
+#define Concat(A, B) A##B
 
-#define FIELD_ARRAY_IMPL(type, structDefinition, counter)               \
-typedef struct structDefinition CONCAT(_anon_array, counter);           \
+#define FIELD_ARRAY_(type, struct_definition, counter)                  \
+typedef struct struct_definition Concat(_anon_array, counter);           \
 union {                                                                 \
-    struct structDefinition;                                            \
-    type E[sizeof(CONCAT(_anon_array, counter)) / sizeof(type)];        \
+    struct struct_definition;                                            \
+    type E[sizeof(Concat(_anon_array, counter)) / sizeof(type)];        \
 };                                                                      \
-static_assert(sizeof(CONCAT(_anon_array, counter)) % sizeof(type) == 0, \
+static_assert(sizeof(Concat(_anon_array, counter)) % sizeof(type) == 0, \
               "Field Array of type '" #type "' must be a multiple of sizeof(" #type ")")\
 
-#define FIELD_ARRAY(type, structDefinition)             \
-FIELD_ARRAY_IMPL(type, structDefinition, __COUNTER__)
+#define FIELD_ARRAY(type, struct_definition)             \
+FIELD_ARRAY_(type, struct_definition, __COUNTER__)
 
 //
 // NOTE: Math types
@@ -306,12 +323,21 @@ typedef struct game_sound_output_buffer
     s16 *Samples;
 } game_sound_output_buffer;
 
+#define BITMAP_BYTES_PER_PIXEL 4
+typedef struct game_offscreen_buffer
+{
+    void *Memory;
+    s32 Width;
+    s32 Height;
+    s32 Pitch;
+} game_offscreen_buffer;
+
 #ifdef __cplusplus
 }
 #endif
 
-#include "ruinenglass_intrinsics.h"
-#include "ruinenglass_math.h"
+// TODO(chowie): Remove this! And link functions!
+#include "ruinenglass_shared.h"
 
 #define RUINENGLASS_PLATFORM_H
 #endif

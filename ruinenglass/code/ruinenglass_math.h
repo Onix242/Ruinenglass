@@ -128,6 +128,14 @@ Square(r32 A)
 }
 
 inline r32
+Cube(r32 A)
+{
+    r32 Result = A*A*A;
+
+    return(Result);
+}
+
+inline r32
 Lerp(r32 A, r32 t, r32 B)
 {
     r32 Result = (1.0f - t)*A + t*B;
@@ -152,6 +160,7 @@ Clamp(r32 Min, r32 Value, r32 Max)
     return(Result);
 }
 
+// NOTE(chowie): This is Saturate RESOURCE: https://developer.download.nvidia.com/cg/saturate.html
 inline r32
 Clamp01(r32 Value)
 {
@@ -174,6 +183,46 @@ Clamp01MapToRange(r32 Min, r32 t, r32 Max)
         Result = Clamp01((t - Min) / Range);
     }
 
+    return(Result);
+}
+
+// RESOURCE: https://handmade.network/p/64/geometer/blog/p/3048-1_year_of_geometer_-_lessons_learnt
+inline r32
+SmoothStep(r32 t)
+{
+    r32 Result = Square(t) - (2*Cube(t)); /* 3t^2 - 2t^3 */
+
+    return(Result);
+}
+
+// TODO(chowie): Test smooth-step and pulse for alpha tests? RESOURCE: https://realtimecollisiondetection.net/blog/?p=95
+inline r32
+SmoothStep(r32 Min, r32 t, r32 Max)
+{
+    r32 Result = Clamp01MapToRange(Min, t, Max);
+    Result = Square(Result) * (3 - 2*Result);
+
+    return(Result);
+}
+
+inline r32
+Step(r32 t, r32 Value)
+{
+    r32 Result = (r32)(Value >= t);
+    return(Result);
+}
+
+inline r32
+SquarePulse(r32 A, r32 B, r32 Value)
+{
+    r32 Result = Step(A, Value) - Step(B, Value);
+    return(Result);
+}
+
+inline r32
+TrianglePulse(v2 A, r32 t, v2 B)
+{
+    r32 Result = Clamp01(A.x*t + B.x) - Clamp01(A.y*t + B.y);
     return(Result);
 }
 
@@ -283,6 +332,7 @@ Hadamard(v2 A, v2 B)
     return(Result);
 }
 
+// NOTE(chowie): Also called Dot Product
 inline r32
 Inner(v2 A, v2 B)
 {
@@ -291,6 +341,7 @@ Inner(v2 A, v2 B)
     return(Result);
 }
 
+// NOTE(chowie): Also called Magnitude
 inline r32
 LengthSq(v2 A)
 {
@@ -314,6 +365,14 @@ Clamp01(v2 Value)
 
     Result.x = Clamp01(Value.x);
     Result.y = Clamp01(Value.y);
+
+    return(Result);
+}
+
+inline v2
+Lerp(v2 A, r32 t, v2 B)
+{
+    v2 Result = (1.0f - t)*A + t*B;
 
     return(Result);
 }
@@ -437,6 +496,18 @@ Inner(v3 A, v3 B)
     return(Result);
 }
 
+inline v3
+Cross(v3 A, v3 B)
+{
+    v3 Result;
+
+    Result.x = A.y*B.z - A.z*B.y;
+    Result.y = A.z*B.x - A.x*B.z;
+    Result.z = A.x*B.y - A.y*B.x;
+
+    return(Result);
+}
+
 inline r32
 LengthSq(v3 A)
 {
@@ -461,6 +532,64 @@ Normalise(v3 A)
     return(Result);
 }
 
+// NOTE(chowie): Normalise by 0
+inline v3
+NOZ(v3 A)
+{
+    v3 Result = {};
+
+    r32 LenSq = LengthSq(A);
+    if(LenSq > Square(0.0001f))
+    {
+        Result = A * (1.0f / SquareRoot(LenSq));
+    }
+
+    return(Result);
+}
+
+// TODO: Try biarc interpolation? RESOURCE: https://www.ryanjuckett.com/biarc-interpolation/
+// TODO(chowie): Not quite sure how useful this function is - for asserts mainly
+// NOTE(chowie): Vector length is within epsilon of 1
+inline b32
+IsNormalisedEps(v3 A, r32 Epsilon)
+{
+    r32 Magnitude = LengthSq(A);
+    b32 Result = (Magnitude >= Square(1.0f - Epsilon) &&
+                  Magnitude <= Square(1.0f + Epsilon));
+    return(Result);
+}
+
+// RESOURCE: https://web.archive.org/web/20200414122444/https://www.randygaul.net/2014/11/
+// RESOURCE: https://www.reddit.com/r/gamedev/comments/2ljvlz/collection_of_numerically_robust_parallel_vectors/
+// TODO(chowie): Double Check this!
+inline b32
+IsPerp(v3 A, v3 B, r32 Epsilon)
+{
+    b32 Result = false;
+    if(AbsoluteValue(Inner(A, B)) < Epsilon)
+    {
+        Result = true;
+    }
+
+    return(Result);
+}
+
+// TODO(chowie): Double Check this!
+// NOTE(chowie): Pros; No non-linearity issues, fast with 2
+// sqrts. Cons; Epsilons with v3 of wildly different components, bias
+// to scale to the shorter or longer version - shorter?
+inline b32
+IsParallel(v3 A, v3 B, r32 Epsilon)
+{
+    b32 Result;
+
+    A = NOZ(A);
+    B = NOZ(B);
+    Result = ((1.0f - AbsoluteValue(Inner(A, B))) < Epsilon);
+
+    return(Result);
+}
+
 inline v3
 Clamp01(v3 Value)
 {
@@ -479,6 +608,30 @@ Lerp(v3 A, r32 t, v3 B)
     v3 Result = (1.0f - t)*A + t*B;
 
     return(Result);
+}
+
+// RESOURCE: https://box2d.org/posts/2014/02/computing-a-basis/
+// TODO(chowie): Find out if this can be a replacement for entities? If so, SIMD this? RESOURCE: https://web.archive.org/web/20190120215637/http://www.randygaul.net/2015/10/27/compute-basis-with-simd/
+inline void
+GetBasis(v3 A, v3 B, v3 C)
+{
+    // Suppose vector a has all equal components and is a unit vector:
+    // a = (s, s, s)
+    // Then 3*s*s = 1, s = sqrt(1/3) = 0.57735. This means that at
+    // least one component of a unit vector must be greater or equal
+    // to 0.57735.
+
+    if(AbsoluteValue(A.x) >= 0.57735)
+    {
+        B = V3(A.y, -A.x, 0.0f);
+    }
+    else
+    {
+        B = V3(0.0f, A.z, -A.y);
+    }
+
+    B = Normalise(B);
+    C = Cross(A, B);
 }
 
 //

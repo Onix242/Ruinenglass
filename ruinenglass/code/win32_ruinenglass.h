@@ -8,7 +8,7 @@
    ======================================================================== */
 
 /*
-  RESOURCE(chowie): https://www.reddit.com/r/learnprogramming/comments/12q5bho/can_somebody_explain_back_buffers_and_how_they/
+  RESOURCE: https://www.reddit.com/r/learnprogramming/comments/12q5bho/can_somebody_explain_back_buffers_and_how_they/
 
   NOTE(chowie): Reserve an extra memory region of memory representing
   the "offscreen" image. If the code was representing the same region,
@@ -46,7 +46,7 @@ struct win32_sound_output
 };
 
 /*
-  RESOURCE(chowie): https://d3s.mff.cuni.cz/legacy/~holub/c_features.html
+  RESOURCE: https://d3s.mff.cuni.cz/legacy/~holub/c_features.html
   STUDY(chowie): Defining an array at the end of a struct e.g.
   BITMAPINFO, allows variable-length arrays accessor-wise. Don't
   recommend.
@@ -91,19 +91,46 @@ global_variable co_create_instance *CoCreateInstance_;
 #define CoCreateInstance CoCreateInstance_
 
 #if 0
+/*
 struct win32_audio_context
 {
-    co_initalize_ex *CoInitializeEx;
-    co_create_instance *CoCreateInstance;
+    union
+    {
+        struct
+        {
+            void *CoInitializeEx;
+            void *CoCreateInstance;
+        };
+        void *Addresses[ArrayCount(GlobalAudioContext)];
+    };
 };
-global_variable win32_audio_context GlobalAudioContext = {};
+ */
 
-// TODO(chowie): Try looping over function pointers?
-global_variable void *GlobalAudioContext[] =
+// TODO(chowie): Automate this and collapse?
+global_variable char *GlobalAudioContext[] =
+{
+    "CoInitializeEx",
+    "CoCreateInstance",
+};
+
+global_variable void *GlobalAudioFunc[] =
 {
     CoInitializeEx,
     CoCreateInstance,
 };
+
+internal int
+Win32LoadAllDLL(HMODULE DLL)
+{
+    for(int DLLIndex = 0;
+        DLLIndex < ArrayCount(GlobalAudioContext);
+        ++DLLIndex)
+    {
+        *(void **)(&GlobalAudioFunc[DLLIndex]) = GetProcAddress(DLL, GlobalAudioContext[DLLIndex]);
+    }
+    return(0);
+}
+
 #endif
 
 #define WIN32_RUINENGLASS_H

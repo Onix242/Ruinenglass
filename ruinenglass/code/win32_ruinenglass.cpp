@@ -13,12 +13,14 @@
 
 #include "ruinenglass_platform.h"
 
+// IMPORTANT(chowie): I want to make sure #include <stdio.h> is gone for printing
 #include <windows.h>
 #include <xinput.h>
 #include <mmdeviceapi.h>
 #include <audioclient.h>
 
-#include "ruinenglass_intrinsics.h"
+// TODO(chowie): Remove this! And link functions!
+#include "ruinenglass.cpp"
 #include "win32_ruinenglass.h"
 
 // TODO(chowie): These are global for now!
@@ -27,6 +29,15 @@ global_variable b32 GlobalShowCursor;
 global_variable win32_offscreen_buffer GlobalBackbuffer;
 global_variable IAudioClient *GlobalSoundClient;
 global_variable IAudioRenderClient *GlobalSoundRenderClient;
+global_variable WINDOWPLACEMENT GlobalWindowPosition = {sizeof(GlobalWindowPosition)};
+global_variable u64 GlobalPerfCountFrequency; // TODO(chowie): Time with this
+
+void *
+DEBUGPlatformLoadFile(char *FileName)
+{
+    // NOTE(casey): Implements the Win32 file loading
+    return(0);
+}
 
 internal void
 Win32LoadXInput(void)
@@ -34,14 +45,14 @@ Win32LoadXInput(void)
     HMODULE XInputLibrary = LoadLibraryA("xinput1_4.dll");
     if(!XInputLibrary)
     {
-        OutputDebugStringA("Xinput9_1_0 loaded\n");
         XInputLibrary = LoadLibraryA("xinput9_1_0.dll");
+        OutputDebugStringA("Xinput9_1_0 loaded\n");
     }
 
     if(!XInputLibrary)
     {
-        OutputDebugStringA("Xinput1_3 loaded\n");
         XInputLibrary = LoadLibraryA("xinput1_3.dll");
+        OutputDebugStringA("Xinput1_3 loaded\n");
     }
 
     if(XInputLibrary)
@@ -59,7 +70,7 @@ Win32LoadXInput(void)
     }
     else
     {
-        OutputDebugStringA("Xinput1_4 failed to load\n");
+        OutputDebugStringA("Xinput1_4 failed to load. Controllers will not work!\n");
     }
 }
 
@@ -74,18 +85,13 @@ Win32LoadWASAPI(void)
         *(void **)(&CoInitializeEx) = GetProcAddress(WASAPILibrary, "CoInitializeEx");
         *(void **)(&CoCreateInstance) = GetProcAddress(WASAPILibrary, "CoCreateInstance");
 #else
-        for(u32 LibraryIndex = 0;
-            LibraryIndex < ArrayCount(GlobalAudioContext);
-            ++LibraryIndex)
-        {
-            *(void **)(&GlobalAudioContext[LibraryIndex]) = GetProcAddress(WASAPILibrary, "CoInitializeEx");
-        }
+        Win32LoadAllDLL(WASAPILibrary);
 #endif
         // TODO(chowie): Logging/Diagnostic
     }
     else
     {
-        OutputDebugStringA("Ole32 failed to load\n");
+        OutputDebugStringA("Ole32 failed to load. Sound will not play!\n");
     }
 }
 
@@ -102,7 +108,6 @@ Win32InitWASAPI(s32 SamplesPerSecond, s32 BufferSizeInSamples)
 
     // TODO(chowie): Abstract the audio api architecture?
     // TODO: Output HRESULT to be able to be inspected in watch window!
-
     // TODO(chowie): Test that FAILED = !SUCCEEDED
     if(FAILED(CoInitializeEx(0, COINIT_SPEED_OVER_MEMORY)))
     {
@@ -126,7 +131,7 @@ Win32InitWASAPI(s32 SamplesPerSecond, s32 BufferSizeInSamples)
         Assert(!"Error");
     }
 
-    // NOTE(chowie): I reckon this duplicates the two sound buffers [LEFT RIGHT], compared to DSound.
+    // STUDY(chowie): I reckon this duplicates the two sound buffers [LEFT RIGHT], compared to DSound.
     WAVEFORMATEXTENSIBLE WaveFormat = {};
 
     WaveFormat.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
@@ -210,7 +215,7 @@ TestOutputWilwaDialTone(game_sound_output_buffer *SoundBuffer)
     test_output_sound WilwaDialTone = {};
     WilwaDialTone.ToneVolume = 3000;
 
-    wilwa_dial_tone *Wave1 = &WilwaDialTone.Wave1;
+    wilwa_dial_tone *Wave1 = &WilwaDialTone.Wave1; // STUDY(chowie): Syntactic convience by snapping the pointer
     Wave1->Tag = "Wave 1";
     Wave1->ToneHz = 350;
     Wave1->Period = SoundBuffer->SamplesPerSecond / Wave1->ToneHz;
@@ -239,49 +244,31 @@ TestOutputWilwaDialTone(game_sound_output_buffer *SoundBuffer)
         *SampleOut++ = SampleValue;
         *SampleOut++ = SampleValue;
 
+        // STUDY(chowie): If the ToneHz changes and the period stayed
+        // the same, it would produce audio clicks; the wave period
+        // must continuous at the point of change. 1.0f Samples
+        // increments on sine.
+#if 1
         tSine1 += Tau32*1.0f / (r32)Wave1->Period; // NOTE(chowie): 2*Pi is how many wave periods elapsed since we started
         if(tSine1 > Tau32)
         {
-            tSine1 -= Tau32; // NOTE(chowie): Normalising it to its period
+            tSine1 -= Tau32; // NOTE(chowie): Normalising to its period
         }
         tSine2 += Tau32*1.0f / (r32)Wave2->Period;
         if(tSine2 > Tau32)
         {
             tSine2 -= Tau32;
         }
-    }
-}
+#else
+        // TODO(chowie): Try range-reduction? What am I meant to substitute?
+        // RESOURCE: https://realtimecollisiondetection.net/blog/?p=9
+#define InvTau32 1.0f/Tau32
+        int K1 = (int)(Wave1->Value * InvTau32);
+        tSine1 += Wave1->Value - (float)K1 * Tau32;
 
-// TODO(chowie): See what optimiser does!
-internal void
-RenderWeirdGradient(win32_offscreen_buffer *Buffer,
-                    v2 Offset)
-{
-    // STUDY(chowie): Pixels are 32-bit wide, little-endian
-    // architecture.
-    // Memory Order:   BB GG RR xx
-    // Register Order: xx RR GG BB
-
-    u8 *Row = (u8 *)Buffer->Memory;
-    for(s32 Y = 0;
-        Y < Buffer->Height;
-        ++Y)
-    {
-        u32 *Pixel = (u32 *)Row;
-        for(s32 X = 0;
-            X < Buffer->Width;
-            ++X)
-        {
-            u8 Red = 0;
-            u8 Blue = (u8)(X + Offset.x);
-            u8 Green = (u8)(Y + Offset.y);
-
-            // STUDY(chowie): Remember pointer arithmetic advances by
-            // 4-bytes, an entire u32!
-            *Pixel++ = ((Red << 16) | (Green << 8) | Blue);
-        }
-    
-        Row += Buffer->Pitch;
+        int K2 = (int)(Wave2->Value * InvTau32);
+        tSine2 += Wave2->Value - (float)K2 * Tau32;
+#endif
     }
 }
 
@@ -373,6 +360,39 @@ Win32DisplayBufferInWindow(win32_offscreen_buffer *Buffer, HDC DeviceContext,
 }
 
 internal void
+ToggleFullscreen(HWND Window)
+{
+    // NOTE(chowie): This follows Raymond Chen's prescription for fullscreen toggling
+    // RESOURCE: https://devblogs.microsoft.com/oldnewthing/20100412-00/?p=14353
+
+    DWORD Style = GetWindowLong(Window, GWL_STYLE);
+    if(Style & WS_OVERLAPPEDWINDOW)
+    {
+        // STUDY(chowie): sizeof initialises the first element of
+        // struct with MonitorInfo, leaving the rest as 0's.
+        MONITORINFO MonitorInfo = {sizeof(MonitorInfo)};
+        if(GetWindowPlacement(Window, &GlobalWindowPosition) &&
+           GetMonitorInfo(MonitorFromWindow(Window, MONITOR_DEFAULTTOPRIMARY), &MonitorInfo))
+        {
+            SetWindowLong(Window, GWL_STYLE, Style & ~WS_OVERLAPPEDWINDOW);
+            SetWindowPos(Window, HWND_TOP,
+                         MonitorInfo.rcMonitor.left, MonitorInfo.rcMonitor.top,
+                         MonitorInfo.rcMonitor.right - MonitorInfo.rcMonitor.left,
+                         MonitorInfo.rcMonitor.bottom - MonitorInfo.rcMonitor.top,
+                         SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+        }
+    }
+    else
+    {
+        SetWindowLong(Window, GWL_STYLE, Style | WS_OVERLAPPEDWINDOW);
+        SetWindowPlacement(Window, &GlobalWindowPosition);
+        SetWindowPos(Window, 0, 0, 0, 0, 0,
+                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+                     SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+    }
+}
+
+internal void
 Win32ProcessPendingMessages(void)
 {
     MSG Message;
@@ -394,8 +414,8 @@ Win32ProcessPendingMessages(void)
                 // RESOURCE(chowie): https://learn.microsoft.com/en-us/windows/win32/inputdev/wm-keydown
                 // STUDY(chowie): Instead of returning either
                 // (1 << 30) or 0. "!= 0" forces 1 or 0.
-#define KeyMessageWasDownBit (1 << 30)
-#define KeyMessageWasUpBit (1 << 31)
+#define KeyMessageWasDownBit BitSet(30)
+#define KeyMessageWasUpBit BitSet(31)
                 b32 WasDown = ((Message.lParam & KeyMessageWasDownBit) != 0);
                 b32 IsDown = ((Message.lParam & KeyMessageWasUpBit) == 0);
 
@@ -405,7 +425,6 @@ Win32ProcessPendingMessages(void)
                 {
                     if(VKCode == 'W')
                     {
-//                    OutputDebugStringA("W\n");
                     }
                     else if(VKCode == 'A')
                     {
@@ -455,14 +474,20 @@ Win32ProcessPendingMessages(void)
 
                 if(IsDown)
                 {
-#define AltKeyWasDownBit (1 << 29)
+#define AltKeyWasDownBit BitSet(29)
                     b32 AltKeyWasDown = (Message.lParam & AltKeyWasDownBit);
                     if((VKCode == VK_F4) && AltKeyWasDown)
                     {
                         GlobalRunning = false;
                     }
+                    if((VKCode == VK_RETURN) && AltKeyWasDown)
+                    {
+                        if(Message.hwnd)
+                        {
+                            ToggleFullscreen(Message.hwnd);
+                        }
+                    }
                 }
-
             } break;
 
             default:
@@ -476,7 +501,7 @@ Win32ProcessPendingMessages(void)
 
 // STUDY(chowie): WParam and LParam wants to call us in a single
 // function, but it has messages with different params of different
-// types. Encumbant on user to cast the values. Anonymous parameters
+// types. Encumbant on user to cast the values, anonymous parameters
 // takes on whatever meaning it needs to for the message in question.
 LRESULT CALLBACK
 Win32MainWindowCallback(HWND   Window,
@@ -554,7 +579,69 @@ Win32MainWindowCallback(HWND   Window,
     return(Result);
 }
 
-// NOTE(chowie): wWinMain is the newer version and is not necessary!
+inline u64
+Win32GetWallClock(void)
+{
+    LARGE_INTEGER Result;
+    QueryPerformanceCounter(&Result);
+    return(Result.QuadPart);
+}
+
+inline b32
+Win32CheckForRdtscp(void)
+{
+    b32 Result = false;
+
+    int CPUInfo[4];
+    __cpuid(CPUInfo, 0x80000001);
+
+#define RdtscpInstructionSupported BitSet(27)
+    if((CPUInfo[3] & RdtscpInstructionSupported) != 0)
+    {
+        Result = true;
+    }
+
+    return(Result);
+}
+
+inline u64
+Win32ReadCPUTimer(b32 RdtscpSupported)
+{
+    // NOTE(chowie): This is the same on Linux. Also, ARM would
+    // require this instruction to be replaced!
+    u64 Result = 0;
+
+    if(RdtscpSupported)
+    {
+        u32 Register = 0;
+        Result = __rdtscp(&Register);
+    }
+    else
+    {
+        Result = __rdtsc();
+    }
+
+    return(Result);
+}
+
+inline u64
+Win32GetPerfCountFreq(void)
+{
+    // NOTE(chowie): Measured by count per sec.
+    LARGE_INTEGER Result;
+    QueryPerformanceFrequency(&Result);
+    return(Result.QuadPart);
+}
+
+inline r32
+Win32GetSecondsElapsed(u64 LastCounter, u64 EndCounter)
+{
+    r32 Result = ((r32)(EndCounter - LastCounter) /
+                  GlobalPerfCountFrequency);
+    return(Result);
+}
+
+// NOTE(chowie): wWinMain is the newer version and not necessary!
 int CALLBACK
 WinMain(HINSTANCE Instance,
         HINSTANCE PrevInstance,
@@ -562,6 +649,8 @@ WinMain(HINSTANCE Instance,
         int       ShowCode)
 {
     WNDCLASSA WindowClass = {};
+
+    GlobalPerfCountFrequency = Win32GetPerfCountFreq();
 
     // NOTE(chowie): Fixed-sized backbuffer
     Win32ResizeDIBSection(&GlobalBackbuffer, 1280, 720);
@@ -593,11 +682,11 @@ WinMain(HINSTANCE Instance,
         {
             v2 Offset = {};
 
-            // STUDY(chowie): Audio latency is determined not by the size of
-            // the buffer, but by how far ahead of the PlayCursor you
-            // write. The optimal amount of latency is the amount that will
-            // cause this frame's audio to coincide with the display of this
-            // frame's image.
+            // STUDY(chowie): Audio latency is determined not by the
+            // size of the buffer, but by how far ahead of the
+            // PlayCursor you write. The optimal amount of latency is
+            // the amount that will cause this frame's audio to
+            // coincide with the display of this frame's image.
             int FramesOfAudioLatency = 1;
             int MonitorRefreshHz = 60;
             HDC RefreshDC = GetDC(Window);
@@ -614,10 +703,11 @@ WinMain(HINSTANCE Instance,
             SoundOutput.SamplesPerSecond = 48000; // TODO(chowie): Set to 60 seconds?
             SoundOutput.BytesPerSample = sizeof(s16)*2;
             SoundOutput.SecondaryBufferSize = SoundOutput.SamplesPerSecond*SoundOutput.BytesPerSample; // TODO(chowie): Allocate a 2 sec buffer?
-            SoundOutput.LatencySampleCount = FramesOfAudioLatency*(int)(SoundOutput.SamplesPerSecond / GameUpdateHz);
+            SoundOutput.LatencySampleCount = FramesOfAudioLatency*(int)(SoundOutput.SamplesPerSecond / GameUpdateHz); // NOTE(chowie): How far ahead you are writing
             Win32InitWASAPI(SoundOutput.SamplesPerSecond, SoundOutput.SecondaryBufferSize);
 
             GlobalRunning = true;
+            b32 RdtscpSupported = Win32CheckForRdtscp();
 
             // STUDY(chowie): Remember that modulo op transforms an absolute size to relative!
             // TODO(chowie): Pool with bitmap VirtualAlloc
@@ -626,11 +716,14 @@ WinMain(HINSTANCE Instance,
 
             if(Samples)
             {
-                // NOTE(chowie): Messages don't always field in the
-                // dispatch queue, Windows reserves the rights to
-                // 'cold-call' sometimes (in Win32MainWindowCallback).
+                u64 LastCounter = Win32GetWallClock();
+
+                u64 LastCycleCount = Win32ReadCPUTimer(RdtscpSupported);
                 while(GlobalRunning)
                 {
+                    // STUDY(chowie): Messages don't always field in the
+                    // dispatch queue. Windows reserves the rights to
+                    // 'cold-call' sometimes (in Win32MainWindowCallback).
                     Win32ProcessPendingMessages();
 
                     // TODO(chowie): Should we poll this more frequently?
@@ -659,11 +752,12 @@ WinMain(HINSTANCE Instance,
                             b32 XButton = (Pad->wButtons & XINPUT_GAMEPAD_X);
                             b32 YButton = (Pad->wButtons & XINPUT_GAMEPAD_Y);
 
+                            // TODO(chowie): Deadzone handling
                             s16 StickX = Pad->sThumbLX;
                             s16 StickY = Pad->sThumbLY;
 
-                            Offset.x += (StickX >> 12);
-                            Offset.y += (StickY >> 12);
+                            Offset.x += (StickX / 2048);
+                            Offset.y += (StickY / 2048);
                         }
                         else
                         {
@@ -673,18 +767,15 @@ WinMain(HINSTANCE Instance,
 
                     // RESOURCE: https://hero.handmade.network/forums/code-discussion/t/102-day_19_-_audio_latency
                     // NOTE(chowie): Computes how much sound to write and where.
-#if 1
-                    // NOTE(chowie): For calculating samples to write,
-                    // this is more accurate. We want x samples (1
-                    // frames worth + latency).
                     int SamplesToWrite = 0;
                     UINT32 SoundPaddingSize;
                     if(SUCCEEDED(GlobalSoundClient->GetCurrentPadding(&SoundPaddingSize)))
                     {
-                        // NOTE(chowie): Number of samples that are
-                        // ready and have not been read into the
-                        // buffer. Therefore, number of samples to
-                        // write should be x - padding.
+                        // NOTE(chowie): We want x samples (1 frames
+                        // worth + latency). GetCurrentPadding returns
+                        // number of samples ready and has not been
+                        // read into the buffer. Thus, SamplesToWrite
+                        // should be x - padding.
                         int MaxSampleCount = (int)(SoundOutput.SecondaryBufferSize - SoundPaddingSize);
                         SamplesToWrite = (int)(SoundOutput.LatencySampleCount - SoundPaddingSize);
                         if(SamplesToWrite < 0)
@@ -692,19 +783,16 @@ WinMain(HINSTANCE Instance,
                             SamplesToWrite = 0;
                         }
                         Assert(SamplesToWrite <= MaxSampleCount);
-                    }
-#else
-                    int SamplesToWrite = 0;
-                    UINT32 SoundPaddingSize;
-                    if (SUCCEEDED(GlobalSoundClient->GetCurrentPadding(&SoundPaddingSize)))
-                    {
+
+                        /* STUDY(chowie): Compare vs this
                         SamplesToWrite = (int)(SoundOutput.SecondaryBufferSize - SoundPaddingSize);
-                        if (SamplesToWrite > SoundOutput.LatencySampleCount)
+                        if(SamplesToWrite > SoundOutput.LatencySampleCount)
                         {
-                            SamplesToWrite = SoundOutput.LatencySampleCount;
+                             SamplesToWrite = SoundOutput.LatencySampleCount;
                         }
+                        */
                     }
-#endif
+
                     game_sound_output_buffer SoundBuffer = {};
                     SoundBuffer.SamplesPerSecond = SoundOutput.SamplesPerSecond;
                     SoundBuffer.SampleCount = SamplesToWrite;
@@ -715,20 +803,19 @@ WinMain(HINSTANCE Instance,
                     Win32FillSoundBuffer(&SoundOutput, SamplesToWrite, &SoundBuffer);
                     GlobalSoundClient->Start();
                     // NOTE(chowie): Starts buffer the first time we
-                    // fill data in it, rather than filling the audio
-                    // buffer at init as it would introduce latency
-                    // (we cannot overwrite previous samples). Call
-                    // after audio engine has been initially loaded.
+                    // fill data in it. Rather than filling the buffer
+                    // at init. It would introduce latency (cannot
+                    // overwrite previous samples). Call after audio
+                    // engine has been initially loaded.
 
 #if 0
+                    // TODO(chowie): Better controller support?
                     XINPUT_VIBRATION Vibration;
                     Vibration.wLeftMotorSpeed = 6000;
                     Vibration.wRightMotorSpeed = 6000;
                     XInputSetState(0, &Vibration);
 #endif
-
-                    RenderWeirdGradient(&GlobalBackbuffer, Offset);
-
+  
                     HDC DeviceContext = GetDC(Window);
                     win32_window_dim Dim = Win32GetWindowDim(Window);
                     Win32DisplayBufferInWindow(&GlobalBackbuffer, DeviceContext,
@@ -736,7 +823,48 @@ WinMain(HINSTANCE Instance,
                     ReleaseDC(Window, DeviceContext);
 
                     ++Offset.x;
+
+                    game_offscreen_buffer Buffer = {};
+                    Buffer.Memory = GlobalBackbuffer.Memory;
+                    Buffer.Width = GlobalBackbuffer.Width;
+                    Buffer.Height = GlobalBackbuffer.Height;
+                    Buffer.Pitch = GlobalBackbuffer.Pitch;
+                    GameUpdateAndRender(&Buffer, Offset);
+
+                    u64 EndCycleCount = Win32ReadCPUTimer(RdtscpSupported);
+
+#if 0
+                    // NOTE(chowie): String test
+                    char *name = "slim shady";
+                    int   line = 1337;
+                    float temp = -98.567f;
+                    //OutputDebugStringA(d7sam_concat(line)(" attention!\n"));
+                    OutputDebugStringA(d7sam_concat(" attention!")(line)("\n"));
+
+                    // attention, slim shady! there's an error in line 1337 : the error code is 666 and the temperature is -98.6 degrees
+                    //OutputDebugStringA(d7sam_concat("attention, ")(name)("! there's an error in line ")(line)(" : the error code is ")(666)(" and the temperature is ")(temp, 1)(" degrees\n"));
+#endif
+
+                    u32 CyclesElapsed = (u32)EndCycleCount - (u32)LastCycleCount;
+                    u32 EndCounter = (u32)Win32GetWallClock();
+                    s32 CounterElapsed = EndCounter - (u32)LastCounter;
+                    r32 MSPerFrame = 1000.0f*Win32GetSecondsElapsed(LastCounter, EndCounter);
+                    r32 FPS = ((r32)GlobalPerfCountFrequency / (r32)CounterElapsed);
+                    r32 MCPF = ((r32)CyclesElapsed / Square(1000.0f));
+                    OutputDebugStringA(d7sam_concat(MSPerFrame)("ms/f, ")(FPS)("f/s, ")(MCPF)("mc/f")("\n"));
+
+                    // NOTE(chowie): Rather than begin/end counter at
+                    // the top of the loop. The process to get back up
+                    // top can take longer than expected (process got
+                    // switched out), we missed that time. We would
+                    // rather a single stable place with end counter.
+                    LastCounter = EndCounter;
+                    LastCycleCount = EndCycleCount;
                 }
+            }
+            else
+            {
+                // TODO(chowie): Logging
             }
         }
         else

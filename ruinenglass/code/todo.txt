@@ -1,0 +1,95 @@
+  ------
+
+  * tags difficulty
+  ARCHITECTURE EXPLORATION
+
+  - Hot-reloading and live-loop editing
+    = Fetch handle to the executable
+
+  - Memory
+    = Simple Arenas -> Later [Mr.4th dimensions']
+
+  - Static Strings
+    = [Mr.4th dimensions'] Utf-8 handling, replace all stdio's printf-alikes
+
+  - Rendering
+    = Blit bitmap
+    = 3D Rendering
+    = [Brehensam's] shapes: line drawing, circle
+    = Hardware Acceleration (OpenGL)
+    = Vsync/Sleep
+
+  - Sorting?
+
+  - Multi-Threading
+
+  - Debug Code
+    = [Computer Enhance's] Simple Profiler set as a base
+    = Logging
+    = Diagramming
+    = (A little GUI, but only a little!) [Red Blob Games'] Switches / Sliders / etc.
+    = Draw tile chunks so we can verify that things are aligned / in the chunks we want them in / etc.
+    = Thread visualisation
+
+  - Audio
+    = [Martin's] Multi-threaded audio
+    = Audio Mixer
+
+  - World
+    = [Red Blob Games'] Grid
+    = Sim Regions
+
+  - Entity
+    = [Ryan Fleury's] Flag Storage
+    = Xor-shift PRNG with [PracticeRecipes]
+    = Collision Detection
+      > SAT or similar
+
+  - Asset Loading System
+    = Bitmaps,
+    = StbTrueType Text,
+    = Audio?
+
+  - Particle Systems
+
+  - Metagame / Save Game?
+    = How do you enter a "save slot"?
+    = Persistent Unlocks/etc.
+    = Save game.
+    * Continuous Save for crash recovery?
+
+  - Rudimentary World Gen (no quality, just "what sorts of things" we do)
+
+  - AI?
+
+  * Animation
+
+  - Raw Input / Multimonitor / Multiple keyboards types
+    = GetKeyboardLayout
+    = ClipCursor for multimonitor support
+    = Wtf is QueryCancelAutoplay?
+
+  ------
+
+  PRODUCTION / GAME
+  - World Generation
+
+  - Entity System (will come off concurrent with GAME - scalability)
+
+  - Interactive Text (Strings)
+    = [Emacs'] Gap Buffer for simple text input
+    = Surfaces in the world hold text that can move
+    = Keyword dictionary? Highlighting keywords
+    = Defining the concept of a paragraph?
+
+  ------
+
+  RESOURCE: https://hero.handmade.network/forums/code-discussion/t/7125-help_with_day_017_-_win32processkeyboardmessages_being_called_twice%252C_throwing_off_assert_check.#21900
+  If you're trying to learn, you should try to figure out the problem instead of trying to move on. Solving bugs is a huge part of programming and a skill that is important and will benefit you more than moving on faster (in my opinion).
+
+  A few advice:
+  - If you can't find the solution after 2 hours, take a break. Often when you come back you'll find the solution quickly.
+  - Don't try to solve the issue by comparing the code to Casey's. Try to figure out why your code behaves differently and than verify it with the handmade hero code.
+  - Use the debugger, place a breakpoint in the Win32ProcessKeyboardMessages function and look in the call stack from where it was called. Inspect variables don't assume their values are correct.
+  - Keyboard and mouse input debugging is sometimes harder because pausing the program with the debugger will make you release the key and so no more message for that key will be received if you step. Logging messages with OutputDebugString helps a lot in those case. But be sure to also output messages for marking the frame start, the start and end of processing windows messages and other important step in you main loop. This should make it obvious in the log if something happens at an unexpected time.
+  - If you ask for help, provide your code (if possible with a simple way to compile it), not a screenshot, otherwise we won't be able to help you.
