@@ -22,25 +22,17 @@ struct win32_offscreen_buffer
 {
     BITMAPINFO Info;
     void *Memory;
-    s32 Width;
-    s32 Height;
+    v2u Dim;
     s32 Pitch;
-    s32 BytesPerPixel;
-};
-
-struct win32_window_dim
-{
-    s32 Width;
-    s32 Height;
 };
 
 struct win32_sound_output
 {
-    int SamplesPerSecond;
+    u32 SamplesPerSecond;
     u32 RunningSampleIndex; // TODO(chowie): Record this!
-    int BytesPerSample;
+    u32 BytesPerSample;
     DWORD SecondaryBufferSize;
-    int LatencySampleCount;
+    u32 LatencySampleCount;
     // TODO(chowie): BytesPerSecond field would make for easier computation
     // TODO(chowie): Should RunningSampleIndex be in bytes?
 };
@@ -90,9 +82,21 @@ typedef CO_CREATE_INSTANCE(co_create_instance);
 global_variable co_create_instance *CoCreateInstance_;
 #define CoCreateInstance CoCreateInstance_
 
+// NOTE(chowie): SetProcessDpiAware
+#define SET_PROCESS_DPI_AWARE(name) BOOL WINAPI name(void)
+typedef SET_PROCESS_DPI_AWARE(set_process_dpi_aware);
+global_variable set_process_dpi_aware *SetProcessDpiAware_;
+#define SetProcessDpiAware SetProcessDpiAware_
+
+// NOTE(chowie): SetProcessDpiAwarenessContext
+#define SET_PROCESS_DPI_AWARENESS_CONTEXT(name) BOOL WINAPI name(DPI_AWARENESS_CONTEXT);
+typedef SET_PROCESS_DPI_AWARENESS_CONTEXT(set_process_dpi_awareness_context);
+global_variable set_process_dpi_awareness_context *SetProcessDpiAwarenessContext_;
+#define SetProcessDpiAwarenessContext SetProcessDpiAwarenessContext_
+
 #if 0
 /*
-struct win32_audio_context
+struct win32_audio_context_test
 {
     union
     {
@@ -101,10 +105,9 @@ struct win32_audio_context
             void *CoInitializeEx;
             void *CoCreateInstance;
         };
-        void *Addresses[ArrayCount(GlobalAudioContext)];
+        void *Addresses[2];
     };
 };
- */
 
 // TODO(chowie): Automate this and collapse?
 global_variable char *GlobalAudioContext[] =
@@ -130,6 +133,7 @@ Win32LoadAllDLL(HMODULE DLL)
     }
     return(0);
 }
+ */
 
 #endif
 

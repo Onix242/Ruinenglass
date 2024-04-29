@@ -9,34 +9,156 @@
 // NOTE(chowie): Win32/Compiler defines. Must be above windows.h!!!!
 #define WIN32_LEAN_AND_MEAN
 #define VC_EXTRA_LEAN
+#define COBJMACROS
 #define NOMINMAX
 
 #include "ruinenglass_platform.h"
 
-// IMPORTANT(chowie): I want to make sure #include <stdio.h> is gone for printing
+// IMPORTANT(chowie): I want to make sure #include <stdio.h> is gone for sn_printf
 #include <windows.h>
 #include <xinput.h>
 #include <mmdeviceapi.h>
 #include <audioclient.h>
+#include <dwmapi.h> // TODO(chowie): Remove this once there's opengl/vblank support!
 
 // TODO(chowie): Remove this! And link functions!
 #include "ruinenglass.cpp"
 #include "win32_ruinenglass.h"
 
+// TODO(chowie): Use this!
+global_variable platform_api Platform;
+
 // TODO(chowie): These are global for now!
-global_variable b32 GlobalRunning;
-global_variable b32 GlobalShowCursor;
+global_variable b32x GlobalRunning;
+global_variable b32x GlobalPause;
+global_variable b32x GlobalShowCursor;
 global_variable win32_offscreen_buffer GlobalBackbuffer;
 global_variable IAudioClient *GlobalSoundClient;
 global_variable IAudioRenderClient *GlobalSoundRenderClient;
 global_variable WINDOWPLACEMENT GlobalWindowPosition = {sizeof(GlobalWindowPosition)};
 global_variable u64 GlobalPerfCountFrequency; // TODO(chowie): Time with this
 
-void *
-DEBUGPlatformLoadFile(char *FileName)
+// NOTE(chowie): This is the only round trip allowed atm.
+// STUDY(chowie): Alternatively, Allocating/reserve and Read memory
+// could be platform dynamically, but would like know how much memory
+// can be used.
+// TODO(chowie): Proper File I/O reading all files of the same
+// type. Writing to a queue to be processed async.
+// TODO(chowie): Memory mapped files for performance (on the backing
+// store) reads/writes?
+
+#if RUINENGLASS_INTERNAL
+
+DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGPlatformFreeFileMemory)
 {
-    // NOTE(casey): Implements the Win32 file loading
-    return(0);
+    if(Memory)
+    {
+        VirtualFree(Memory, 0, MEM_RELEASE);
+    }
+}
+
+// NOTE(chowie): Just for testing. You don't want to do lots of
+// small Virtuallocs, typically only for 64K - 4k pages. If you cared,
+// you'd use HeapAlloc.
+DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile)
+{
+    debug_read_file_result Result = {};
+
+    HANDLE FileHandle = CreateFileA(FileName, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+    if(FileHandle != INVALID_HANDLE_VALUE)
+    {
+        LARGE_INTEGER FileSize;
+        if(GetFileSizeEx(FileHandle, &FileSize))
+        {
+            u32 FileSize32 = SafeTruncateU64(FileSize.QuadPart); // NOTE(chowie): Not interested in loading large files for debug
+            Result.Contents = VirtualAlloc(0, FileSize32, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+            if(Result.Contents)
+            {
+                // TODO(chowie): Explore memmapfile?
+                // TODO(chowie): Overlapped I/O, or I/O ports?
+                DWORD BytesRead;
+                if(ReadFile(FileHandle, Result.Contents, FileSize32, &BytesRead, 0) && // STUDY(chowie): Short circuit FileSize checks
+                   (FileSize32 == BytesRead)) // NOTE(chowie): Guard truncated in-mid reads. Can specify larger values in reads, and would get less bytes.
+                {
+                    // NOTE(chowie): File read successfully!
+                    Result.ContentsSize = FileSize32;
+                }
+                else
+                {
+                    // TODO(chowie): Logging!
+                    // NOTE(chowie): Same as an allocation failure,
+                    // otherwise would return garbage memory.
+                    DEBUGPlatformFreeFileMemory(Result.Contents);
+                    Result.Contents = 0; // NOTE(chowie): Remove garbage
+                }
+            }
+            else
+            {
+                // TODO(chowie): Logging!
+            }
+        }
+        else
+        {
+            // TODO(chowie): Logging!
+        }
+
+        CloseHandle(FileHandle);
+    }
+    else
+    {
+        // TODO(chowie): Logging!
+    }
+
+    return(Result);
+}
+
+DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
+{
+    b32x Result = false;
+
+    HANDLE FileHandle = CreateFileA(FileName, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
+    if(FileHandle != INVALID_HANDLE_VALUE)
+    {
+        DWORD BytesWritten;
+        if(WriteFile(FileHandle, Memory, MemorySize, &BytesWritten, 0))
+        {
+            // NOTE: File read successfully
+            Result = (BytesWritten == MemorySize); // STUDY(chowie): Relational operators
+        }
+        else
+        {
+            // TODO: Logging
+        }
+
+        CloseHandle(FileHandle);
+    }
+    else
+    {
+        // TODO: Logging
+    }
+
+    return(Result);
+}
+
+#endif
+
+internal void
+Win32PreventDPIScaling(void)
+{
+    HMODULE WinUserLibrary = LoadLibraryA("user32.dll"); // TODO(chowie): Can I not load user32.dll twice?
+    *(void **)(&SetProcessDpiAwarenessContext) = GetProcAddress(WinUserLibrary, "SetProcessDPIAwarenessContext");
+    if(SetProcessDpiAwarenessContext)
+    {
+        SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE);
+    }
+    else
+    {
+        *(void **)(&SetProcessDpiAware) = GetProcAddress(WinUserLibrary, "SetProcessDPIAware");
+        if(SetProcessDpiAware)
+        {
+            SetProcessDpiAware();
+        }
+    }
 }
 
 internal void
@@ -81,12 +203,9 @@ Win32LoadWASAPI(void)
 
     if(WASAPILibrary)
     {
-#if 1
         *(void **)(&CoInitializeEx) = GetProcAddress(WASAPILibrary, "CoInitializeEx");
         *(void **)(&CoCreateInstance) = GetProcAddress(WASAPILibrary, "CoCreateInstance");
-#else
-        Win32LoadAllDLL(WASAPILibrary);
-#endif
+
         // TODO(chowie): Logging/Diagnostic
     }
     else
@@ -95,7 +214,8 @@ Win32LoadWASAPI(void)
     }
 }
 
-// TODO(chowie): This is really not a good way to use WASAPI, make a thread-queue first before multithreading this!
+// TODO(chowie): This is really not a good way to use WASAPI, make a
+// thread-queue first before multithreading this! Make a guard thread!
 // RESOURCE: https://hero.handmade.network/forums/code-discussion/t/8433-correct_implementation_of_wasapi
 // RESOURCE: By Nickav, https://gist.github.com/nickav/8be2ded8a8363d5993b2f4e5aa601bd3
 // NOTE(chowie): Thank you Martins for providing introductory code!
@@ -107,7 +227,7 @@ Win32InitWASAPI(s32 SamplesPerSecond, s32 BufferSizeInSamples)
     // RESOURCE: https://kodi.wiki/view/Windows_audio_APIs
 
     // TODO(chowie): Abstract the audio api architecture?
-    // TODO: Output HRESULT to be able to be inspected in watch window!
+    // TODO(chowie): Output HRESULT to be able to be inspected in watch window!
     // TODO(chowie): Test that FAILED = !SUCCEEDED
     if(FAILED(CoInitializeEx(0, COINIT_SPEED_OVER_MEMORY)))
     {
@@ -188,105 +308,83 @@ Win32FillSoundBuffer(win32_sound_output *SoundOutput, u32 SamplesToWrite,
     }
 }
 
-// RESOURCE: https://hero.handmade.network/forums/code-discussion/t/1380-day_20_tiny_bit_of_fun_with_the_code
-struct wilwa_dial_tone
+inline u64
+Win32GetWallClock(void)
 {
-    char *Tag; // TODO(chowie): Display this?
-
-    s32 Period;
-    s32 ToneHz; // NOTE(chowie): For testing 200-500hz is a good range!
-    r32 Value; // NOTE(chowie): Sine value
-};
-struct test_output_sound
-{
-    s16 ToneVolume;
-    FIELD_ARRAY(wilwa_dial_tone,
-    {
-        wilwa_dial_tone Wave1;
-        wilwa_dial_tone Wave2;
-    });
-};
-internal void
-TestOutputWilwaDialTone(game_sound_output_buffer *SoundBuffer)
-{
-    local_persist r32 tSine1; // TODO(chowie): Move this out to game_state!
-    local_persist r32 tSine2;
-
-    test_output_sound WilwaDialTone = {};
-    WilwaDialTone.ToneVolume = 3000;
-
-    wilwa_dial_tone *Wave1 = &WilwaDialTone.Wave1; // STUDY(chowie): Syntactic convience by snapping the pointer
-    Wave1->Tag = "Wave 1";
-    Wave1->ToneHz = 350;
-    Wave1->Period = SoundBuffer->SamplesPerSecond / Wave1->ToneHz;
-    wilwa_dial_tone *Wave2 = &WilwaDialTone.Wave2;
-    Wave2->Tag = "Wave 2";
-    Wave2->ToneHz = 440;
-    Wave2->Period = SoundBuffer->SamplesPerSecond / Wave2->ToneHz;
-
-    s16 *SampleOut = SoundBuffer->Samples;
-    for(s32 SampleIndex = 0;
-        SampleIndex < SoundBuffer->SampleCount;
-        ++SampleIndex)
-    {
-        Wave1->Value = Sin(tSine1);
-        Wave2->Value = Sin(tSine2);
-
-        r32 TotalValue = 0;
-        for(s32 ToneIndex = 0;
-            ToneIndex < ArrayCount(WilwaDialTone.E); // STUDY(chowie): I'm really proud to be able to convert a range-based for loop into a regular one!
-            ++ToneIndex)
-        {
-            wilwa_dial_tone *Sound = WilwaDialTone.E + ToneIndex;
-            TotalValue += Sound->Value;
-        }
-        s16 SampleValue = (s16)(TotalValue * WilwaDialTone.ToneVolume);
-        *SampleOut++ = SampleValue;
-        *SampleOut++ = SampleValue;
-
-        // STUDY(chowie): If the ToneHz changes and the period stayed
-        // the same, it would produce audio clicks; the wave period
-        // must continuous at the point of change. 1.0f Samples
-        // increments on sine.
-#if 1
-        tSine1 += Tau32*1.0f / (r32)Wave1->Period; // NOTE(chowie): 2*Pi is how many wave periods elapsed since we started
-        if(tSine1 > Tau32)
-        {
-            tSine1 -= Tau32; // NOTE(chowie): Normalising to its period
-        }
-        tSine2 += Tau32*1.0f / (r32)Wave2->Period;
-        if(tSine2 > Tau32)
-        {
-            tSine2 -= Tau32;
-        }
-#else
-        // TODO(chowie): Try range-reduction? What am I meant to substitute?
-        // RESOURCE: https://realtimecollisiondetection.net/blog/?p=9
-#define InvTau32 1.0f/Tau32
-        int K1 = (int)(Wave1->Value * InvTau32);
-        tSine1 += Wave1->Value - (float)K1 * Tau32;
-
-        int K2 = (int)(Wave2->Value * InvTau32);
-        tSine2 += Wave2->Value - (float)K2 * Tau32;
-#endif
-    }
+    LARGE_INTEGER Result;
+    QueryPerformanceCounter(&Result);
+    return(Result.QuadPart);
 }
 
-internal win32_window_dim
+inline b32x
+Win32SupportsRdtscp(void)
+{
+    b32x Result = false;
+
+    int CPUInfo[4];
+    __cpuid(CPUInfo, 0x80000001);
+
+#define RdtscpInstructionSupported BitSet(27)
+    if((CPUInfo[3] & RdtscpInstructionSupported) != 0)
+    {
+        Result = true;
+    }
+
+    return(Result);
+}
+
+inline u64
+Win32ReadCPUTimer(b32x RdtscpSupported)
+{
+    u64 Result = 0;
+
+    if(RdtscpSupported)
+    {
+        u32 Register = 0;
+        Result = __rdtscp(&Register);
+    }
+    else
+    {
+        Result = __rdtsc();
+    }
+
+    return(Result);
+}
+
+// NOTE(chowie): Measured by count per/sec.
+inline u64
+Win32GetPerfCountFreq(void)
+{
+    LARGE_INTEGER Result;
+    QueryPerformanceFrequency(&Result);
+    return(Result.QuadPart);
+}
+
+inline r32
+Win32GetSecondsElapsed(u64 LastCounter, u64 EndCounter)
+{
+    r32 Result = ((r32)(EndCounter - LastCounter) /
+                  GlobalPerfCountFrequency);
+    return(Result);
+}
+
+internal v2u
 Win32GetWindowDim(HWND Window)
 {
-    win32_window_dim Result;
-
     RECT ClientRect;
     GetClientRect(Window, &ClientRect);
-    Result.Width = ClientRect.right - ClientRect.left;
-    Result.Height = ClientRect.bottom - ClientRect.top;
+
+    v2u Result =
+    {
+        (u32)(ClientRect.right - ClientRect.left),
+        (u32)(ClientRect.bottom - ClientRect.top),
+    };
 
     return(Result);
 }
 
 internal void
-Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, int Width, int Height)
+Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, v2u WindowDim)
 {
     // TODO(chowie): Bulletproof this.
     // Free first, free after, then free first if that fails?
@@ -301,7 +399,7 @@ Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, int Width, int Height)
     // needed the memory from the first one in order to get the memory
     // from the second one since it was occupying too much memory.
 
-#if 1
+#if 0
     // TODO(chowie): This is technically only called once now! REMOVE!
     if(Buffer->Memory)
     {
@@ -312,19 +410,17 @@ Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, int Width, int Height)
     }
 #endif
 
-    Buffer->Width = Width;
-    Buffer->Height = Height;
-    Buffer->BytesPerPixel = BITMAP_BYTES_PER_PIXEL;
+    Buffer->Dim = WindowDim;
 
     // NOTE(chowie): When biHeight is negative, Windows treats this
-    // bitmap as top-down (not bottom-up), meaning the first 3-bytes
-    // of the image are the colour of the top-left pixel, not the
-    // bottom-left!
+    // bitmap as top-down (not bottom-up / Y is up render targets),
+    // meaning the first 3-bytes of the image are the colour of the
+    // top-left pixel, not the bottom-left!
     Buffer->Info.bmiHeader.biSize = sizeof(Buffer->Info.bmiHeader);
-    Buffer->Info.bmiHeader.biWidth = Buffer->Width;
-    Buffer->Info.bmiHeader.biHeight = -Buffer->Height; // TODO(chowie): Buckle top-down bitmaps down!
+    Buffer->Info.bmiHeader.biWidth = Buffer->Dim.Width;
+    Buffer->Info.bmiHeader.biHeight = Buffer->Dim.Height; // NOTE(chowie): Removed the minus, TODO(chowie): Buckle top-down bitmaps down!
     Buffer->Info.bmiHeader.biPlanes = 1;
-    Buffer->Info.bmiHeader.biBitCount = BITMAP_BYTES_PER_PIXEL*8; // NOTE: 8-bits per 1-byte of colour
+    Buffer->Info.bmiHeader.biBitCount = BITMAP_BYTES_PER_PIXEL*8; // NOTE: 8(chowie)-bits per 1-byte of colour
     Buffer->Info.bmiHeader.biCompression = BI_RGB;
 
     /*
@@ -336,24 +432,22 @@ Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, int Width, int Height)
       move it to the next row; byte offset between rows.
     */
 
-    Buffer->Pitch = (Buffer->Width*Buffer->BytesPerPixel);
-    // NOTE(chowie): There is not need to clear to black as
-    // VirtualAlloc should _only_ output zero'd memory!
-    int BitmapMemorySize = (Buffer->Pitch*Buffer->Height);
+    Buffer->Pitch = Align16(Buffer->Dim.Width*BITMAP_BYTES_PER_PIXEL);
+    u32 BitmapMemorySize = (Buffer->Pitch*Buffer->Dim.Height);
     Buffer->Memory = VirtualAlloc(0, BitmapMemorySize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
 }
 
 internal void
 Win32DisplayBufferInWindow(win32_offscreen_buffer *Buffer, HDC DeviceContext,
-                           int WindowWidth, int WindowHeight)
+                           v2u WindowDim)
 {
     // TODO(chowie): Aspect ratio correction
     // TODO(chowie): Stretch modes?
     // STUDY(chowie): Palettised colours idea for texture compression?
     // STUDY(chowie): Backbuffer and window should be the same size for now
     StretchDIBits(DeviceContext,
-                  0, 0, WindowWidth, WindowHeight,
-                  0, 0, Buffer->Width, Buffer->Height,
+                  0, 0, WindowDim.Width, WindowDim.Height,
+                  0, 0, Buffer->Dim.Width, Buffer->Dim.Height,
                   Buffer->Memory,
                   &Buffer->Info,
                   DIB_RGB_COLORS, SRCCOPY);
@@ -392,8 +486,78 @@ ToggleFullscreen(HWND Window)
     }
 }
 
+/*
+// TODO(chowie): Test with this?
+OutputDebugStringA("ESCAPE: ");
+if(IsDown)
+{
+    OutputDebugStringA("IsDown");
+}
+if(WasDown)
+{
+    OutputDebugStringA("WasDown");
+}
+OutputDebugStringA("\n");
+*/
+
 internal void
-Win32ProcessPendingMessages(void)
+Win32ProcessKeyboardMessage(game_button_state *NewState, b32x IsDown)
+{
+    // NOTE(chowie): Because of switching windows / apps, industrial strength will be later
+    if(NewState->EndedDown != IsDown)
+    {
+        NewState->EndedDown = IsDown;
+        ++NewState->HalfTransitionCount;
+    }
+}
+
+// TODO(chowie): Better controller support?
+internal void
+Win32SetControllerVibration(void)
+{
+    XINPUT_VIBRATION Vibration;
+    Vibration.wLeftMotorSpeed = 6000;
+    Vibration.wRightMotorSpeed = 6000;
+    XInputSetState(0, &Vibration);
+}
+
+internal void
+Win32ProcessXInputDigitalButton(DWORD XInputButtonState,
+                                game_button_state *OldState, DWORD ButtonBit,
+                                game_button_state *NewState)
+{
+    // TODO(chowie): If the polling rate in increased, this may have
+    // to change. Buffered XInput? Threading?
+    NewState->EndedDown = ((XInputButtonState & ButtonBit) == ButtonBit);
+    NewState->HalfTransitionCount = (OldState->EndedDown != NewState->EndedDown) ? 1 : 0; // NOTE(chowie): OldState->EndedDown = WasIsDownPreviously
+}
+
+// RESOURCE: https://hero.handmade.network/forums/code-discussion/t/469-deadzone_for_controller_is_not_square,_but_cross
+// STUDY(chowie): I wonder if the shape of the hardware noise profile
+// is actually rectangular. A "cross" is a "region where at least one
+// stick axis does nothing". A square is a "region where the stick
+// does nothing". Maybe on the average case a radial deadzone better?
+internal r32
+Win32ProcessStickValue(SHORT Value, SHORT DeadZoneThreshold)
+{
+    r32 Result = 0;
+
+    if(Value < -DeadZoneThreshold)
+    {
+        Result = (r32)((Value + DeadZoneThreshold) / (32768.0f - DeadZoneThreshold));
+    }
+    else if(Value > DeadZoneThreshold)
+    {
+        Result = (r32)((Value - DeadZoneThreshold) / (32767.0f - DeadZoneThreshold));
+    }
+
+    return(Result);
+}
+
+// NOTE(chowie): Conceptional purity of being in the same stack,
+// nothing in particular. Rather than global variables.
+internal void
+Win32ProcessPendingMessages(game_controller_input *KeyboardController)
 {
     MSG Message;
     while(PeekMessageA(&Message, 0, 0, 0, PM_REMOVE))
@@ -416,8 +580,8 @@ Win32ProcessPendingMessages(void)
                 // (1 << 30) or 0. "!= 0" forces 1 or 0.
 #define KeyMessageWasDownBit BitSet(30)
 #define KeyMessageWasUpBit BitSet(31)
-                b32 WasDown = ((Message.lParam & KeyMessageWasDownBit) != 0);
-                b32 IsDown = ((Message.lParam & KeyMessageWasUpBit) == 0);
+                b32x WasDown = ((Message.lParam & KeyMessageWasDownBit) != 0);
+                b32x IsDown = ((Message.lParam & KeyMessageWasUpBit) == 0);
 
                 // NOTE(chowie): Holding down a key would otherwise
                 // display both WasDown and IsDown messages!
@@ -425,57 +589,67 @@ Win32ProcessPendingMessages(void)
                 {
                     if(VKCode == 'W')
                     {
+                        Win32ProcessKeyboardMessage(&KeyboardController->MoveUp, IsDown);
                     }
                     else if(VKCode == 'A')
                     {
+                        Win32ProcessKeyboardMessage(&KeyboardController->MoveLeft, IsDown);
                     }
                     else if(VKCode == 'S')
                     {
+                        Win32ProcessKeyboardMessage(&KeyboardController->MoveDown, IsDown);
                     }
                     else if(VKCode == 'D')
                     {
+                        Win32ProcessKeyboardMessage(&KeyboardController->MoveRight, IsDown);
                     }
                     else if(VKCode == 'Q')
                     {
+                        Win32ProcessKeyboardMessage(&KeyboardController->LeftShoulder, IsDown);
                     }
                     else if(VKCode == 'E')
                     {
+                        Win32ProcessKeyboardMessage(&KeyboardController->RightShoulder, IsDown);
                     }
                     else if(VKCode == VK_UP)
                     {
-                    }
-                    else if(VKCode == VK_DOWN)
-                    {
+                        Win32ProcessKeyboardMessage(&KeyboardController->ActionUp, IsDown);
                     }
                     else if(VKCode == VK_LEFT)
                     {
+                        Win32ProcessKeyboardMessage(&KeyboardController->ActionLeft, IsDown);
+                    }
+                    else if(VKCode == VK_DOWN)
+                    {                                        
+                        Win32ProcessKeyboardMessage(&KeyboardController->ActionDown, IsDown);
                     }
                     else if(VKCode == VK_RIGHT)
                     {
+                        Win32ProcessKeyboardMessage(&KeyboardController->ActionRight, IsDown);
                     }
                     else if(VKCode == VK_ESCAPE)
                     {
-                        // TODO(chowie): This is for testing only REMOVE!
-                        OutputDebugStringA("ESCAPE: ");
-                        if(IsDown)
-                        {
-                            OutputDebugStringA("IsDown");
-                        }
-                        if(WasDown)
-                        {
-                            OutputDebugStringA("WasDown");
-                        }
-                        OutputDebugStringA("\n");
+                        Win32ProcessKeyboardMessage(&KeyboardController->Back, IsDown);
                     }
                     else if(VKCode == VK_SPACE)
                     {
+                        Win32ProcessKeyboardMessage(&KeyboardController->Start, IsDown);
                     }
+#if RUINENGLASS_INTERNAL
+                    else if(VKCode == 'P')
+                    {
+                        if(IsDown)
+                        {
+                            GlobalPause = !GlobalPause;
+                        }
+                    }
+#endif
                 }
 
                 if(IsDown)
                 {
 #define AltKeyWasDownBit BitSet(29)
-                    b32 AltKeyWasDown = (Message.lParam & AltKeyWasDownBit);
+                    b32x AltKeyWasDown = (Message.lParam & AltKeyWasDownBit);
                     if((VKCode == VK_F4) && AltKeyWasDown)
                     {
                         GlobalRunning = false;
@@ -539,6 +713,9 @@ Win32MainWindowCallback(HWND   Window,
             OutputDebugStringA("WM_DESTROY\n");
         } break;
 
+        // STUDY(chowie): If keyboard messages was fielded here, it
+        // would need to store the resulting input structure. However,
+        // the callback's function prototype cannot be changed.
         case WM_SYSKEYDOWN:
         case WM_SYSKEYUP:
         case WM_KEYDOWN:
@@ -563,8 +740,8 @@ Win32MainWindowCallback(HWND   Window,
         {
             PAINTSTRUCT Paint;
             HDC DeviceContext = BeginPaint(Window, &Paint);
-            win32_window_dim Dim = Win32GetWindowDim(Window);
-            Win32DisplayBufferInWindow(&GlobalBackbuffer, DeviceContext, Dim.Width, Dim.Height);
+            v2u WindowDim = Win32GetWindowDim(Window);
+            Win32DisplayBufferInWindow(&GlobalBackbuffer, DeviceContext, WindowDim);
             EndPaint(Window, &Paint);
         } break;
 
@@ -576,68 +753,6 @@ Win32MainWindowCallback(HWND   Window,
         } break;
     }
 
-    return(Result);
-}
-
-inline u64
-Win32GetWallClock(void)
-{
-    LARGE_INTEGER Result;
-    QueryPerformanceCounter(&Result);
-    return(Result.QuadPart);
-}
-
-inline b32
-Win32CheckForRdtscp(void)
-{
-    b32 Result = false;
-
-    int CPUInfo[4];
-    __cpuid(CPUInfo, 0x80000001);
-
-#define RdtscpInstructionSupported BitSet(27)
-    if((CPUInfo[3] & RdtscpInstructionSupported) != 0)
-    {
-        Result = true;
-    }
-
-    return(Result);
-}
-
-inline u64
-Win32ReadCPUTimer(b32 RdtscpSupported)
-{
-    // NOTE(chowie): This is the same on Linux. Also, ARM would
-    // require this instruction to be replaced!
-    u64 Result = 0;
-
-    if(RdtscpSupported)
-    {
-        u32 Register = 0;
-        Result = __rdtscp(&Register);
-    }
-    else
-    {
-        Result = __rdtsc();
-    }
-
-    return(Result);
-}
-
-inline u64
-Win32GetPerfCountFreq(void)
-{
-    // NOTE(chowie): Measured by count per sec.
-    LARGE_INTEGER Result;
-    QueryPerformanceFrequency(&Result);
-    return(Result.QuadPart);
-}
-
-inline r32
-Win32GetSecondsElapsed(u64 LastCounter, u64 EndCounter)
-{
-    r32 Result = ((r32)(EndCounter - LastCounter) /
-                  GlobalPerfCountFrequency);
     return(Result);
 }
 
@@ -653,7 +768,7 @@ WinMain(HINSTANCE Instance,
     GlobalPerfCountFrequency = Win32GetPerfCountFreq();
 
     // NOTE(chowie): Fixed-sized backbuffer
-    Win32ResizeDIBSection(&GlobalBackbuffer, 1280, 720);
+    Win32ResizeDIBSection(&GlobalBackbuffer, V2U(1280, 720));
 
     WindowClass.style = CS_HREDRAW|CS_VREDRAW; // NOTE(chowie): Repaint the whole window if resizing window.
     WindowClass.lpfnWndProc = Win32MainWindowCallback;
@@ -663,6 +778,7 @@ WinMain(HINSTANCE Instance,
 //    WindowClass.hbrBackground = ;
     WindowClass.lpszClassName = "RuinenglassWindowClass";
 
+    Win32PreventDPIScaling();
     Win32LoadXInput();
     Win32LoadWASAPI();
 
@@ -680,15 +796,13 @@ WinMain(HINSTANCE Instance,
                             0, 0, Instance, 0);
         if(Window)
         {
-            v2 Offset = {};
-
             // STUDY(chowie): Audio latency is determined not by the
             // size of the buffer, but by how far ahead of the
             // PlayCursor you write. The optimal amount of latency is
             // the amount that will cause this frame's audio to
             // coincide with the display of this frame's image.
             int FramesOfAudioLatency = 1;
-            int MonitorRefreshHz = 60;
+            int MonitorRefreshHz = 60; // TODO(chowie): Delegate this to the graphics card!
             HDC RefreshDC = GetDC(Window);
             int Win32RefreshRate = GetDeviceCaps(RefreshDC, VREFRESH);
             ReleaseDC(Window, RefreshDC);
@@ -703,155 +817,324 @@ WinMain(HINSTANCE Instance,
             SoundOutput.SamplesPerSecond = 48000; // TODO(chowie): Set to 60 seconds?
             SoundOutput.BytesPerSample = sizeof(s16)*2;
             SoundOutput.SecondaryBufferSize = SoundOutput.SamplesPerSecond*SoundOutput.BytesPerSample; // TODO(chowie): Allocate a 2 sec buffer?
-            SoundOutput.LatencySampleCount = FramesOfAudioLatency*(int)(SoundOutput.SamplesPerSecond / GameUpdateHz); // NOTE(chowie): How far ahead you are writing
+            SoundOutput.LatencySampleCount = FramesOfAudioLatency*(u32)(SoundOutput.SamplesPerSecond / GameUpdateHz); // NOTE(chowie): Number of samples that can be played without updating with new info
             Win32InitWASAPI(SoundOutput.SamplesPerSecond, SoundOutput.SecondaryBufferSize);
 
             GlobalRunning = true;
-            b32 RdtscpSupported = Win32CheckForRdtscp();
+            b32x RdtscpSupported = Win32SupportsRdtscp();
 
-            // STUDY(chowie): Remember that modulo op transforms an absolute size to relative!
-            // TODO(chowie): Pool with bitmap VirtualAlloc
-            s16 *Samples = (s16 *)VirtualAlloc(0, SoundOutput.SecondaryBufferSize,
-                                               MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+#if RUINENGLASS_INTERNAL
+            // RESOURCE: https://hero.handmade.network/forums/code-discussion/t/2120-day_023_looped_live_code-_use_of_fixed_base_address_for_game_memory
+            // NOTE(chowie): In a single run of the program, the base
+            // address should never be changed, as the memory dump
+            // contains pointers only valid in the original region of
+            // the memory. However, in multiple runs, the base address
+            // needs to be the same to load the memory dump from a
+            // previous execution of the program.
+            LPVOID BaseAddress = (LPVOID)Terabytes(2);
+#else
+            LPVOID BaseAddress = 0;
+#endif
 
-            if(Samples)
+            game_memory GameMemory = {};
+
+            memory_arena *PermanentArena = &GameMemory.Permanent;
+            PermanentArena->Tag = "Permanent Storage";
+            PermanentArena->Size = Megabytes(64);
+
+            memory_arena *TransientArena = &GameMemory.Transient;
+            TransientArena->Tag = "Transient Storage";
+            TransientArena->Size = Gigabytes(1);
+
+            memory_arena *SamplesArena = &GameMemory.Samples;
+            SamplesArena->Tag = "Samples Storage";
+            SamplesArena->Size = (umm)SoundOutput.SecondaryBufferSize; // TODO(chowie): Roll "Samples + Audio" & Offset initial samples
+
+#if RUINENGLASS_INTERNAL
+            GameMemory.PlatformAPI.DEBUGFreeFileMemory = DEBUGPlatformFreeFileMemory;
+            GameMemory.PlatformAPI.DEBUGReadEntireFile = DEBUGPlatformReadEntireFile;
+            GameMemory.PlatformAPI.DEBUGWriteEntireFile = DEBUGPlatformWriteEntireFile;
+#endif
+
+            Platform = GameMemory.PlatformAPI; // NOTE: Moving code back and forth between the renderer, can still be called via platform!
+
+            // TODO(chowie): Handle memory footprints with system metrics!
+            // STUDY(chowie): Memory pooling = hard bounds at runtime
+            // and memory usage. While dyanamic allocation hides the
+            // platform's memory constraints; overflowing memory,
+            // fragmentation, or needs more memory than it can provide.
+            umm TotalSize = 0;
+            for(u32 ArenaSizeIndex = 0;
+                ArenaSizeIndex < ArrayCount(GameMemory.E);
+                ++ArenaSizeIndex)
             {
+                memory_arena *Arena = GameMemory.E + ArenaSizeIndex;
+                TotalSize += Arena->Size;
+            }
+
+            GameMemory.Permanent.Base = (u8 *)VirtualAlloc(BaseAddress, TotalSize,
+                                                           MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+            GameMemory.Transient.Base = (GameMemory.Permanent.Base +
+                                         GameMemory.Permanent.Size);
+            GameMemory.Samples.Base = (GameMemory.Transient.Base +
+                                       GameMemory.Transient.Size);
+            // TODO(chowie): I could alternatively pool with bitmap VirtualAlloc -> Subdivide it out?
+
+            if(GameMemory.Permanent.Base &&
+               GameMemory.Transient.Base &&
+               GameMemory.Samples.Base)
+            {
+                game_input Input[2] = {};
+                game_input *NewInput = &Input[0];
+                game_input *OldInput = &Input[1];
+
                 u64 LastCounter = Win32GetWallClock();
 
                 u64 LastCycleCount = Win32ReadCPUTimer(RdtscpSupported);
                 while(GlobalRunning)
                 {
+                    NewInput->dtForFrame = TargetSecondsPerFrame;
+
+                    //
+                    // NOTE(chowie): Input Processing
+                    //
+
+                    // NOTE(chowie): We can't zero everything, otherwise the up/down state will be wrong
+                    game_controller_input *OldKeyboardController = GetController(OldInput, 0);
+                    game_controller_input *NewKeyboardController = GetController(NewInput, 0);
+                    *NewKeyboardController = {};
+                    NewKeyboardController->IsConnected = true; // TODO(chowie): Poll for multiple keyboards?
+
+                    // NOTE(chowie): Reset HalfTransitionCount (per
+                    // frame), leave EndedDown.
+                    for(u32 ButtonIndex = 0;
+                        ButtonIndex < ArrayCount(NewKeyboardController->E);
+                        ++ButtonIndex)
+                    {
+                        NewKeyboardController->E[ButtonIndex].EndedDown =
+                            OldKeyboardController->E[ButtonIndex].EndedDown;
+                    }
+
                     // STUDY(chowie): Messages don't always field in the
                     // dispatch queue. Windows reserves the rights to
                     // 'cold-call' sometimes (in Win32MainWindowCallback).
-                    Win32ProcessPendingMessages();
+                    Win32ProcessPendingMessages(NewKeyboardController);
 
-                    // TODO(chowie): Should we poll this more frequently?
-                    DWORD MaxControllerCount = XUSER_MAX_COUNT;
-                    for(DWORD ControllerIndex = 0;
-                        ControllerIndex < MaxControllerCount;
-                        ++ControllerIndex)
+                    if(!GlobalPause)
                     {
-                        XINPUT_STATE ControllerState;
-                        if(XInputGetState(ControllerIndex, &ControllerState) == ERROR_SUCCESS)
+                        // TODO(chowie): Avoid polling disconnected
+                        // controllers to reduce xinput framerate hit
+                        // on older libraries?
+                        // TODO(chowie): Poll this more frequently in
+                        // a separate thread for xinput sticks,
+                        // lock-free queue - you would not have to
+                        // have any mutexes?
+                        DWORD MaxControllerCount = XUSER_MAX_COUNT;
+                        if(MaxControllerCount > ArrayCount(NewInput->Controllers) - 1) // NOTE(chowie): Excludes keyboard
                         {
-                            // NOTE(chowie): The controller is plugged in
-                            // TODO(chowie): See if ControllerState.dwPacketNumber increments too rapidly
-                            XINPUT_GAMEPAD *Pad = &ControllerState.Gamepad; // STUDY(chowie): Syntactic convience by snapping the pointer
-
-                            b32 Up = (Pad->wButtons & XINPUT_GAMEPAD_DPAD_UP);
-                            b32 Down = (Pad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN);
-                            b32 Left = (Pad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT);
-                            b32 Right = (Pad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT);
-                            b32 Start = (Pad->wButtons & XINPUT_GAMEPAD_START);
-                            b32 Back = (Pad->wButtons & XINPUT_GAMEPAD_BACK);
-                            b32 LeftShoulder = (Pad->wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER);
-                            b32 RightShoulder = (Pad->wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER);
-                            b32 AButton = (Pad->wButtons & XINPUT_GAMEPAD_A);
-                            b32 BButton = (Pad->wButtons & XINPUT_GAMEPAD_B);
-                            b32 XButton = (Pad->wButtons & XINPUT_GAMEPAD_X);
-                            b32 YButton = (Pad->wButtons & XINPUT_GAMEPAD_Y);
-
-                            // TODO(chowie): Deadzone handling
-                            s16 StickX = Pad->sThumbLX;
-                            s16 StickY = Pad->sThumbLY;
-
-                            Offset.x += (StickX / 2048);
-                            Offset.y += (StickY / 2048);
+                            MaxControllerCount = ArrayCount(NewInput->Controllers) - 1;
                         }
-                        else
+
+                        for(DWORD ControllerIndex = 0;
+                            ControllerIndex < MaxControllerCount;
+                            ++ControllerIndex)
                         {
-                            // NOTE(chowie): The controller is unavailable
+                            DWORD OurControllerIndex = ControllerIndex + 1; // NOTE(chowie): Includes keyboard
+                            game_controller_input *OldController = GetController(OldInput, OurControllerIndex);
+                            game_controller_input *NewController = GetController(NewInput, OurControllerIndex);
+
+                            XINPUT_STATE ControllerState;
+                            if(XInputGetState(ControllerIndex, &ControllerState) == ERROR_SUCCESS)
+                            {
+                                // NOTE(chowie): The controller is plugged in
+                                NewController->IsConnected = true;
+                                NewController->IsAnalog = OldController->IsAnalog;
+
+                                // TODO(chowie): See if ControllerState.dwPacketNumber increments too rapidly
+                                XINPUT_GAMEPAD *Pad = &ControllerState.Gamepad; // STUDY(chowie): Syntactic convience by snapping the pointer
+
+                                // RESOURCE: https://github.com/gingerBill/gb/blob/master/gb.h#L9726
+                                // TODO(chowie): Right-hand thumb values?
+                                NewController->StickAverage =
+                                {
+                                    Win32ProcessStickValue(Pad->sThumbLX, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE),
+                                    Win32ProcessStickValue(Pad->sThumbLY, XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE),
+                                };
+
+                                if((NewController->StickAverage.x != 0.0f) ||
+                                   (NewController->StickAverage.y != 0.0f))
+                                {
+                                    NewController->IsAnalog = true;
+                                }
+
+                                if(Pad->wButtons & XINPUT_GAMEPAD_DPAD_UP)
+                                {
+                                    NewController->StickAverage.y = 1.0f;
+                                    NewController->IsAnalog = false;
+                                }
+
+                                if(Pad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN)
+                                {
+                                    NewController->StickAverage.y = -1.0f;
+                                    NewController->IsAnalog = false;
+                                }
+
+                                if(Pad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT)
+                                {
+                                    NewController->StickAverage.x = -1.0f;
+                                    NewController->IsAnalog = false;
+                                }
+
+                                if(Pad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT)
+                                {
+                                    NewController->StickAverage.x = 1.0f;
+                                    NewController->IsAnalog = false;
+                                }
+
+                                //
+                                // NOTE(chowie): Controller overwrites previous keyboard messages here
+                                //
+
+#define PROCESS_DIGITAL_BUTTON_THRESHOLD(Threshold, ButtonType, XInputButton)                             \
+                                Win32ProcessXInputDigitalButton(Threshold,                                \
+                                                                &OldController->ButtonType, XInputButton, \
+                                                                &NewController->ButtonType)
+#define PROCESS_DIGITAL_BUTTON(ButtonType, XInputButton) PROCESS_DIGITAL_BUTTON_THRESHOLD(Pad->wButtons, ButtonType, XInputButton)
+
+                                // NOTE(chowie): Want to be smooth on the analog side, but look at
+                                // keyboard messages for the purposes of buttons, e.g. double-tap
+                                // is 3 half-transitions.
+                                r32 StickThreshold = 0.5f;
+                                PROCESS_DIGITAL_BUTTON_THRESHOLD((NewController->StickAverage.x < -StickThreshold) ? 1 : 0,
+                                                                 MoveLeft, 1);
+                                PROCESS_DIGITAL_BUTTON_THRESHOLD((NewController->StickAverage.x > StickThreshold) ? 1 : 0,
+                                                                 MoveRight, 1);
+                                PROCESS_DIGITAL_BUTTON_THRESHOLD((NewController->StickAverage.y < -StickThreshold) ? 1 : 0,
+                                                                 MoveDown, 1);
+                                PROCESS_DIGITAL_BUTTON_THRESHOLD((NewController->StickAverage.y > StickThreshold) ? 1 : 0,
+                                                                 MoveUp, 1);
+
+                                PROCESS_DIGITAL_BUTTON(ActionDown, XINPUT_GAMEPAD_A);
+                                PROCESS_DIGITAL_BUTTON(ActionRight, XINPUT_GAMEPAD_B);
+                                PROCESS_DIGITAL_BUTTON(ActionLeft, XINPUT_GAMEPAD_X);
+                                PROCESS_DIGITAL_BUTTON(ActionUp, XINPUT_GAMEPAD_Y);
+
+                                PROCESS_DIGITAL_BUTTON(LeftShoulder, XINPUT_GAMEPAD_LEFT_SHOULDER);
+                                PROCESS_DIGITAL_BUTTON(RightShoulder, XINPUT_GAMEPAD_RIGHT_SHOULDER);
+
+                                PROCESS_DIGITAL_BUTTON(Start, XINPUT_GAMEPAD_START);
+                                PROCESS_DIGITAL_BUTTON(Back, XINPUT_GAMEPAD_BACK);
+                            }
+                            else
+                            {
+                                // NOTE(chowie): The controller is unavailable
+                                NewController->IsConnected = false;
+                            }
                         }
                     }
 
-                    // RESOURCE: https://hero.handmade.network/forums/code-discussion/t/102-day_19_-_audio_latency
-                    // NOTE(chowie): Computes how much sound to write and where.
-                    int SamplesToWrite = 0;
-                    UINT32 SoundPaddingSize;
-                    if(SUCCEEDED(GlobalSoundClient->GetCurrentPadding(&SoundPaddingSize)))
-                    {
-                        // NOTE(chowie): We want x samples (1 frames
-                        // worth + latency). GetCurrentPadding returns
-                        // number of samples ready and has not been
-                        // read into the buffer. Thus, SamplesToWrite
-                        // should be x - padding.
-                        int MaxSampleCount = (int)(SoundOutput.SecondaryBufferSize - SoundPaddingSize);
-                        SamplesToWrite = (int)(SoundOutput.LatencySampleCount - SoundPaddingSize);
-                        if(SamplesToWrite < 0)
-                        {
-                            SamplesToWrite = 0;
-                        }
-                        Assert(SamplesToWrite <= MaxSampleCount);
-
-                        /* STUDY(chowie): Compare vs this
-                        SamplesToWrite = (int)(SoundOutput.SecondaryBufferSize - SoundPaddingSize);
-                        if(SamplesToWrite > SoundOutput.LatencySampleCount)
-                        {
-                             SamplesToWrite = SoundOutput.LatencySampleCount;
-                        }
-                        */
-                    }
-
-                    game_sound_output_buffer SoundBuffer = {};
-                    SoundBuffer.SamplesPerSecond = SoundOutput.SamplesPerSecond;
-                    SoundBuffer.SampleCount = SamplesToWrite;
-                    SoundBuffer.Samples = Samples;
-
-                    TestOutputWilwaDialTone(&SoundBuffer); // TODO(chowie): Move this out!
-
-                    Win32FillSoundBuffer(&SoundOutput, SamplesToWrite, &SoundBuffer);
-                    GlobalSoundClient->Start();
-                    // NOTE(chowie): Starts buffer the first time we
-                    // fill data in it. Rather than filling the buffer
-                    // at init. It would introduce latency (cannot
-                    // overwrite previous samples). Call after audio
-                    // engine has been initially loaded.
-
-#if 0
-                    // TODO(chowie): Better controller support?
-                    XINPUT_VIBRATION Vibration;
-                    Vibration.wLeftMotorSpeed = 6000;
-                    Vibration.wRightMotorSpeed = 6000;
-                    XInputSetState(0, &Vibration);
-#endif
-  
-                    HDC DeviceContext = GetDC(Window);
-                    win32_window_dim Dim = Win32GetWindowDim(Window);
-                    Win32DisplayBufferInWindow(&GlobalBackbuffer, DeviceContext,
-                                               Dim.Width, Dim.Height);
-                    ReleaseDC(Window, DeviceContext);
-
-                    ++Offset.x;
+                    //
+                    // NOTE(chowie): Game Update
+                    //
 
                     game_offscreen_buffer Buffer = {};
                     Buffer.Memory = GlobalBackbuffer.Memory;
-                    Buffer.Width = GlobalBackbuffer.Width;
-                    Buffer.Height = GlobalBackbuffer.Height;
+                    Buffer.Dim = GlobalBackbuffer.Dim;
                     Buffer.Pitch = GlobalBackbuffer.Pitch;
-                    GameUpdateAndRender(&Buffer, Offset);
+
+                    if(!GlobalPause)
+                    {
+                        GameUpdateAndRender(&GameMemory, Input, &Buffer);
+                    }
+
+                    //
+                    // NOTE(chowie): Audio Update - Always hit framerate, target at least 30hz
+                    //
+
+                    if(!GlobalPause)
+                    {
+                        // RESOURCE: https://hero.handmade.network/forums/code-discussion/t/102-day_19_-_audio_latency
+                        // NOTE(chowie): Computes how much sound to write and where.
+                        u32 SamplesToWrite = 0;
+                        UINT32 SoundPaddingSize;
+                        if(SUCCEEDED(GlobalSoundClient->GetCurrentPadding(&SoundPaddingSize)))
+                        {
+                            // NOTE(chowie): We want x samples (1 frames
+                            // worth + latency). GetCurrentPadding returns
+                            // number of samples ready and has not been
+                            // read into the buffer. Thus, SamplesToWrite
+                            // should be x - padding.
+                            u32 MaxSampleCount = (SoundOutput.SecondaryBufferSize - SoundPaddingSize);
+                            SamplesToWrite = (SoundOutput.LatencySampleCount - SoundPaddingSize);
+                            if(SamplesToWrite < 0)
+                            {
+                                SamplesToWrite = 0;
+                            }
+                            Assert(SamplesToWrite <= MaxSampleCount);
+
+                            /* STUDY(chowie): Compare vs this
+                               SamplesToWrite = (int)(SoundOutput.SecondaryBufferSize - SoundPaddingSize);
+                               if(SamplesToWrite > SoundOutput.LatencySampleCount)
+                               {
+                               SamplesToWrite = SoundOutput.LatencySampleCount;
+                               }
+                            */
+                        }
+
+                        game_sound_output_buffer SoundBuffer = {};
+                        SoundBuffer.SamplesPerSecond = SoundOutput.SamplesPerSecond;
+                        SoundBuffer.SampleCount = SamplesToWrite;
+                        SoundBuffer.Samples = (s16 *)GameMemory.Samples.Base; // NOTE(chowie): Unorthodox casting
+                        GetSoundSamples(&GameMemory, &SoundBuffer); // TODO(chowie): This seems superflous for getsound samples which takes both! But needed for fill sound buffer
+
+                        Win32FillSoundBuffer(&SoundOutput, SamplesToWrite, &SoundBuffer);
+                        GlobalSoundClient->Start();
+                        // NOTE(chowie): Starts buffer the first time we
+                        // fill data in it, rather than filling the buffer
+                        // at init. It would introduce latency (you cannot
+                        // overwrite previous samples). Called after audio
+                        // engine has been initially loaded.
+                    }
+
+                    // TODO(chowie): Replace this with opengl/vblank eventually!
+                    DwmFlush();
+
+                    //
+                    // NOTE(chowie): Frame Display
+                    //
+
+                    HDC DeviceContext = GetDC(Window);
+                    v2u WindowDim = Win32GetWindowDim(Window);
+                    Win32DisplayBufferInWindow(&GlobalBackbuffer, DeviceContext,
+                                               WindowDim);
+                    ReleaseDC(Window, DeviceContext);
 
                     u64 EndCycleCount = Win32ReadCPUTimer(RdtscpSupported);
 
-#if 0
-                    // NOTE(chowie): String test
-                    char *name = "slim shady";
-                    int   line = 1337;
-                    float temp = -98.567f;
-                    //OutputDebugStringA(d7sam_concat(line)(" attention!\n"));
-                    OutputDebugStringA(d7sam_concat(" attention!")(line)("\n"));
-
-                    // attention, slim shady! there's an error in line 1337 : the error code is 666 and the temperature is -98.6 degrees
-                    //OutputDebugStringA(d7sam_concat("attention, ")(name)("! there's an error in line ")(line)(" : the error code is ")(666)(" and the temperature is ")(temp, 1)(" degrees\n"));
-#endif
-
+                    // TODO(chowie): Simple profilers from perfaware; keep cyclecount (represented as a percentage) & counters
                     u32 CyclesElapsed = (u32)EndCycleCount - (u32)LastCycleCount;
                     u32 EndCounter = (u32)Win32GetWallClock();
                     s32 CounterElapsed = EndCounter - (u32)LastCounter;
                     r32 MSPerFrame = 1000.0f*Win32GetSecondsElapsed(LastCounter, EndCounter);
                     r32 FPS = ((r32)GlobalPerfCountFrequency / (r32)CounterElapsed);
                     r32 MCPF = ((r32)CyclesElapsed / Square(1000.0f));
-                    OutputDebugStringA(d7sam_concat(MSPerFrame)("ms/f, ")(FPS)("f/s, ")(MCPF)("mc/f")("\n"));
+//                    OutputDebugStringA(d7sam_concat(MSPerFrame)("ms/f, ")(FPS)("f/s, ")(MCPF)("mc/f")("\n"));
+
+                    /* TODO(chowie): Audio update reference
+                    UINT64 PositionFrequency;
+                    UINT64 PositionUnits;
+
+                    IAudioClock* AudioClock;
+                    GlobalSoundClient->GetService(IID_PPV_ARGS(&AudioClock));
+                    AudioClock->GetFrequency(&PositionFrequency);
+                    AudioClock->GetPosition(&PositionUnits, 0);
+                    AudioClock->Release();
+                        
+                    Marker->PlayCursor = (DWORD)(SoundOutput.SamplesPerSecond * PositionUnits / PositionFrequency) % SoundOutput.SamplesPerSecond;
+                    */
+
+                    // TODO: Should we clear these here?
+                    Swap(game_input *, NewInput, OldInput);
 
                     // NOTE(chowie): Rather than begin/end counter at
                     // the top of the loop. The process to get back up

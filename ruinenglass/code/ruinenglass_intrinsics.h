@@ -3,12 +3,12 @@
    $File: $
    $Date: $
    $Revision: $
-   $Creator: Talia ... & Michael Chow $
+   $Creator: Michael Chow $
    $Notice: $
    ======================================================================== */
 
 //
-// TODO(chowie): Convert all of these to platorm-efficent versions and
+// TODO(chowie): Convert all of these to platform-efficent versions and
 // remove math.h
 //
 
@@ -25,6 +25,13 @@ inline r32
 SignOf(r32 Value)
 {
     r32 Result = (Value >= 0.0f) ? 1.0f : -1.0f;
+    return(Result);
+}
+
+inline r32
+Fma(r32 MultA, r32 MultB, r32 AddValue)
+{
+    r32 Result = fmaf(MultA, MultB, AddValue);
     return(Result);
 }
 
@@ -134,9 +141,16 @@ FMod(u32 X, u32 Y)
     return(Result);
 }
 
+inline r32
+FMod(r32 X, r32 Y)
+{
+    r32 Result = fmodf(X, Y);
+    return(Result);
+}
+
 struct bit_scan_result
 {
-    b32 Found;
+    b32x Found;
     u32 Index;
 };
 inline bit_scan_result
@@ -168,8 +182,8 @@ FindLeastSignificantSetBit(u32 Value)
 inline s32
 Fibonacci(u32 Value)
 {
-    u32 Result = lround((pow(0.5 + 0.5 * SquareRoot(5.0), Value) - 
-                         pow(0.5 - 0.5 * SquareRoot(5.0), Value)) / 
+    u32 Result = lround((pow(0.5f + 0.5f * SquareRoot(5.0), Value) - 
+                         pow(0.5f - 0.5f * SquareRoot(5.0), Value)) / 
                         SquareRoot(5.0));
     return(Result);
 }
@@ -177,7 +191,7 @@ Fibonacci(u32 Value)
 inline s32
 Factorial(u32 Value)
 {
-    u32 Result = lround(exp(lgamma(Value+1)));
+    u32 Result = lround(exp(lgamma(Value + 1)));
     return(Result);
 }
 

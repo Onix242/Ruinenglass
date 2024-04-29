@@ -7,6 +7,31 @@
    $Notice: $
    ======================================================================== */
 
+inline v2u
+V2U(u32 X, u32 Y)
+{
+    v2u Result = {X, Y};
+
+    return(Result);
+}
+
+inline v2s
+V2S(s32 X, s32 Y)
+{
+    v2s Result = {X, Y};
+
+    return(Result);
+}
+
+// NOTE(chowie): I want to say, Min = "Some Value" for both.
+inline v2s
+V2S(s32 Value)
+{
+    v2s Result = {Value, Value};
+
+    return(Result);
+}
+
 // NOTE(chowie): V2 from ints saves on casting all the time
 inline v2
 V2i(s32 X, s32 Y)
@@ -27,10 +52,24 @@ V2i(u32 X, u32 Y)
 inline v2
 V2(r32 X, r32 Y)
 {
-    v2 Result;
+    v2 Result = {X, Y};
 
-    Result.x = X;
-    Result.y = Y;
+    return(Result);
+}
+
+// NOTE(chowie): I want to say, Min = "Some Value" for both.
+inline v2
+V2(r32 Value)
+{
+    v2 Result = {Value, Value};
+
+    return(Result);
+}
+
+inline v3u
+V3U(u32 X, u32 Y, u32 Z)
+{
+    v3u Result = {X, Y, Z};
 
     return(Result);
 }
@@ -38,11 +77,7 @@ V2(r32 X, r32 Y)
 inline v3
 V3(r32 X, r32 Y, r32 Z)
 {
-    v3 Result;
-
-    Result.x = X;
-    Result.y = Y;
-    Result.z = Z;
+    v3 Result = {X, Y, Z};
 
     return(Result);
 }
@@ -50,11 +85,7 @@ V3(r32 X, r32 Y, r32 Z)
 inline v3
 V3(v2 XY, r32 Z)
 {
-    v3 Result;
-
-    Result.x = XY.x;
-    Result.y = XY.y;
-    Result.z = Z;
+    v3 Result = {XY.x, XY.y, Z};
 
     return(Result);
 }
@@ -62,12 +93,7 @@ V3(v2 XY, r32 Z)
 inline v4
 V4(r32 X, r32 Y, r32 Z, r32 W)
 {
-    v4 Result;
-
-    Result.x = X;
-    Result.y = Y;
-    Result.z = Z;
-    Result.w = W;
+    v4 Result = {X, Y, Z, W};
 
     return(Result);
 }
@@ -75,10 +101,7 @@ V4(r32 X, r32 Y, r32 Z, r32 W)
 inline v4
 V4(v3 XYZ, r32 W)
 {
-    v4 Result;
-
-    Result.xyz = XYZ;
-    Result.w = W;
+    v4 Result = {XYZ, W};
 
     return(Result);
 }
@@ -122,7 +145,8 @@ SafeRatio1(r32 Numerator, r32 Divisor)
 inline r32
 Square(r32 A)
 {
-    r32 Result = A*A;
+#define SQUARE(A) ((A)*(A))
+    r32 Result = SQUARE(A);
 
     return(Result);
 }
@@ -130,15 +154,19 @@ Square(r32 A)
 inline r32
 Cube(r32 A)
 {
-    r32 Result = A*A*A;
+#define CUBE(A) ((A)*(A)*(A))
+    r32 Result = CUBE(A);
 
     return(Result);
 }
 
+// RESOURCE: https://fgiesen.wordpress.com/2012/08/15/linear-interpolation-past-present-and-future/
+// NOTE(chowie): Can be also represented as "A + T*(B - A)",
+// or "(1.0f - t)*A + t*B"
 inline r32
 Lerp(r32 A, r32 t, r32 B)
 {
-    r32 Result = (1.0f - t)*A + t*B;
+    r32 Result = Fma(t, B - A, A);
 
     return(Result);
 }
@@ -160,7 +188,8 @@ Clamp(r32 Min, r32 Value, r32 Max)
     return(Result);
 }
 
-// NOTE(chowie): This is Saturate RESOURCE: https://developer.download.nvidia.com/cg/saturate.html
+// RESOURCE: https://developer.download.nvidia.com/cg/saturate.html
+// NOTE(chowie): This is Saturate
 inline r32
 Clamp01(r32 Value)
 {
@@ -190,17 +219,19 @@ Clamp01MapToRange(r32 Min, r32 t, r32 Max)
 inline r32
 SmoothStep(r32 t)
 {
-    r32 Result = Square(t) - (2*Cube(t)); /* 3t^2 - 2t^3 */
+    r32 Result = Square(t) - (2.0f*Cube(t)); /* 3t^2 - 2t^3 */
 
     return(Result);
 }
 
-// TODO(chowie): Test smooth-step and pulse for alpha tests? RESOURCE: https://realtimecollisiondetection.net/blog/?p=95
+// RESOURCE: https://realtimecollisiondetection.net/blog/?p=95
+// RESOURCE: https://www.fundza.com/rman_shaders/smoothstep/
+// TODO(chowie): Test smooth-step and pulse for alpha tests?
 inline r32
 SmoothStep(r32 Min, r32 t, r32 Max)
 {
     r32 Result = Clamp01MapToRange(Min, t, Max);
-    Result = Square(Result) * (3 - 2*Result);
+    Result = Square(Result) * (3.0f - 2.0f*Result);
 
     return(Result);
 }
@@ -227,6 +258,91 @@ TrianglePulse(v2 A, r32 t, v2 B)
 }
 
 //
+// NOTE(chowie): v2u / v2s operations
+//
+
+internal v2u
+operator+(v2u A, v2u B)
+{
+    v2u Result =
+    {
+        A.x + B.x,
+        A.y + B.y,
+    };
+
+    return(Result);
+}
+
+internal v2s
+operator+(v2s A, v2s B)
+{
+    v2s Result =
+    {
+        A.x + B.x,
+        A.y + B.y,
+    };
+
+    return(Result);
+}
+
+inline v2s
+operator*(s32 A, v2s B)
+{
+    v2s Result =
+    {
+        A * B.x,
+        A * B.y,
+    };
+
+    return(Result);
+}
+
+internal v2s
+operator-(v2s A, v2s B)
+{
+    v2s Result = 
+    {
+        A.x - B.x,
+        A.y - B.y,
+    };
+
+    return(Result);
+}
+
+inline v2s &
+operator+=(v2s &A, v2s B)
+{
+    A = A + B;
+
+    return(A);
+}
+
+inline v2s
+Hadamard(v2s A, v2s B)
+{
+    v2s Result = {A.x*B.x, A.y*B.y};
+
+    return(Result);
+}
+
+internal b32x
+AreEqual(v2s A, v2s B)
+{
+    b32x Result = ((A.x == B.x) &&
+                   (A.y == B.y));
+    return Result;
+}
+
+internal b32x
+AreEqual(v2u A, v2u B)
+{
+    b32x Result = ((A.x == B.x) &&
+                   (A.y == B.y));
+
+    return(Result);
+}
+
+//
 // NOTE(chowie): v2 operations
 //
 
@@ -242,10 +358,11 @@ Perp(v2 A)
 inline v2
 operator*(r32 A, v2 B)
 {
-    v2 Result;
-
-    Result.x = A*B.x;
-    Result.y = A*B.y;
+    v2 Result =
+    {
+        A * B.x,
+        A * B.y,
+    };
 
     return(Result);
 }
@@ -272,10 +389,11 @@ operator*=(v2 &B, r32 A)
 inline v2
 operator-(v2 A)
 {
-    v2 Result;
-
-    Result.x = -A.x;
-    Result.y = -A.y;
+    v2 Result =
+    {
+        -A.x,
+        -A.y,
+    };
 
     return(Result);
 }
@@ -284,10 +402,11 @@ operator-(v2 A)
 inline v2
 operator+(v2 A, v2 B)
 {
-    v2 Result;
-
-    Result.x = A.x + B.x;
-    Result.y = A.y + B.y;
+    v2 Result =
+    {
+        A.x + B.x,
+        A.y + B.y,
+    };
 
     return(Result);
 }
@@ -305,10 +424,11 @@ operator+=(v2 &A, v2 B)
 inline v2
 operator-(v2 A, v2 B)
 {
-    v2 Result;
-
-    Result.x = A.x - B.x;
-    Result.y = A.y - B.y;
+    v2 Result =
+    {
+        A.x - B.x,
+        A.y - B.y,
+    };
 
     return(Result);
 }
@@ -333,6 +453,13 @@ Hadamard(v2 A, v2 B)
 }
 
 // NOTE(chowie): Also called Dot Product
+// RESOURCE: https://hero.handmade.network/forums/code-discussion/t/7858-help_with_collision_detection_with_rotated_rectangles
+/* The dot product of two vectors has the resulting scalar tell you if
+   the two vectors point are in the same general direction: if the
+   value is positive they are pointing in the same general direction
+   if the value is negative they are pointing in opposite general
+   direction if the value is 0 they are perpendicular.
+*/
 inline r32
 Inner(v2 A, v2 B)
 {
@@ -361,10 +488,11 @@ Length(v2 A)
 inline v2
 Clamp01(v2 Value)
 {
-    v2 Result;
-
-    Result.x = Clamp01(Value.x);
-    Result.y = Clamp01(Value.y);
+    v2 Result =
+    {
+        Clamp01(Value.x),
+        Clamp01(Value.y),
+    };
 
     return(Result);
 }
@@ -387,6 +515,33 @@ Arm2(r32 Angle)
 }
 
 //
+// NOTE(chowie): v3u / v3s operations
+//
+
+internal v3u
+operator+(v3u A, v3u B)
+{
+    v3u Result =
+    {
+        A.x + B.x,
+        A.y + B.y,
+        A.z + B.z,
+    };
+
+    return(Result);
+}
+
+internal b32x
+AreEqual(v3u A, v3u B)
+{
+    b32x Result = ((A.x == B.x) &&
+                   (A.y == B.y) &&
+                   (A.z == B.z));
+
+    return(Result);
+}
+
+//
 // NOTE(chowie): v3 operations
 //
 
@@ -394,11 +549,12 @@ Arm2(r32 Angle)
 inline v3
 operator*(r32 A, v3 B)
 {
-    v3 Result;
-
-    Result.x = A*B.x;
-    Result.y = A*B.y;
-    Result.z = A*B.z;
+    v3 Result =
+    {
+        A * B.x,
+        A * B.y,
+        A * B.z,
+    };
 
     return(Result);
 }
@@ -407,7 +563,7 @@ operator*(r32 A, v3 B)
 inline v3
 operator*(v3 B, r32 A)
 {
-    v3 Result = A*B;
+    v3 Result = A * B;
 
     return(Result);
 }
@@ -425,11 +581,12 @@ operator*=(v3 &B, r32 A)
 inline v3
 operator-(v3 A)
 {
-    v3 Result;
-
-    Result.x = -A.x;
-    Result.y = -A.y;
-    Result.z = -A.z;
+    v3 Result =
+    {
+        -A.x,
+        -A.y,
+        -A.z,
+    };
 
     return(Result);
 }
@@ -438,11 +595,12 @@ operator-(v3 A)
 inline v3
 operator+(v3 A, v3 B)
 {
-    v3 Result;
-
-    Result.x = A.x + B.x;
-    Result.y = A.y + B.y;
-    Result.z = A.z + B.z;
+    v3 Result =
+    {
+        A.x + B.x,
+        A.y + B.y,
+        A.z + B.z,
+    };
 
     return(Result);
 }
@@ -460,11 +618,12 @@ operator+=(v3 &A, v3 B)
 inline v3
 operator-(v3 A, v3 B)
 {
-    v3 Result;
-
-    Result.x = A.x - B.x;
-    Result.y = A.y - B.y;
-    Result.z = A.z - B.z;
+    v3 Result =
+    {
+        A.x - B.x,
+        A.y - B.y,
+        A.z - B.z,
+    };
 
     return(Result);
 }
@@ -499,11 +658,12 @@ Inner(v3 A, v3 B)
 inline v3
 Cross(v3 A, v3 B)
 {
-    v3 Result;
-
-    Result.x = A.y*B.z - A.z*B.y;
-    Result.y = A.z*B.x - A.x*B.z;
-    Result.z = A.x*B.y - A.y*B.x;
+    v3 Result =
+    {
+        A.y*B.z - A.z*B.y,
+        A.z*B.x - A.x*B.z,
+        A.x*B.y - A.y*B.x,
+    };
 
     return(Result);
 }
@@ -515,7 +675,7 @@ LengthSq(v3 A)
     return(Result);
 }
 
-// STUDY(chowie): Sqroot is undefined negative numbers. LengthSq
+// STUDY(chowie): Sqrt is undefined negative numbers. LengthSq
 // cannot produce a negative number, i.e Negative*Negative is positive
 inline r32
 Length(v3 A)
@@ -524,6 +684,8 @@ Length(v3 A)
     return(Result);
 }
 
+// RESOURCE: https://fgiesen.wordpress.com/2010/10/21/finish-your-derivations-please/
+// TODO(chowie): I don't want to be using angles, right?
 inline v3
 Normalise(v3 A)
 {
@@ -550,11 +712,11 @@ NOZ(v3 A)
 // TODO: Try biarc interpolation? RESOURCE: https://www.ryanjuckett.com/biarc-interpolation/
 // TODO(chowie): Not quite sure how useful this function is - for asserts mainly
 // NOTE(chowie): Vector length is within epsilon of 1
-inline b32
+inline b32x
 IsNormalisedEps(v3 A, r32 Epsilon)
 {
     r32 Magnitude = LengthSq(A);
-    b32 Result = (Magnitude >= Square(1.0f - Epsilon) &&
+    b32x Result = (Magnitude >= Square(1.0f - Epsilon) &&
                   Magnitude <= Square(1.0f + Epsilon));
     return(Result);
 }
@@ -562,10 +724,10 @@ IsNormalisedEps(v3 A, r32 Epsilon)
 // RESOURCE: https://web.archive.org/web/20200414122444/https://www.randygaul.net/2014/11/
 // RESOURCE: https://www.reddit.com/r/gamedev/comments/2ljvlz/collection_of_numerically_robust_parallel_vectors/
 // TODO(chowie): Double Check this!
-inline b32
+inline b32x
 IsPerp(v3 A, v3 B, r32 Epsilon)
 {
-    b32 Result = false;
+    b32x Result = false;
     if(AbsoluteValue(Inner(A, B)) < Epsilon)
     {
         Result = true;
@@ -578,10 +740,10 @@ IsPerp(v3 A, v3 B, r32 Epsilon)
 // NOTE(chowie): Pros; No non-linearity issues, fast with 2
 // sqrts. Cons; Epsilons with v3 of wildly different components, bias
 // to scale to the shorter or longer version - shorter?
-inline b32
+inline b32x
 IsParallel(v3 A, v3 B, r32 Epsilon)
 {
-    b32 Result;
+    b32x Result;
 
     A = NOZ(A);
     B = NOZ(B);
@@ -593,11 +755,12 @@ IsParallel(v3 A, v3 B, r32 Epsilon)
 inline v3
 Clamp01(v3 Value)
 {
-    v3 Result;
-
-    Result.x = Clamp01(Value.x);
-    Result.y = Clamp01(Value.y);
-    Result.z = Clamp01(Value.z);
+    v3 Result =
+    {
+        Clamp01(Value.x),
+        Clamp01(Value.y),
+        Clamp01(Value.z),
+    };
 
     return(Result);
 }
@@ -611,9 +774,10 @@ Lerp(v3 A, r32 t, v3 B)
 }
 
 // RESOURCE: https://box2d.org/posts/2014/02/computing-a-basis/
-// TODO(chowie): Find out if this can be a replacement for entities? If so, SIMD this? RESOURCE: https://web.archive.org/web/20190120215637/http://www.randygaul.net/2015/10/27/compute-basis-with-simd/
+// RESOURCE: https://web.archive.org/web/20190120215637/http://www.randygaul.net/2015/10/27/compute-basis-with-simd/
+// TODO(chowie): Find out if this can be a replacement for entities? If so, SIMD this?
 inline void
-GetBasis(v3 A, v3 B, v3 C)
+GetBasis(v3 A, v3 *B, v3 *C)
 {
     // Suppose vector a has all equal components and is a unit vector:
     // a = (s, s, s)
@@ -621,17 +785,18 @@ GetBasis(v3 A, v3 B, v3 C)
     // least one component of a unit vector must be greater or equal
     // to 0.57735.
 
-    if(AbsoluteValue(A.x) >= 0.57735)
+#define SqrtThird 0.57735f
+    if(AbsoluteValue(A.x) >= SqrtThird)
     {
-        B = V3(A.y, -A.x, 0.0f);
+        *B = V3(A.y, -A.x, 0.0f);
     }
     else
     {
-        B = V3(0.0f, A.z, -A.y);
+        *B = V3(0.0f, A.z, -A.y);
     }
 
-    B = Normalise(B);
-    C = Cross(A, B);
+    *B = Normalise(*B);
+    *C = Cross(A, *B);
 }
 
 //
@@ -642,12 +807,13 @@ GetBasis(v3 A, v3 B, v3 C)
 inline v4
 operator*(r32 A, v4 B)
 {
-    v4 Result;
-
-    Result.x = A*B.x;
-    Result.y = A*B.y;
-    Result.z = A*B.z;
-    Result.w = A*B.w;
+    v4 Result =
+    {
+        A * B.x,
+        A * B.y,
+        A * B.z,
+        A * B.w,
+    };
 
     return(Result);
 }
@@ -674,12 +840,13 @@ operator*=(v4 &B, r32 A)
 inline v4
 operator-(v4 A)
 {
-    v4 Result;
-
-    Result.x = -A.x;
-    Result.y = -A.y;
-    Result.z = -A.z;
-    Result.w = -A.w;
+    v4 Result =
+    {
+        -A.x,
+        -A.y,
+        -A.z,
+        -A.w,
+    };
 
     return(Result);
 }
@@ -688,12 +855,13 @@ operator-(v4 A)
 inline v4
 operator+(v4 A, v4 B)
 {
-    v4 Result;
-
-    Result.x = A.x + B.x;
-    Result.y = A.y + B.y;
-    Result.z = A.z + B.z;
-    Result.w = A.w + B.w;
+    v4 Result =
+    {
+        A.x + B.x,
+        A.y + B.y,
+        A.z + B.z,
+        A.w + B.w,
+    };
 
     return(Result);
 }
@@ -711,12 +879,13 @@ operator+=(v4 &A, v4 B)
 inline v4
 operator-(v4 A, v4 B)
 {
-    v4 Result;
-
-    Result.x = A.x - B.x;
-    Result.y = A.y - B.y;
-    Result.z = A.z - B.z;
-    Result.w = A.w - B.w;
+    v4 Result =
+    {
+        A.x - B.x,
+        A.y - B.y,
+        A.z - B.z,
+        A.w - B.w,
+    };
 
     return(Result);
 }
@@ -767,12 +936,13 @@ Length(v4 A)
 inline v4
 Clamp01(v4 Value)
 {
-    v4 Result;
-
-    Result.x = Clamp01(Value.x);
-    Result.y = Clamp01(Value.y);
-    Result.z = Clamp01(Value.z);
-    Result.w = Clamp01(Value.w);
+    v4 Result =
+    {
+        Clamp01(Value.x),
+        Clamp01(Value.y),
+        Clamp01(Value.z),
+        Clamp01(Value.w),
+    };
 
     return(Result);
 }
@@ -789,13 +959,15 @@ Lerp(v4 A, r32 t, v4 B)
 // NOTE(chowie): Rectangle2
 //
 
+// NOTE(chowie): Only to initialise unions
 inline rectangle2
 InvertedInfinityRectangle2(void)
 {
-    rectangle2 Result;
-
-    Result.Min.x = Result.Min.y = R32Maximum;
-    Result.Max.x = Result.Max.y = -R32Maximum;
+    rectangle2 Result
+    {
+        V2(R32Maximum),
+        V2(-R32Maximum),
+    };
 
     return(Result);
 }
@@ -803,12 +975,13 @@ InvertedInfinityRectangle2(void)
 inline rectangle2
 Union(rectangle2 A, rectangle2 B)
 {
-    rectangle2 Result;
-
-    Result.Min.x = (A.Min.x < B.Min.x) ? A.Min.x : B.Min.x;
-    Result.Min.y = (A.Min.y < B.Min.y) ? A.Min.y : B.Min.y;
-    Result.Max.x = (A.Max.x > B.Max.x) ? A.Max.x : B.Max.x;
-    Result.Max.y = (A.Max.y > B.Max.y) ? A.Max.y : B.Max.y;
+    rectangle2 Result =
+    {
+        (A.Min.x < B.Min.x) ? A.Min.x : B.Min.x,
+        (A.Min.y < B.Min.y) ? A.Min.y : B.Min.y,
+        (A.Max.x > B.Max.x) ? A.Max.x : B.Max.x,
+        (A.Max.y > B.Max.y) ? A.Max.y : B.Max.y,
+    };
 
     return(Result);
 };
@@ -844,10 +1017,11 @@ GetCenter(rectangle2 Rect)
 inline rectangle2
 RectMinMax(v2 Min, v2 Max)
 {
-    rectangle2 Result;
-
-    Result.Min = Min;
-    Result.Max = Max;
+    rectangle2 Result =
+    {
+        Min,
+        Max,
+    };
 
     return(Result);
 }
@@ -856,22 +1030,11 @@ RectMinMax(v2 Min, v2 Max)
 inline rectangle2
 RectMinDim(v2 Min, v2 Dim)
 {
-    rectangle2 Result;
-
-    Result.Min = Min;
-    Result.Max = Min + Dim;
-
-    return(Result);
-}
-
-// NOTE(chowie): Dim stores half-width and half-height
-inline rectangle2
-RectCenterHalfDim(v2 Center, v2 HalfDim)
-{
-    rectangle2 Result;
-
-    Result.Min = Center - HalfDim;
-    Result.Max = Center + HalfDim;
+    rectangle2 Result =
+    {
+        Min,
+        Min + Dim,
+    };
 
     return(Result);
 }
@@ -880,10 +1043,11 @@ RectCenterHalfDim(v2 Center, v2 HalfDim)
 inline rectangle2
 AddRadiusTo(rectangle2 A, v2 Radius)
 {
-    rectangle2 Result;
-
-    Result.Min = A.Min - Radius;
-    Result.Max = A.Max + Radius;
+    rectangle2 Result =
+    {
+        A.Min - Radius,
+        A.Max + Radius,
+    };
 
     return(Result);
 }
@@ -891,10 +1055,24 @@ AddRadiusTo(rectangle2 A, v2 Radius)
 inline rectangle2
 Offset(rectangle2 A, v2 Offset)
 {
-    rectangle2 Result;
+    rectangle2 Result =
+    {
+        A.Min + Offset,
+        A.Max + Offset,
+    };
 
-    Result.Min = A.Min + Offset;
-    Result.Max = A.Max + Offset;
+    return(Result);
+}
+
+// NOTE(chowie): Dim stores half-width and half-height
+inline rectangle2
+RectCenterHalfDim(v2 Center, v2 HalfDim)
+{
+    rectangle2 Result =
+    {
+        Center - HalfDim,
+        Center + HalfDim,
+    };
 
     return(Result);
 }
@@ -907,13 +1085,13 @@ RectCenterDim(v2 Center, v2 Dim)
     return(Result);
 }
 
-inline b32
+inline b32x
 IsInRectangle(rectangle2 Rectangle, v2 Test)
 {
-    b32 Result = ((Test.x >= Rectangle.Min.x) &&
-                     (Test.y >= Rectangle.Min.y) &&
-                     (Test.x < Rectangle.Max.x) &&
-                     (Test.y < Rectangle.Max.y));
+    b32x Result = ((Test.x >= Rectangle.Min.x) &&
+                   (Test.y >= Rectangle.Min.y) &&
+                   (Test.x < Rectangle.Max.x) &&
+                   (Test.y < Rectangle.Max.y));
 
     return(Result);
 }
@@ -923,10 +1101,11 @@ IsInRectangle(rectangle2 Rectangle, v2 Test)
 inline v2
 GetBarycentric(rectangle2 A, v2 P)
 {
-    v2 Result;
-
-    Result.x = SafeRatio0(P.x - A.Min.x, A.Max.x - A.Min.x);
-    Result.y = SafeRatio0(P.y - A.Min.y, A.Max.y - A.Min.y);
+    v2 Result =
+    {
+        SafeRatio0(P.x - A.Min.x, A.Max.x - A.Min.x),
+        SafeRatio0(P.y - A.Min.y, A.Max.y - A.Min.y),
+    };
 
     return(Result);
 }
@@ -966,10 +1145,11 @@ GetCenter(rectangle3 Rect)
 inline rectangle3
 RectMinMax(v3 Min, v3 Max)
 {
-    rectangle3 Result;
-
-    Result.Min = Min;
-    Result.Max = Max;
+    rectangle3 Result =
+    {
+        Min,
+        Max,
+    };
 
     return(Result);
 }
@@ -978,10 +1158,35 @@ RectMinMax(v3 Min, v3 Max)
 inline rectangle3
 RectMinDim(v3 Min, v3 Dim)
 {
-    rectangle3 Result;
+    rectangle3 Result =
+    {
+        Min,
+        Min + Dim,
+    };
 
-    Result.Min = Min;
-    Result.Max = Min + Dim;
+    return(Result);
+}
+
+inline rectangle3
+AddRadiusTo(rectangle3 A, v3 Radius)
+{
+    rectangle3 Result =
+    {
+        A.Min - Radius,
+        A.Max + Radius,
+    };
+
+    return(Result);
+}
+
+inline rectangle3
+Offset(rectangle3 A, v3 Offset)
+{
+    rectangle3 Result =
+    {
+        A.Min + Offset,
+        A.Max + Offset,
+    };
 
     return(Result);
 }
@@ -990,32 +1195,11 @@ RectMinDim(v3 Min, v3 Dim)
 inline rectangle3
 RectCenterHalfDim(v3 Center, v3 HalfDim)
 {
-    rectangle3 Result;
-
-    Result.Min = Center - HalfDim;
-    Result.Max = Center + HalfDim;
-
-    return(Result);
-}
-
-inline rectangle3
-AddRadiusTo(rectangle3 A, v3 Radius)
-{
-    rectangle3 Result;
-
-    Result.Min = A.Min - Radius;
-    Result.Max = A.Max + Radius;
-
-    return(Result);
-}
-
-inline rectangle3
-Offset(rectangle3 A, v3 Offset)
-{
-    rectangle3 Result;
-
-    Result.Min = A.Min + Offset;
-    Result.Max = A.Max + Offset;
+    rectangle3 Result =
+    {
+        Center - HalfDim,
+        Center + HalfDim
+    };
 
     return(Result);
 }
@@ -1028,28 +1212,30 @@ RectCenterDim(v3 Center, v3 Dim)
     return(Result);
 }
 
-inline b32
+// RESOURCE: https://fgiesen.wordpress.com/2011/10/16/checking-for-interval-overlap/
+// TODO(chowie): Interval Overlap?
+inline b32x
 IsInRectangle(rectangle3 Rectangle, v3 Test)
 {
-    b32 Result = ((Test.x >= Rectangle.Min.x) &&
-                     (Test.y >= Rectangle.Min.y) &&
-                     (Test.z >= Rectangle.Min.z) &&
-                     (Test.x < Rectangle.Max.x) &&
-                     (Test.y < Rectangle.Max.y) &&
-                     (Test.z < Rectangle.Max.z));
+    b32x Result = ((Test.x >= Rectangle.Min.x) &&
+                   (Test.y >= Rectangle.Min.y) &&
+                   (Test.z >= Rectangle.Min.z) &&
+                   (Test.x < Rectangle.Max.x) &&
+                   (Test.y < Rectangle.Max.y) &&
+                   (Test.z < Rectangle.Max.z));
 
     return(Result);
 }
 
-inline b32
+inline b32x
 RectanglesIntersect(rectangle3 A, rectangle3 B)
 {
-    b32 Result = !((B.Max.x <= A.Min.x) ||
-                      (B.Min.x >= A.Max.x) ||
-                      (B.Max.y <= A.Min.y) ||
-                      (B.Min.y >= A.Max.y) ||
-                      (B.Max.z <= A.Min.z) ||
-                      (B.Min.z >= A.Max.z));
+    b32x Result = !((B.Max.x <= A.Min.x) ||
+                    (B.Min.x >= A.Max.x) ||
+                    (B.Max.y <= A.Min.y) ||
+                    (B.Min.y >= A.Max.y) ||
+                    (B.Max.z <= A.Min.z) ||
+                    (B.Min.z >= A.Max.z));
 
     return(Result);
 }
@@ -1057,11 +1243,12 @@ RectanglesIntersect(rectangle3 A, rectangle3 B)
 inline v3
 GetBarycentric(rectangle3 A, v3 P)
 {
-    v3 Result;
-
-    Result.x = SafeRatio0(P.x - A.Min.x, A.Max.x - A.Min.x);
-    Result.y = SafeRatio0(P.y - A.Min.y, A.Max.y - A.Min.y);
-    Result.z = SafeRatio0(P.z - A.Min.z, A.Max.z - A.Min.z);
+    v3 Result =
+    {
+        SafeRatio0(P.x - A.Min.x, A.Max.x - A.Min.x),
+        SafeRatio0(P.y - A.Min.y, A.Max.y - A.Min.y),
+        SafeRatio0(P.z - A.Min.z, A.Max.z - A.Min.z),
+    };
 
     return(Result);
 }
@@ -1069,10 +1256,11 @@ GetBarycentric(rectangle3 A, v3 P)
 inline rectangle2
 ToRectangleXY(rectangle3 A)
 {
-    rectangle2 Result;
-
-    Result.Min = A.Min.xy;
-    Result.Max = A.Max.xy;
+    rectangle2 Result =
+    {
+        A.Min.xy,
+        A.Max.xy,
+    };
 
     return(Result);
 }
@@ -1081,67 +1269,141 @@ ToRectangleXY(rectangle3 A)
 //
 //
 
-struct rectangle2i
+// TODO(chowie): Could this be the base of collision dectection?
+union rectangle2i
 {
-    s32 MinX, MinY;
-    s32 MaxX, MaxY;
+    struct
+    {
+        v2s Min;
+        v2s Max;
+    };
+    struct
+    {
+        v2s Min;
+        v2s MaxN; // NOTE(chowie): N means Negated
+    };
+    v4 E[4];
+};
+
+inline rectangle2i
+Min(rectangle2i A, rectangle2i B)
+{
+    rectangle2i Result =
+    {
+        Minimum(A.Min.x, B.Min.x),
+        Minimum(A.MaxN.y, B.MaxN.y),
+    };
+
+    return(Result);
+}
+
+inline rectangle2i
+Max(rectangle2i A, rectangle2i B)
+{
+    rectangle2i Result =
+    {
+        Maximum(A.Min.x, B.Min.x),
+        Maximum(A.MaxN.y, B.MaxN.y),
+    };
+
+    return(Result);
+}
+
+// RESOURCE: https://fgiesen.wordpress.com/2013/01/14/min-max-under-negation-and-an-aabb-trick/
+// TODO(chowie): Does this work? SIMD this!
+// NOTE(chowie): Requires negative max!
+inline rectangle2i
+UnionN(rectangle2i A, rectangle2i B)
+{
+    rectangle2i Result;
+
+    for(s32 Index = 0;
+        Index < ArrayCount(Result.E);
+        ++Index)
+    {
+        Result = Min(A, B);
+    }
+
+    return(Result);
+};
+
+// NOTE(chowie): Requires negative max!
+inline rectangle2i
+IntersectN(rectangle2i A, rectangle2i B)
+{
+    rectangle2i Result;
+    
+    for(s32 Index = 0;
+        Index < ArrayCount(Result.E);
+        ++Index)
+    {
+        Result = Max(A, B);
+    }
+
+    return(Result);
+};
+
+/*
+inline rectangle2i
+Union(rectangle2i A, rectangle2i B)
+{
+    rectangle2i Result =
+    {
+        (A.Min.x < B.Min.x) ? A.Min.x : B.Min.x,
+        (A.Min.y < B.Min.y) ? A.Min.y : B.Min.y,
+        (A.Max.x > B.Max.x) ? A.Max.x : B.Max.x,
+        (A.Max.y > B.Max.y) ? A.Max.y : B.Max.y,
+    };
+
+    return(Result);
 };
 
 inline rectangle2i
 Intersect(rectangle2i A, rectangle2i B)
 {
-    rectangle2i Result;
-
-    Result.MinX = (A.MinX < B.MinX) ? B.MinX : A.MinX;
-    Result.MinY = (A.MinY < B.MinY) ? B.MinY : A.MinY;
-    Result.MaxX = (A.MaxX > B.MaxX) ? B.MaxX : A.MaxX;
-    Result.MaxY = (A.MaxY > B.MaxY) ? B.MaxY : A.MaxY;
-
-    return(Result);
-};
-
-inline rectangle2i
-Union(rectangle2i A, rectangle2i B)
-{
-    rectangle2i Result;
-
-    Result.MinX = (A.MinX < B.MinX) ? A.MinX : B.MinX;
-    Result.MinY = (A.MinY < B.MinY) ? A.MinY : B.MinY;
-    Result.MaxX = (A.MaxX > B.MaxX) ? A.MaxX : B.MaxX;
-    Result.MaxY = (A.MaxY > B.MaxY) ? A.MaxY : B.MaxY;
+    rectangle2i Result =
+    {
+        (A.Min.x < B.Min.x) ? B.Min.x : A.Min.x,
+        (A.Min.y < B.Min.y) ? B.Min.y : A.Min.y,
+        (A.Max.x > B.Max.x) ? B.Max.x : A.Max.x,
+        (A.Max.y > B.Max.y) ? B.Max.y : A.Max.y,
+    };
 
     return(Result);
 };
+*/
 
 inline s32
 GetClampedRectArea(rectangle2i A)
 {
-    s32 Width = (A.MaxX - A.MinX);
-    s32 Height = (A.MaxY - A.MinY);
+    s32 Width = (A.Max.x - A.Min.x);
+    s32 Height = (A.Max.y - A.Min.y);
     s32 Result = 0;
     if((Width > 0) && (Height > 0))
     {
-        Result = Width*Height;
+        Result = Width * Height;
     }
 
     return(Result);
 }
 
-inline b32
+inline b32x
 HasArea(rectangle2i A)
 {
-    b32 Result = ((A.MinX < A.MaxX) && (A.MinY < A.MaxY));
+    b32x Result = ((A.Min.x < A.Max.x) && (A.Min.y < A.Max.y));
 
     return(Result);
 }
 
+// NOTE(chowie): Only to initialise unions
 inline rectangle2i
 InvertedInfinityRectangle2i(void)
 {
-    rectangle2i Result;
-
-    Result.MinX = Result.MinY = INT_MAX;
-    Result.MaxX = Result.MaxY = -INT_MAX;
+    rectangle2i Result
+    {
+        V2S(INT_MAX),
+        V2S(-INT_MAX),
+    };
 
     return(Result);
 }
@@ -1149,20 +1411,20 @@ InvertedInfinityRectangle2i(void)
 inline v4
 SRGB255ToLinear1(v4 C)
 {
-    v4 Result;
+#define Inv255 (1.0f / 255.0f)
+    v4 Result =
+    {
+        Square(Inv255*C.r),
+        Square(Inv255*C.g),
+        Square(Inv255*C.b),
+        Inv255*C.a,
+    };
 
-    r32 Inv255 = 1.0f / 255.0f;
-
-    Result.r = Square(Inv255*C.r);
-    Result.g = Square(Inv255*C.g);
-    Result.b = Square(Inv255*C.b);
     // NOTE(chowie): Alpha is not a brightness value, but a value tells us how
     // much we want to blend (as a percentage). Only ever blend in
     // that linear space anyway, assume inputs are in linearly encoded
     // alpha (but who knows really depending on the program).
-    // NOTE(chowie): Alpha channels are not converted to sRGB, is linear
-    // NOTE(chowie): Alpha channel is not an sRGB in current system, not converting
-    Result.a = Inv255*C.a;
+    // NOTE(chowie): Alpha channels are not converted to sRGB, is linear.
 
     return(Result);
 }
@@ -1170,14 +1432,111 @@ SRGB255ToLinear1(v4 C)
 inline v4
 Linear1ToSRGB255(v4 C)
 {
-    v4 Result;
+#define One255 255.0f
+    v4 Result =
+    {
+        One255*SquareRoot(C.r),
+        One255*SquareRoot(C.g),
+        One255*SquareRoot(C.b),
+        One255*C.a,
+    };
 
-    r32 One255 = 255.0f;
+    return(Result);
+}
 
-    Result.r = One255*SquareRoot(C.r);
-    Result.g = One255*SquareRoot(C.g);
-    Result.b = One255*SquareRoot(C.b);
-    Result.a = One255*C.a;
+//
+// NOTE(chowie): Compression
+//
+
+//
+// RESOURCE: https://fgiesen.wordpress.com/2009/12/13/decoding-morton-codes/
+//
+
+// TODO(chowie): Try to use this for tile/world storage? (Must be in u32)
+// NOTE(fabian): "Insert" a 0 bit after each of the 16 low bits of x
+inline u32
+Part1By1(u32 Value)
+{
+    Value &= 0x0000ffff;                          // Value = ---- ---- ---- ---- fedc ba98 7654 3210
+    Value = (Value ^ (Value <<  8)) & 0x00ff00ff; // Value = ---- ---- fedc ba98 ---- ---- 7654 3210
+    Value = (Value ^ (Value <<  4)) & 0x0f0f0f0f; // Value = ---- fedc ---- ba98 ---- 7654 ---- 3210
+    Value = (Value ^ (Value <<  2)) & 0x33333333; // Value = --fe --dc --ba --98 --76 --54 --32 --10
+    Value = (Value ^ (Value <<  1)) & 0x55555555; // Value = -f-e -d-c -b-a -9-8 -7-6 -5-4 -3-2 -1-0
+    return(Value);
+}
+
+// NOTE(fabian): "Insert" two 0 bits after each of the 10 low bits of Value
+inline u32
+Part1By2(u32 Value)
+{
+    Value &= 0x000003ff;                          // Value = ---- ---- ---- ---- ---- --98 7654 3210
+    Value = (Value ^ (Value << 16)) & 0xff0000ff; // Value = ---- --98 ---- ---- ---- ---- 7654 3210
+    Value = (Value ^ (Value <<  8)) & 0x0300f00f; // Value = ---- --98 ---- ---- 7654 ---- ---- 3210
+    Value = (Value ^ (Value <<  4)) & 0x030c30c3; // Value = ---- --98 ---- 76-- --54 ---- 32-- --10
+    Value = (Value ^ (Value <<  2)) & 0x09249249; // Value = ---- 9--8 --7- -6-- 5--4 --3- -2-- 1--0
+    return(Value);
+}
+
+inline u32
+EncodeMortonV2U(v2u Value)
+{
+    u32 Result = (Part1By1(Value.y) << 1) + Part1By1(Value.x);
+
+    return(Result);
+}
+
+inline u32
+EncodeMortonV2U(v3u Value)
+{
+    u32 Result = (Part1By2(Value.z) << 2) + (Part1By2(Value.y) << 1) + Part1By2(Value.x);
+    return(Result);
+}
+
+// NOTE(fabian): Inverse of Part1By1 - "delete" all odd-indexed bits
+inline u32
+Compact1By1(u32 Value)
+{
+    Value &= 0x55555555;                          // Value = -f-e -d-c -b-a -9-8 -7-6 -5-4 -3-2 -1-0
+    Value = (Value ^ (Value >>  1)) & 0x33333333; // Value = --fe --dc --ba --98 --76 --54 --32 --10
+    Value = (Value ^ (Value >>  2)) & 0x0f0f0f0f; // Value = ---- fedc ---- ba98 ---- 7654 ---- 3210
+    Value = (Value ^ (Value >>  4)) & 0x00ff00ff; // Value = ---- ---- fedc ba98 ---- ---- 7654 3210
+    Value = (Value ^ (Value >>  8)) & 0x0000ffff; // Value = ---- ---- ---- ---- fedc ba98 7654 3210
+    return(Value);
+}
+
+// NOTE(fabian): Inverse of Part1By2 - "delete" all bits not at positions divisible by 3
+inline u32
+Compact1By2(u32 Value)
+{
+    Value &= 0x09249249;                          // Value = ---- 9--8 --7- -6-- 5--4 --3- -2-- 1--0
+    Value = (Value ^ (Value >>  2)) & 0x030c30c3; // Value = ---- --98 ---- 76-- --54 ---- 32-- --10
+    Value = (Value ^ (Value >>  4)) & 0x0300f00f; // Value = ---- --98 ---- ---- 7654 ---- ---- 3210
+    Value = (Value ^ (Value >>  8)) & 0xff0000ff; // Value = ---- --98 ---- ---- ---- ---- 7654 3210
+    Value = (Value ^ (Value >> 16)) & 0x000003ff; // Value = ---- ---- ---- ---- ---- --98 7654 3210
+    return(Value);
+}
+
+inline v2u
+DecodeMorton2(u32 Value)
+{
+    v2u Result =
+    {
+        Compact1By1(Value >> 0),
+        Compact1By1(Value >> 1),
+    };
+
+    return(Result);
+}
+
+inline v3u
+DecodeMorton3(u32 Value)
+{
+    v3u Result =
+    {
+        Compact1By2(Value >> 0),
+        Compact1By2(Value >> 1),
+        Compact1By2(Value >> 2),
+    };
 
     return(Result);
 }

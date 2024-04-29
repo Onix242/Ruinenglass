@@ -14,6 +14,7 @@
 #include <string.h>
 #include <windows.h>
 
+#if 0
 typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
@@ -69,10 +70,10 @@ CatStrings(size_t SourceACount, char *SourceA,
     *Dest++ = 0; // NOTE: Insertion of NULL terminator
 }
 
-inline memory_index
-Clamp(memory_index Min, memory_index Value, memory_index Max)
+inline umm
+Clamp(umm Min, umm Value, umm Max)
 {
-    memory_index Result = Value;
+    umm Result = Value;
 
     if(Result <= Min)
     {
@@ -95,27 +96,27 @@ AbsoluteValue(u32 U32)
 
 // RESOURCE: https://www.youtube.com/watch?v=agUiYkvkoVg
 // TODO(chowie): I wonder if I should split the maxsize of the buffer inside of the gapbuffer itself?
-//global_variable memory_index BufferPosition;
+//global_variable umm BufferPosition;
 struct gap_buffer
 {
     u8 *Buffer;
-    memory_index Length;
-    memory_index Start;
-    memory_index End; // STUDY(chowie): Could use start and len/gap
+    umm Length;
+    umm Start;
+    umm End; // STUDY(chowie): Could use start and len/gap
     // TODO(chowie): Pass an arena allocator in! Check back in at 15:28!
 };
 
-internal memory_index
+internal umm
 GetGapBufferLength(gap_buffer *GapBuffer)
 {
-    memory_index Result = GapBuffer->Length - (GapBuffer->End - GapBuffer->Start); // NOTE(chowie): Does not include gap
+    umm Result = GapBuffer->Length - (GapBuffer->End - GapBuffer->Start); // NOTE(chowie): Does not include gap
     return(Result);
 }
 
 #define GapBufferLenWithGap(GapBuffer) (GapBuffer->Length + GapBufferLength)
 
 internal void
-GapBufferInit(gap_buffer *GapBuffer, memory_index Size)
+GapBufferInit(gap_buffer *GapBuffer, umm Size)
 {
     GapBuffer->Buffer = (u8 *)malloc(Size);
     GapBuffer->Length = 0;
@@ -125,9 +126,9 @@ GapBufferInit(gap_buffer *GapBuffer, memory_index Size)
 
 // NOTE(chowie): Moves the Gap to the cursor position. Cursors are clamped [0,n) where n is the filled count of the buffer.
 internal void
-ShiftGapTo(gap_buffer *GapBuffer, memory_index Cursor)
+ShiftGapTo(gap_buffer *GapBuffer, umm Cursor)
 {
-    memory_index GapLength = GapBuffer->End - GapBuffer->Start;
+    umm GapLength = GapBuffer->End - GapBuffer->Start;
     Cursor = Clamp(Cursor, 0, GapBuffer->Length - GapLength); // TODO(chowie): Check if clamped is correct?
     //printf("GapLength: %d, Cursor: %d\n", GapLength, Cursor); // NOTE(chowie): Accounts for expansion
     if(Cursor != GapBuffer->Start) // NOTE(chowie): Something inside
@@ -139,7 +140,7 @@ ShiftGapTo(gap_buffer *GapBuffer, memory_index Cursor)
             //[12]              [3456789abc]
             //--------|----------------------------------- Gap is BEFORE Cursor
             //[123456]              [789abc]
-            memory_index Delta = Cursor - GapBuffer->Start;
+            umm Delta = Cursor - GapBuffer->Start;
             memcpy(&GapBuffer->Buffer[GapBuffer->Start], &GapBuffer->Buffer[GapBuffer->End], Delta);
             GapBuffer->Start += Delta; // NOTE(chowie): Both buffers must move to the right
             GapBuffer->End += Delta;
@@ -151,7 +152,7 @@ ShiftGapTo(gap_buffer *GapBuffer, memory_index Cursor)
             //[123456]              [789abc]
             //---|---------------------------------------- Gap is AFTER Cursor
             //[12]              [3456789abc]
-            memory_index Delta = GapBuffer->Start - Cursor;
+            umm Delta = GapBuffer->Start - Cursor;
             memcpy(&GapBuffer->Buffer[GapBuffer->End - Delta], &GapBuffer->Buffer[GapBuffer->Start - Delta], Delta);
             GapBuffer->Start -= Delta; // NOTE(chowie): Both buffers must move to the left
             GapBuffer->End -= Delta;
@@ -161,13 +162,13 @@ ShiftGapTo(gap_buffer *GapBuffer, memory_index Cursor)
 
 // NOTE(chowie): Verifies the buffer can hold the needed write. Resizes the array if not. By default doubles array size.
 internal void
-CheckGapSize(gap_buffer *GapBuffer, memory_index Required)
+CheckGapSize(gap_buffer *GapBuffer, umm Required)
 {
-    memory_index GapLength = GapBuffer->End - GapBuffer->Start;
+    umm GapLength = GapBuffer->End - GapBuffer->Start;
     if(GapLength < Required)
     {
         ShiftGapTo(GapBuffer, GapBuffer->Length - GapLength);
-        memory_index RequiredBufferSize = Required + GapBuffer->Length - GapLength;
+        umm RequiredBufferSize = Required + GapBuffer->Length - GapLength;
         u8 *NewBuffer = (u8 *)malloc(2 * RequiredBufferSize); // NOTE(chowie): Maximum to account for big writes // TODO(chowie): Check if it's correct! TIMESTAMP: 12:44
         memcpy(NewBuffer, GapBuffer->Buffer, GapBuffer->End); // TODO(chowie): Check if it's correct! It should only take until the end. Off by one?
         free(GapBuffer->Buffer);
@@ -180,10 +181,10 @@ CheckGapSize(gap_buffer *GapBuffer, memory_index Required)
 // NOTE: Do not rely on the gap being 0, remove will leave as-is values behind in the gap  
 // IMPORTANT: Does not protect for unicode at present, simply deletes bytes  
 internal void
-Remove(gap_buffer *GapBuffer, memory_index Cursor, u32 Count)
+Remove(gap_buffer *GapBuffer, umm Cursor, u32 Count)
 {
     u32 Delete = AbsoluteValue(Count);
-    memory_index NewCursor = Cursor;
+    umm NewCursor = Cursor;
     if(Count < 0)
     {
         NewCursor = Maximum(0, NewCursor - Delete);
@@ -195,7 +196,7 @@ Remove(gap_buffer *GapBuffer, memory_index Cursor, u32 Count)
 }
 
 internal void
-InsertChar(gap_buffer *GapBuffer, memory_index Cursor, u8 Char)
+InsertChar(gap_buffer *GapBuffer, umm Cursor, u8 Char)
 {
     CheckGapSize(GapBuffer, 1);
     ShiftGapTo(GapBuffer, Cursor);
@@ -204,7 +205,7 @@ InsertChar(gap_buffer *GapBuffer, memory_index Cursor, u8 Char)
 }
 
 internal void
-InsertString(gap_buffer *GapBuffer, memory_index Cursor, char *String)
+InsertString(gap_buffer *GapBuffer, umm Cursor, char *String)
 {
     CheckGapSize(GapBuffer, StringLength(String));
     ShiftGapTo(GapBuffer, Cursor);
@@ -215,7 +216,7 @@ InsertString(gap_buffer *GapBuffer, memory_index Cursor, char *String)
 // TODO(chowie): utf-8 support? How does one encode a rune in C? TIMESTAMP: 17:00-18:00
 /*
 internal void
-InsertRune(gap_buffer *GapBuffer, memory_index Cursor, u8 Char)
+InsertRune(gap_buffer *GapBuffer, umm Cursor, u8 Char)
 {
     CheckGapSize(GapBuffer, 1);
     ShiftGapTo(GapBuffer, Cursor);
@@ -225,7 +226,7 @@ InsertRune(gap_buffer *GapBuffer, memory_index Cursor, u8 Char)
 
 // TODO(chowie): How does one insert a string in C? TIMESTAMP: 17:00-18:00
 internal void
-InsertString(gap_buffer *GapBuffer, memory_index Cursor, char *String)
+InsertString(gap_buffer *GapBuffer, umm Cursor, char *String)
 {
     CheckGapSize(GapBuffer, StringLength(String));
     ShiftGapTo(GapBuffer, Cursor);
@@ -258,9 +259,200 @@ main(void)
 
     char TextBuffer[256];
     // RESORUCE: https://stackoverflow.com/questions/8170697/printf-a-buffer-of-char-with-length-in-c
-    memory_index BufferLength = GetGapBufferLength(&GapBuffer);
+    umm BufferLength = GetGapBufferLength(&GapBuffer);
     _snprintf_s(TextBuffer, sizeof(TextBuffer),
                 "Buffer Length: %d\n", BufferLength);
     OutputDebugStringA(TextBuffer);
     return(0);
 }
+
+#else
+
+#if !defined(internal)
+#define internal static
+#endif
+#define local_persist static
+#define global_variable static
+
+typedef int8_t s8;
+typedef int16_t s16;
+typedef int32_t s32;
+typedef int64_t s64;
+typedef int_least32_t b32x;
+
+typedef uint8_t u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
+typedef uint64_t u64;
+
+typedef intptr_t smm;
+typedef uintptr_t umm;
+
+typedef size_t memory_index;
+
+typedef float r32;
+typedef double r64;
+
+#define Kilobytes(Value) ((Value)*1024LL)
+#define Megabytes(Value) (Kilobytes(Value)*1024LL)
+#define Gigabytes(Value) (Megabytes(Value)*1024LL)
+#define Terabytes(Value) (Gigabytes(Value)*1024LL)
+
+#define ArrayCount(arr)(sizeof((arr)) /(sizeof((arr)[0])))
+#define Minimum(A, B) ((A < B) ? (A) : (B))
+#define Maximum(A, B) ((A > B) ? (A) : (B))
+
+#define Assert(Expression) if(!(Expression)) {*(int *)0 = 0;}
+
+inline u32
+StringLength(char *String)
+{
+    u32 Count = 0;
+    if(String)
+    {
+        while(*String++)
+        {
+            ++Count;
+        }
+    }
+
+    return(Count);
+}
+
+struct memory_arena
+{
+    umm Size;
+    u8 *Base;
+    umm Used;
+};
+
+internal void
+InitialiseArena(memory_arena *Arena, umm Size, u8 *Base)
+{
+    Arena->Size = Size;
+    Arena->Base = Base;
+    Arena->Used = 0;
+}
+
+#define PushStruct(Arena, type) (type *)PushSize_(Arena, sizeof(type))
+#define PushArray(Arena, Count, type) (type *)PushSize_(Arena, (Count)*sizeof(type))
+inline void *
+PushSize_(memory_arena *Arena, umm Size)
+{
+    Assert((Arena->Used + Size) <= Arena->Size);
+
+    void *Result = Arena->Base + Arena->Used;
+    Arena->Used += Size;
+
+    return(Result);
+}
+
+inline char *
+PushString(memory_arena *Arena, char *Source)
+{
+    // NOTE(chowie): Include the null terminator
+    u32 Size = 1;
+    for(char *At = Source;
+        *At;
+        ++At)
+    {
+        ++Size;
+    }
+
+    char *Dest = (char *)PushSize_(Arena, Size);
+    for(u32 CharIndex = 0;
+        CharIndex < Size;
+        ++CharIndex)
+    {
+        Dest[CharIndex] = Source[CharIndex];
+    }
+
+    return(Dest);
+}
+
+inline void
+ClearArena(memory_arena *Arena)
+{
+    InitialiseArena(Arena, Arena->Size, Arena->Base);
+}
+
+struct game_memory
+{
+    umm TextStorageSize;
+    u8 *TextStorage; // NOTE: REQUIRED to be cleared to zero at startup 
+};
+
+#define CONCAT_BUFFER_SIZE 256
+struct concat_buffer
+{
+    s32 CharCount;
+    char Buffer[CONCAT_BUFFER_SIZE]; // TODO(chowie): Is it possible to pass this in into an arena?
+};
+
+// TODO(chowie): Convert to using arenas!
+// RESOURCE: https://gist.github.com/d7samurai/1d778693ba33bbd2b9d709b209cc0aba
+// TODO(chowie): This hideous functions is really convenient! Probably only use this for debugging only!
+struct d7sam_concat
+{
+    d7sam_concat(char* Source) { operator()(Source); }
+
+    concat_buffer Text = {};
+
+    d7sam_concat &
+    operator()(char* Source)
+    {
+        // TODO(chowie): How do I remove the null terminator?
+        // NOTE(chowie): Include null terminator
+        u32 Size = StringLength(Source) + 1;
+
+        for(u32 CharIndex = 0;
+            CharIndex < Size;
+            ++CharIndex)
+        {
+            Text.Buffer[Text.CharCount++] = Source[CharIndex];
+        }
+        Text.CharCount--; // TODO(chowie): This is ultra suspicious
+
+        return(*this);
+    }
+
+    operator char* ()
+    {
+        return(Text.Buffer);
+    }
+};
+
+int
+main(void)
+{
+    game_memory GameMemory = {};
+    GameMemory.TextStorageSize = Megabytes(1);
+    GameMemory.TextStorage = (u8 *)VirtualAlloc(0, GameMemory.TextStorageSize,
+                                                MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+
+    if(GameMemory.TextStorage)
+    {
+        memory_arena TextArena;
+        InitialiseArena(&TextArena, GameMemory.TextStorageSize - sizeof(game_memory),
+                        GameMemory.TextStorage + sizeof(game_memory));
+
+        // NOTE(chowie): String test
+        char TextLengthBuffer[256];
+        char *SavedTextBuffer = PushString(&TextArena, TextLengthBuffer);
+
+        char *Name = "Slim shady?";
+        char *Test = PushString(&TextArena, d7sam_concat("Attention! ")(Name));
+
+        _snprintf_s(TextLengthBuffer, sizeof(TextLengthBuffer),
+                    "Inside Buffer: %s\n", Test);
+        OutputDebugStringA(TextLengthBuffer);
+
+        ClearArena(&TextArena);
+    }
+
+    // attention, slim shady! there's an error in line 1337 : the error code is 666 and the temperature is -98.6 degrees
+    //OutputDebugStringA(d7sam_concat("attention, ")(name)("! there's an error in line ")(line)(" : the error code is ")(666)(" and the temperature is ")(temp, 1)(" degrees\n"));
+    return(0);
+}
+
+#endif

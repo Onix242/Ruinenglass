@@ -40,13 +40,50 @@ RandomXorshift(random_series *Series)
     return(Series->Index);
 }
 
+inline u32
+RandomChoice(random_series *Series, u32 ChoiceCount)
+{
+    u32 Result = (RandomXorshift(Series) % ChoiceCount);
+
+    return(Result);
+}
+
+// TODO(chowie): How to properly do a unilateral?
+// NOTE: Normal (0 to 1)
+inline r32
+RandomUnilateral(random_series *Series)
+{
+    r32 Divisor = 1.0f / (r32)Series.Index;
+    // NOTE: Allow the compiler to pre-invert the number (a coefficient multiplication)
+    r32 Result = Divisor * (r32)RandomXorshift(Series);
+
+    return(Result);
+}
+
+// NOTE: Binormal (-1 to 1) 
+inline r32
+RandomBilateral(random_series *Series)
+{
+    r32 Result = 2.0f*RandomUnilateral(Series) - 1.0f;
+
+    return(Result);
+}
+
+inline r32
+RandomBetween(random_series *Series, v2 Range)
+{
+    r32 Result = Lerp(Range.Min, RandomUnilateral(Series), Range.Max);
+
+    return(Result);
+}
+
 inline s32
-RandomBetween(random_series *Series, s32 Min, s32 Max)
+RandomBetween(random_series *Series, v2s Range)
 {
     // NOTE(chowie): We want to be one over the Max, we want to include
     // the case where 1 can produce a 0 or 1 instead of always getting
     // the min.
-    s32 Result = Min + (s32)(RandomXorshift(Series) %((Max + 1) - Min));
+    s32 Result = Range.Min + (s32)(RandomXorshift(Series) % ((Range.Max + 1) - Range.Min));
 
     return(Result);
 }

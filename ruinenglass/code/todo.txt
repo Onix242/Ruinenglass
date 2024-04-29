@@ -37,13 +37,14 @@
 
   - World
     = [Red Blob Games'] Grid
+    = Fabian's Morton's Code For Tile Storage? Must be u32, not s32!
     = Sim Regions
 
   - Entity
     = [Ryan Fleury's] Flag Storage
     = Xor-shift PRNG with [PracticeRecipes]
     = Collision Detection
-      > SAT or similar
+      > CCD, SAT or similar
 
   - Asset Loading System
     = Bitmaps,

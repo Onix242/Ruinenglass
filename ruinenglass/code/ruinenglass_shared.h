@@ -10,9 +10,9 @@
 #include "ruinenglass_intrinsics.h"
 #include "ruinenglass_math.h"
 
-// Probably put "memory_index CheckLength = StringLength(String);" back rather than args
+// Probably put "umm CheckLength = StringLength(String);" back rather than args
 inline char *
-StringReverse(char *String, memory_index CheckLength)
+StringReverse(char *String, umm CheckLength)
 {
     char *Source = String + 0;
     char *Dest = String + CheckLength - 1;
@@ -68,9 +68,21 @@ NumDigitsLog10(u32 Value)
 #define Base10 10
 global_variable r32 Bases[] = { 1, 10, 100, 1000, 10000, 100000, 1000000 };
 
+#if 0
+// NOTE(chowie): String test
+char *name = "slim shady";
+int   line = 1337;
+float temp = -98.567f;
+//OutputDebugStringA(d7sam_concat(line)(" attention!\n"));
+OutputDebugStringA(d7sam_concat(" attention!")(line)("\n"));
+
+// attention, slim shady! there's an error in line 1337 : the error code is 666 and the temperature is -98.6 degrees
+//OutputDebugStringA(d7sam_concat("attention, ")(name)("! there's an error in line ")(line)(" : the error code is ")(666)(" and the temperature is ")(temp, 1)(" degrees\n"));
+#endif
+
 // TODO(chowie): Convert to using arenas!
 // TODO(chowie): This hideous functions is really convenient! Probably only use this for debugging only!
-#if 1
+// RESOURCE: https://gist.github.com/d7samurai/1d778693ba33bbd2b9d709b209cc0aba
 struct d7sam_concat
 {
     d7sam_concat(char* Source) { operator()(Source); }
@@ -104,7 +116,7 @@ struct d7sam_concat
     d7sam_concat &
     operator()(s32 Value)
     {
-        b32 Negative = false;
+        b32x Negative = false;
         if(Value < 0)
         {
             Negative = true;
@@ -134,7 +146,7 @@ struct d7sam_concat
     operator()(s32 Value)
     {
         char *DummyBuffer = TextBuffer;
-        b32 Negative = false;
+        b32x Negative = false;
         if(Value < 0)
         {
             Negative = true;
@@ -165,7 +177,7 @@ struct d7sam_concat
         // If so, move CharCount back on the inside!
         // TODO(chowie): Debug this! I guess it would not be a +=?
         CharCount += StringLength(TextBuffer);
-        StringReverse(TextBuffer, (memory_index)CharCount);
+        StringReverse(TextBuffer, (umm)CharCount);
 
         return(*this);
     }
@@ -174,7 +186,7 @@ struct d7sam_concat
     d7sam_concat &
     operator()(r32 Value, u32 Decimals = 2)
     {
-        b32 Negative = false;
+        b32x Negative = false;
         if(Value < 0)
         {
             Negative = true;
@@ -209,44 +221,6 @@ struct d7sam_concat
         return(TextBuffer);
     }
 };
-#else
-
-struct concat
-{
-    char Buffer[CONCAT_BUFFER_SIZE];
-    int  length;
-};
-
-internal concat
-operator+(concat Dest, char* Source)
-{
-    // NOTE(chowie): Include the null terminator
-    u32 Size = 1;
-    for(char *At = Source;
-        *At;
-        ++At)
-    {
-        ++Size;
-    }
-
-    for(u32 CharIndex = 0;
-        CharIndex < Size;
-        ++CharIndex)
-    {
-        Dest.Buffer[Dest.length++] = Source[CharIndex];
-    }
-    Dest.length--;
-
-    return(Dest);
-}
-
-inline concat &
-operator+=(concat &Dest, char* Source)
-{
-    Dest = Dest + Source;
-    return(Dest);
-}
-#endif
 
 /* STUDY(chowie): Alternative to printf. Takes sizeof(Buffer) prevents
    passing a buffer that's too small that would overwrite the end of

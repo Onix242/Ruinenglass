@@ -23,5 +23,14 @@
 //
 //
 
+#include "ruinenglass_audio.h"
+
+struct game_state
+{
+    v2 Offset;
+
+    audio_state AudioState;
+};
+
 #define RUINENGLASS_H
 #endif
