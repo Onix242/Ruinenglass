@@ -23,6 +23,8 @@
 //
 //
 
+#include "ruinenglass_platform.h"
+#include "ruinenglass_shared.h"
 #include "ruinenglass_audio.h"
 
 struct game_state

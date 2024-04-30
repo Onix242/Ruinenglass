@@ -94,3 +94,26 @@
   - Use the debugger, place a breakpoint in the Win32ProcessKeyboardMessages function and look in the call stack from where it was called. Inspect variables don't assume their values are correct.
   - Keyboard and mouse input debugging is sometimes harder because pausing the program with the debugger will make you release the key and so no more message for that key will be received if you step. Logging messages with OutputDebugString helps a lot in those case. But be sure to also output messages for marking the frame start, the start and end of processing windows messages and other important step in you main loop. This should make it obvious in the log if something happens at an unexpected time.
   - If you ask for help, provide your code (if possible with a simple way to compile it), not a screenshot, otherwise we won't be able to help you.
+
+  RESOURCE(ivanecky): https://hero.handmade.network/forums/code-discussion/t/124-thinking_about_frame_update
+  Two schools of thought about Frame Updating
+  - First (Casey's)
+    = You're at time T when the frame switches. Frame spans from T to
+      T + 1, you're calculating what happens in-game at time T to T +
+      1; You're trying to predict what the game state will be when the
+      next frame switch happens.
+      > The problem is it doesn't handle variable framerate, because
+      you're PREDICTING what the state will be at time T + 1, so you
+      cannot account for variable framerate.
+
+  - Second (Seems every tutorial and article is):
+    = You're at time T, you're calculating what happened to game
+    state since time T - 1.
+      > The ugly thing is you're displaying state of game from time T at
+      time T + 1.
+      > I think that this isn't real problem though, because it doesn't
+      matter that you're offset by one frame from game time (if you're
+      consistent with it).
+      > Benefit of this approach is you're handling variable-framerate
+      well, cause you always know how much has game time advanced since
+      last frame switch.

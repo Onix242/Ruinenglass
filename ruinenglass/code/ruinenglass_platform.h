@@ -50,6 +50,7 @@
 
 // NOTE(chowie): I should not have to do this, but brackets messes up
 // with formatting {}
+// STUDY(chowie): Extern prevents _C++ name mangling_
 #define CExternStart extern "C" {
 #define CExternEnd }
 
@@ -65,8 +66,6 @@ CExternStart
 
 typedef struct memory_arena
 {
-    char *Tag; // TODO(chowie): What can I do with this ideally?
-
     umm Size; // NOTE(chowie): Reserved
     u8 *Base;
     umm Used;
@@ -741,9 +740,10 @@ typedef struct game_memory
     });
     // TODO(chowie): Flush transient store!
 
-    b32x IsInitialised;
-
     platform_api PlatformAPI;
+
+    b32x ExecutableReloaded;
+    b32x IsInitialised;
 } game_memory;
 
 //
@@ -838,6 +838,16 @@ GetController(game_input *Input, u32 ControllerIndex)
     return(Result);
 }
 
+//
+// NOTE(chowie): Exported function
+//
+
+#define GAME_UPDATE_AND_RENDER(name) void name(game_memory *Memory, game_input *Input, game_offscreen_buffer *Buffer)
+typedef GAME_UPDATE_AND_RENDER(game_update_and_render);
+
+#define GAME_GET_SOUND_SAMPLES(name) void name(game_memory *Memory, game_sound_output_buffer *SoundBuffer)
+typedef GAME_GET_SOUND_SAMPLES(game_get_sound_samples);
+
 #ifdef __cplusplus
 CExternEnd
 #endif
@@ -846,9 +856,6 @@ CExternEnd
 // https://github.com/cmuratori/computer_enhance/blob/main/perfaware/part3/listing_0122_write_watch_main.cpp
 // TODO(chowie): Can I use any of these page mapping techniques?
 // TODO(chowie): Circular buffer for Worker Threads? Probably with VirtualAlloc2 + PagedMemory // RESOURCE: https://www.computerenhance.com/p/powerful-page-mapping-techniques
-
-// TODO(chowie): Remove this! And link functions!
-#include "ruinenglass_shared.h"
 
 #define RUINENGLASS_PLATFORM_H
 #endif

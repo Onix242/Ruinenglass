@@ -24,12 +24,12 @@ RandomSeed(u32 Value)
     return(Series);
 }
 
-// RESOURCE(chowie): https://en.wikipedia.org/wiki/Xorshift
-// NOTE(wikipedia): The state must be initialized to non-zero
+// RESOURCE(wikipedia): https://en.wikipedia.org/wiki/Xorshift
+// NOTE(chowie): The state must be initialized to non-zero
 internal u32
 RandomXorshift(random_series *Series)
 {
-    // NOTE(wikipedia): Algorithm "xor" from p. 4 of Marsaglia, "Xorshift RNGs"
+    // NOTE(chowie): Algorithm "xor" from p. 4 of Marsaglia, "Xorshift RNGs"
     u32 Result = Series->Index;
 
     Result ^= Result << 13;

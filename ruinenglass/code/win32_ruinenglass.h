@@ -7,6 +7,35 @@
    $Notice: $
    ======================================================================== */
 
+// NOTE(chowie): Never use MAX_PATH for user facing code, we would get
+// a truncated file path if it was larger than it was passed in!
+#define WIN32_STATE_FILE_NAME_COUNT MAX_PATH
+struct win32_state
+{
+    char EXEFileName[WIN32_STATE_FILE_NAME_COUNT];
+    char *OnePastLastEXEFileNameSlash;
+};
+
+struct win32_loaded_code
+{
+    HMODULE GameCodeDLL;
+    FILETIME DLLLastWriteTime;
+    b32x IsValid;
+};
+
+struct win32_game_function_table
+{
+    // NOTE(chowie): Either callbacks can be null!
+    game_update_and_render *UpdateAndRender;
+    game_get_sound_samples *GetSoundSamples;
+};
+
+struct win32_game_code
+{
+    win32_loaded_code Loaded;
+    win32_game_function_table Table;
+};
+
 /*
   RESOURCE: https://www.reddit.com/r/learnprogramming/comments/12q5bho/can_somebody_explain_back_buffers_and_how_they/
 

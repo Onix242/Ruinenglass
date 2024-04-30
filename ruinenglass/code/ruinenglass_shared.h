@@ -10,6 +10,29 @@
 #include "ruinenglass_intrinsics.h"
 #include "ruinenglass_math.h"
 
+internal void
+CatStrings(umm SourceACount, char *SourceA,
+           umm SourceBCount, char *SourceB,
+           umm DestCount, char *Dest)
+{
+    // TODO(chowie): Dest bound checking?
+    for(u32 Index = 0;
+        Index < SourceACount;
+        ++Index)
+    {
+        *Dest++ = *SourceA++;
+    }
+
+    for(u32 Index = 0;
+        Index < SourceBCount;
+        ++Index)
+    {
+        *Dest++ = *SourceB++;
+    }
+
+    *Dest++ = 0; // NOTE(chowie): Insertion of NULL terminator
+}
+
 // Probably put "umm CheckLength = StringLength(String);" back rather than args
 inline char *
 StringReverse(char *String, umm CheckLength)

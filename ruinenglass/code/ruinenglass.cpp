@@ -34,8 +34,7 @@ RenderWeirdGradient(game_offscreen_buffer *Buffer, v2 Offset)
 
             // STUDY(chowie): Remember pointer arithmetic advances by
             // 4-bytes, an entire u32!
-            *Pixel++ = ((Red << 16) |
-                        (Green << 8) |
+            *Pixel++ = ((Green << 8) |
                         (Blue << 0));
         }
 
@@ -43,9 +42,7 @@ RenderWeirdGradient(game_offscreen_buffer *Buffer, v2 Offset)
     }
 }
 
-internal void
-GameUpdateAndRender(game_memory *Memory, game_input *Input,
-                    game_offscreen_buffer *Buffer)
+extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
     // TODO(chowie): Use this!
 //    Platform = Memory->PlatformAPI;
@@ -107,8 +104,7 @@ GameUpdateAndRender(game_memory *Memory, game_input *Input,
     RenderWeirdGradient(Buffer, GameState->Offset);
 }
 
-internal void
-GetSoundSamples(game_memory *Memory, game_sound_output_buffer *SoundBuffer)
+extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)
 {
     game_state *GameState = (game_state *)Memory->Permanent.Base; // TODO(chowie): Replace with an dedicated Audio.Base
 

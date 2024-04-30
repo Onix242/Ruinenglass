@@ -13,6 +13,7 @@
 #define NOMINMAX
 
 #include "ruinenglass_platform.h"
+#include "ruinenglass_shared.h"
 
 // IMPORTANT(chowie): I want to make sure #include <stdio.h> is gone for sn_printf
 #include <windows.h>
@@ -21,8 +22,6 @@
 #include <audioclient.h>
 #include <dwmapi.h> // TODO(chowie): Remove this once there's opengl/vblank support!
 
-// TODO(chowie): Remove this! And link functions!
-#include "ruinenglass.cpp"
 #include "win32_ruinenglass.h"
 
 // TODO(chowie): Use this!
@@ -122,19 +121,19 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
         DWORD BytesWritten;
         if(WriteFile(FileHandle, Memory, MemorySize, &BytesWritten, 0))
         {
-            // NOTE: File read successfully
+            // NOTE(chowie): File read successfully
             Result = (BytesWritten == MemorySize); // STUDY(chowie): Relational operators
         }
         else
         {
-            // TODO: Logging
+            // TODO(chowie): Logging
         }
 
         CloseHandle(FileHandle);
     }
     else
     {
-        // TODO: Logging
+        // TODO(chowie): Logging
     }
 
     return(Result);
@@ -159,6 +158,94 @@ Win32PreventDPIScaling(void)
             SetProcessDpiAware();
         }
     }
+}
+
+internal void
+Win32GetEXEFileName(win32_state *State)
+{
+    DWORD SizeOfFileName = GetModuleFileNameA(0, State->EXEFileName, sizeof(State->EXEFileName));
+    State->OnePastLastEXEFileNameSlash = State->EXEFileName;
+    for(char *Scan = State->EXEFileName;
+        *Scan;
+        ++Scan)
+    {
+        if(*Scan == '\\')
+        {
+            State->OnePastLastEXEFileNameSlash = Scan + 1;
+        }
+    }
+}
+
+internal void
+Win32BuildEXEPathFileName(win32_state *State, char *FileName,
+                          umm DestCount, char *Dest)
+{
+    // TODO(chowie): d7sam concat? Needs to be a range though.
+    CatStrings(State->OnePastLastEXEFileNameSlash - State->EXEFileName, State->EXEFileName,
+               StringLength(FileName), FileName,
+               DestCount, Dest);
+}
+
+inline FILETIME
+Win32GetLastWriteTime(char *FileName)
+{
+    FILETIME LastWriteTime = {};
+
+    WIN32_FILE_ATTRIBUTE_DATA Data;
+    if(GetFileAttributesExA(FileName, GetFileExInfoStandard, &Data))
+    {
+        LastWriteTime = Data.ftLastWriteTime;
+    }
+
+    return(LastWriteTime);
+}
+
+internal win32_game_code
+Win32LoadGameCode(char *SourceDLLName, char *TempDLLName, char *LockFileName)
+{
+    win32_game_code Result = {};
+
+    WIN32_FILE_ATTRIBUTE_DATA Ignored;
+    if(!GetFileAttributesExA(LockFileName, GetFileExInfoStandard, &Ignored))
+    {
+        // NOTE(chowie): Allows locking a file not the file the compiler is outputting to!
+        Result.Loaded.DLLLastWriteTime = Win32GetLastWriteTime(SourceDLLName);
+        CopyFile(SourceDLLName, TempDLLName, FALSE);
+        Result.Loaded.GameCodeDLL = LoadLibraryA(TempDLLName);
+        if(Result.Loaded.GameCodeDLL)
+        {
+            Result.Table.UpdateAndRender = (game_update_and_render *)
+                GetProcAddress(Result.Loaded.GameCodeDLL, "GameUpdateAndRender");
+
+            Result.Table.GetSoundSamples = (game_get_sound_samples *)
+                GetProcAddress(Result.Loaded.GameCodeDLL, "GameGetSoundSamples");
+
+            Result.Loaded.IsValid = (Result.Table.UpdateAndRender &&
+                                     Result.Table.GetSoundSamples);
+        }
+    }
+
+    if(!Result.Loaded.IsValid)
+    {
+        Result.Table.UpdateAndRender = 0;
+        Result.Table.GetSoundSamples = 0;
+    }
+
+    return(Result);
+}
+
+internal void
+Win32UnloadGameCode(win32_game_code *Game)
+{
+    if(Game->Loaded.GameCodeDLL)
+    {
+        FreeLibrary(Game->Loaded.GameCodeDLL);
+        Game->Loaded.GameCodeDLL = 0;
+    }
+
+    Game->Loaded.IsValid = false;
+    Game->Table.UpdateAndRender = 0;
+    Game->Table.GetSoundSamples = 0;
 }
 
 internal void
@@ -215,17 +302,17 @@ Win32LoadWASAPI(void)
 }
 
 // TODO(chowie): This is really not a good way to use WASAPI, make a
-// thread-queue first before multithreading this! Make a guard thread!
-// RESOURCE: https://hero.handmade.network/forums/code-discussion/t/8433-correct_implementation_of_wasapi
-// RESOURCE: By Nickav, https://gist.github.com/nickav/8be2ded8a8363d5993b2f4e5aa601bd3
+// thread-queue first before multithreading this! Make a guard thread
+// that flushes on framedrop? I hear audio cracking - need threads!
+// RESOURCE(nickav): https://hero.handmade.network/forums/code-discussion/t/8433-correct_implementation_of_wasapi
+// RESOURCE(nickav): https://gist.github.com/nickav/8be2ded8a8363d5993b2f4e5aa601bd3
 // NOTE(chowie): Thank you Martins for providing introductory code!
-// RESOURCE: https://gist.github.com/mmozeiko/38c64bb65855d783645c
+// RESOURCE(martins): https://gist.github.com/mmozeiko/38c64bb65855d783645c
+// STUDY(chowie): WASAPI is COM! Stepping over the func looks though a jump table
+// RESOURCE: https://kodi.wiki/view/Windows_audio_APIs
 internal void
 Win32InitWASAPI(s32 SamplesPerSecond, s32 BufferSizeInSamples)
 {
-    // STUDY(chowie): WASAPI is COM! Stepping over the func looks though a jump table
-    // RESOURCE: https://kodi.wiki/view/Windows_audio_APIs
-
     // TODO(chowie): Abstract the audio api architecture?
     // TODO(chowie): Output HRESULT to be able to be inspected in watch window!
     // TODO(chowie): Test that FAILED = !SUCCEEDED
@@ -575,7 +662,7 @@ Win32ProcessPendingMessages(game_controller_input *KeyboardController)
             case WM_KEYUP:
             {
                 u32 VKCode = (u32)Message.wParam;
-                // RESOURCE(chowie): https://learn.microsoft.com/en-us/windows/win32/inputdev/wm-keydown
+                // RESOURCE: https://learn.microsoft.com/en-us/windows/win32/inputdev/wm-keydown
                 // STUDY(chowie): Instead of returning either
                 // (1 << 30) or 0. "!= 0" forces 1 or 0.
 #define KeyMessageWasDownBit BitSet(30)
@@ -654,7 +741,8 @@ Win32ProcessPendingMessages(game_controller_input *KeyboardController)
                     {
                         GlobalRunning = false;
                     }
-                    if((VKCode == VK_RETURN) && AltKeyWasDown)
+                    if(((VKCode == VK_RETURN) && AltKeyWasDown) ||
+                       (VKCode == VK_F11))
                     {
                         if(Message.hwnd)
                         {
@@ -763,6 +851,22 @@ WinMain(HINSTANCE Instance,
         LPSTR     CommandLine,
         int       ShowCode)
 {
+    win32_state Win32State = {};
+
+    Win32GetEXEFileName(&Win32State);
+
+    char SourceGameCodeDLLFullPath[WIN32_STATE_FILE_NAME_COUNT];
+    Win32BuildEXEPathFileName(&Win32State, "ruinenglass.dll",
+                              sizeof(SourceGameCodeDLLFullPath), SourceGameCodeDLLFullPath);
+
+    char TempGameCodeDLLFullPath[WIN32_STATE_FILE_NAME_COUNT];
+    Win32BuildEXEPathFileName(&Win32State, "ruinenglass_temp.dll",
+                              sizeof(TempGameCodeDLLFullPath), TempGameCodeDLLFullPath);
+
+    char LockGameCodeDLLFullPath[WIN32_STATE_FILE_NAME_COUNT];
+    Win32BuildEXEPathFileName(&Win32State, "lock.tmp",
+                              sizeof(LockGameCodeDLLFullPath), LockGameCodeDLLFullPath);
+
     WNDCLASSA WindowClass = {};
 
     GlobalPerfCountFrequency = Win32GetPerfCountFreq();
@@ -816,7 +920,7 @@ WinMain(HINSTANCE Instance,
             win32_sound_output SoundOutput = {};
             SoundOutput.SamplesPerSecond = 48000; // TODO(chowie): Set to 60 seconds?
             SoundOutput.BytesPerSample = sizeof(s16)*2;
-            SoundOutput.SecondaryBufferSize = SoundOutput.SamplesPerSecond*SoundOutput.BytesPerSample; // TODO(chowie): Allocate a 2 sec buffer?
+            SoundOutput.SecondaryBufferSize = SoundOutput.SamplesPerSecond*SoundOutput.BytesPerSample;
             SoundOutput.LatencySampleCount = FramesOfAudioLatency*(u32)(SoundOutput.SamplesPerSecond / GameUpdateHz); // NOTE(chowie): Number of samples that can be played without updating with new info
             Win32InitWASAPI(SoundOutput.SamplesPerSecond, SoundOutput.SecondaryBufferSize);
 
@@ -838,23 +942,20 @@ WinMain(HINSTANCE Instance,
 
             game_memory GameMemory = {};
 
-            memory_arena *PermanentArena = &GameMemory.Permanent;
-            PermanentArena->Tag = "Permanent Storage";
-            PermanentArena->Size = Megabytes(64);
-
-            memory_arena *TransientArena = &GameMemory.Transient;
-            TransientArena->Tag = "Transient Storage";
-            TransientArena->Size = Gigabytes(1);
-
-            memory_arena *SamplesArena = &GameMemory.Samples;
-            SamplesArena->Tag = "Samples Storage";
-            SamplesArena->Size = (umm)SoundOutput.SecondaryBufferSize; // TODO(chowie): Roll "Samples + Audio" & Offset initial samples
-
 #if RUINENGLASS_INTERNAL
             GameMemory.PlatformAPI.DEBUGFreeFileMemory = DEBUGPlatformFreeFileMemory;
             GameMemory.PlatformAPI.DEBUGReadEntireFile = DEBUGPlatformReadEntireFile;
             GameMemory.PlatformAPI.DEBUGWriteEntireFile = DEBUGPlatformWriteEntireFile;
 #endif
+
+            memory_arena *PermanentArena = &GameMemory.Permanent;
+            PermanentArena->Size = Megabytes(64);
+
+            memory_arena *TransientArena = &GameMemory.Transient;
+            TransientArena->Size = Gigabytes(1);
+
+            memory_arena *SamplesArena = &GameMemory.Samples;
+            SamplesArena->Size = (umm)SoundOutput.SecondaryBufferSize; // TODO(chowie): Roll "Samples + Audio" & Offset initial samples
 
             Platform = GameMemory.PlatformAPI; // NOTE: Moving code back and forth between the renderer, can still be called via platform!
 
@@ -889,11 +990,28 @@ WinMain(HINSTANCE Instance,
                 game_input *OldInput = &Input[1];
 
                 u64 LastCounter = Win32GetWallClock();
-
                 u64 LastCycleCount = Win32ReadCPUTimer(RdtscpSupported);
+
+                win32_game_code Game = Win32LoadGameCode(SourceGameCodeDLLFullPath,
+                                                         TempGameCodeDLLFullPath,
+                                                         LockGameCodeDLLFullPath);
                 while(GlobalRunning)
                 {
                     NewInput->dtForFrame = TargetSecondsPerFrame;
+
+                    GameMemory.ExecutableReloaded = false;
+                    FILETIME NewDLLWriteTime = Win32GetLastWriteTime(SourceGameCodeDLLFullPath);
+                    if(CompareFileTime(&NewDLLWriteTime, &Game.Loaded.DLLLastWriteTime) != 0)
+                    {
+                        Win32UnloadGameCode(&Game);
+                        Game = Win32LoadGameCode(SourceGameCodeDLLFullPath,
+                                                 TempGameCodeDLLFullPath,
+                                                 LockGameCodeDLLFullPath);
+                        // NOTE(chowie): Leaves unlocked in between
+                        // two lines. Because DLL is not being
+                        // reloaded again. Locked while used.
+                        GameMemory.ExecutableReloaded = true;
+                    }
 
                     //
                     // NOTE(chowie): Input Processing
@@ -1044,7 +1162,13 @@ WinMain(HINSTANCE Instance,
 
                     if(!GlobalPause)
                     {
-                        GameUpdateAndRender(&GameMemory, Input, &Buffer);
+                        // IMPORTANT(chowie): Without this check the
+                        // lock file would fail, you would sleep on
+                        // executable reload, or use a stub!
+                        if(Game.Table.UpdateAndRender)
+                        {
+                            Game.Table.UpdateAndRender(&GameMemory, Input, &Buffer);
+                        }
                     }
 
                     //
@@ -1085,7 +1209,14 @@ WinMain(HINSTANCE Instance,
                         SoundBuffer.SamplesPerSecond = SoundOutput.SamplesPerSecond;
                         SoundBuffer.SampleCount = SamplesToWrite;
                         SoundBuffer.Samples = (s16 *)GameMemory.Samples.Base; // NOTE(chowie): Unorthodox casting
-                        GetSoundSamples(&GameMemory, &SoundBuffer); // TODO(chowie): This seems superflous for getsound samples which takes both! But needed for fill sound buffer
+
+                        // IMPORTANT(chowie): Without this check the
+                        // lock file would fail, you would sleep on
+                        // executable reload, or use a stub!
+                        if(Game.Table.GetSoundSamples)
+                        {
+                            Game.Table.GetSoundSamples(&GameMemory, &SoundBuffer); // TODO(chowie): This seems superflous for getsound samples which takes both! But needed for fill sound buffer
+                        }
 
                         Win32FillSoundBuffer(&SoundOutput, SamplesToWrite, &SoundBuffer);
                         GlobalSoundClient->Start();

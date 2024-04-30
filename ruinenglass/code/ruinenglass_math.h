@@ -160,7 +160,7 @@ Cube(r32 A)
     return(Result);
 }
 
-// RESOURCE: https://fgiesen.wordpress.com/2012/08/15/linear-interpolation-past-present-and-future/
+// RESOURCE(fabian): https://fgiesen.wordpress.com/2012/08/15/linear-interpolation-past-present-and-future/
 // NOTE(chowie): Can be also represented as "A + T*(B - A)",
 // or "(1.0f - t)*A + t*B"
 inline r32
@@ -500,7 +500,11 @@ Clamp01(v2 Value)
 inline v2
 Lerp(v2 A, r32 t, v2 B)
 {
-    v2 Result = (1.0f - t)*A + t*B;
+    v2 Result =
+    {
+        Fma(t, B.x - A.x, A.x),
+        Fma(t, B.y - A.y, A.y),
+    };
 
     return(Result);
 }
@@ -709,7 +713,8 @@ NOZ(v3 A)
     return(Result);
 }
 
-// TODO: Try biarc interpolation? RESOURCE: https://www.ryanjuckett.com/biarc-interpolation/
+// RESOURCE(juckett): https://www.ryanjuckett.com/biarc-interpolation/
+// TODO: Try biarc interpolation?
 // TODO(chowie): Not quite sure how useful this function is - for asserts mainly
 // NOTE(chowie): Vector length is within epsilon of 1
 inline b32x
@@ -721,8 +726,23 @@ IsNormalisedEps(v3 A, r32 Epsilon)
     return(Result);
 }
 
-// RESOURCE: https://web.archive.org/web/20200414122444/https://www.randygaul.net/2014/11/
-// RESOURCE: https://www.reddit.com/r/gamedev/comments/2ljvlz/collection_of_numerically_robust_parallel_vectors/
+// TODO(chowie): For bases? Camera projections?
+// RESOURCE(sam): https://web.archive.org/web/20210725181210/https://lolengine.net/blog/2013/9
+// NOTE(chowie): "Given a non-zero vector v in 3D space, find a
+// non-zero vector w orthogonal to v (i.e. such that v.w = 0)."
+// = Always works if the input is non-zero.
+// = Doesn’t require the input to be normalised.
+// = Doesn’t normalise the output.
+inline v3
+GeneratePerp(v3 A)
+{
+    v3 Result = (AbsoluteValue(A.x) > AbsoluteValue(A.z))
+        ? V3(-A.y, A.x, 0.0) : V3(0.0, -A.z, A.y);
+    return(Result);
+}
+
+// RESOURCE(gaul): https://web.archive.org/web/20200414122444/https://www.randygaul.net/2014/11/
+// RESOURCE(gaul): https://www.reddit.com/r/gamedev/comments/2ljvlz/collection_of_numerically_robust_parallel_vectors/
 // TODO(chowie): Double Check this!
 inline b32x
 IsPerp(v3 A, v3 B, r32 Epsilon)
@@ -768,7 +788,12 @@ Clamp01(v3 Value)
 inline v3
 Lerp(v3 A, r32 t, v3 B)
 {
-    v3 Result = (1.0f - t)*A + t*B;
+    v3 Result =
+    {
+        Fma(t, B.x - A.x, A.x),
+        Fma(t, B.y - A.y, A.y),
+        Fma(t, B.z - A.z, A.z),
+    };
 
     return(Result);
 }
@@ -793,7 +818,7 @@ GetBasis(v3 A, v3 *B, v3 *C)
     else
     {
         *B = V3(0.0f, A.z, -A.y);
-    }
+     }
 
     *B = Normalise(*B);
     *C = Cross(A, *B);
@@ -950,7 +975,13 @@ Clamp01(v4 Value)
 inline v4
 Lerp(v4 A, r32 t, v4 B)
 {
-    v4 Result = (1.0f - t)*A + t*B;
+    v4 Result =
+    {
+        Fma(t, B.x - A.x, A.x),
+        Fma(t, B.y - A.y, A.y),
+        Fma(t, B.z - A.z, A.z),
+        Fma(t, B.w - A.w, A.w),
+    };
 
     return(Result);
 }
@@ -1373,6 +1404,14 @@ Intersect(rectangle2i A, rectangle2i B)
 };
 */
 
+// RESOURCE: https://web.archive.org/web/20211023131624/https://lolengine.net/blog/2012/02/14/fewer-comparisons
+// TODO(chowie): Less comparisons for collisions?
+// NOTE(chowie): float a, b, c, d;
+//               /* ... */
+//               return (a > b) && (c > d);
+//               The below equation might be branchless?
+//               (a - b) + (c - d) > fabsf((a - b) - (c - d));
+
 inline s32
 GetClampedRectArea(rectangle2i A)
 {
@@ -1408,6 +1447,8 @@ InvertedInfinityRectangle2i(void)
     return(Result);
 }
 
+// RESOURCE: https://web.archive.org/web/20211023131624/https://lolengine.net/blog/2011/3/20/understanding-fast-float-integer-conversions
+// TODO(chowie): Conversion for colours?
 inline v4
 SRGB255ToLinear1(v4 C)
 {
@@ -1444,16 +1485,64 @@ Linear1ToSRGB255(v4 C)
     return(Result);
 }
 
+// TODO(chowie): Use this! Computing the binary logarithm is
+// equivalent to knowing the position of the highest order set
+// bit. For instance, log2(0x1) is 0 and log2(0x100) is 8.
+// RESOURCE: https://web.archive.org/web/20211023131624/https://lolengine.net/blog/2012/4/3/beyond-de-bruijn
+// RESOURCE: https://web.archive.org/web/20210724051712/https://lolengine.net/attachment/blog/2012/4/3/beyond-de-bruijn/debruijn.cpp
+// NOTE(chowie): Beyond De Bruijn: fast binary logarithm of a 10-bit number
+s32 MagicTable[16] = 
+{
+    0, 1, 2, 8, -1, 3, 5, 9, 9, 7, 4, -1, 6, -1, -1, -1,
+};
+inline s32
+FastLog2(u32 Value)
+{
+    Value |= Value >> 1;
+    Value |= Value >> 2;
+    Value |= Value >> 4;
+
+    return(MagicTable[(uint32_t)(Value * 0x5a1a1a2u) >> 28]);
+}
+
+// RESOURCE(sam): https://web.archive.org/web/20211023131624/https://lolengine.net/blog/2011/12/14/understanding-motion-in-games
+// TODO(chowie): Implement Verlet equation of motions instead of Euler
+//  Accel = V3(0, 0, -9.81f);
+//  v3 OldVel = Vel;
+//  Vel = Vel + Accel * dtForFrame;
+//  Pos = Pos + (OldVel + Vel) * 0.5f * dtForFrame;
+
+// TODO(chowie): Try to use this!
+// RESOURCE: https://gist.github.com/d7samurai/f98cb2aa30a6d73e62a65a376d24c6da
+// NOTE(chowie): Storing argb color in various compact forms, either
+// as uint32 or packed into an __m128i, where I had to multply alpha
+// values from nested containers and it was beneficial to do it
+// in-place, as bytes, without extracting to float and repacking
+
+// normalized byte multiplication:
+// range [0, 255] maps to [0.0, 1.0]
+// examples:
+// 0xff * 0xff = 0xff   (255 * 255 = 255)
+// 0xff * 0x7f = 0x7f   (255 * 127 = 127)
+// 0x7f * 0x7f = 0x3f   (127 * 127 =  63)
+// 0x01 * 0xff = 0x01   (  1 * 255 =   1)
+// 0x01 * 0x7f = 0x00   (  1 * 127 =   0) 
+inline u8
+NormalisedMul(u8 A, u8 B)
+{
+    return (((u16)A + 1) * B) >> 8;
+}
+
 //
 // NOTE(chowie): Compression
 //
 
 //
-// RESOURCE: https://fgiesen.wordpress.com/2009/12/13/decoding-morton-codes/
+// RESOURCE(fabian): https://fgiesen.wordpress.com/2009/12/13/decoding-morton-codes/
 //
 
 // TODO(chowie): Try to use this for tile/world storage? (Must be in u32)
-// NOTE(fabian): "Insert" a 0 bit after each of the 16 low bits of x
+// NOTE(by fabian): "Insert" a 0 bit after each of the 16 low bits of x
 inline u32
 Part1By1(u32 Value)
 {
@@ -1465,7 +1554,7 @@ Part1By1(u32 Value)
     return(Value);
 }
 
-// NOTE(fabian): "Insert" two 0 bits after each of the 10 low bits of Value
+// NOTE(by fabian): "Insert" two 0 bits after each of the 10 low bits of Value
 inline u32
 Part1By2(u32 Value)
 {
@@ -1492,7 +1581,7 @@ EncodeMortonV2U(v3u Value)
     return(Result);
 }
 
-// NOTE(fabian): Inverse of Part1By1 - "delete" all odd-indexed bits
+// NOTE(by fabian): Inverse of Part1By1 - "delete" all odd-indexed bits
 inline u32
 Compact1By1(u32 Value)
 {
@@ -1504,7 +1593,7 @@ Compact1By1(u32 Value)
     return(Value);
 }
 
-// NOTE(fabian): Inverse of Part1By2 - "delete" all bits not at positions divisible by 3
+// NOTE(by fabian): Inverse of Part1By2 - "delete" all bits not at positions divisible by 3
 inline u32
 Compact1By2(u32 Value)
 {
