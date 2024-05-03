@@ -35,6 +35,13 @@ Fma(r32 MultA, r32 MultB, r32 AddValue)
     return(Result);
 }
 
+inline u32
+Pow(u32 A, u32 B)
+{
+    u32 Result = (u32)pow(A, B);
+    return(Result);
+}
+
 inline r32
 SquareRoot(r32 R32)
 {

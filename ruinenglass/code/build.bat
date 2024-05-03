@@ -1,8 +1,7 @@
 @echo off
-REM IMPORTANT: Only x64 is supported for now!
-REM RESOURCE(msdn): https://learn.microsoft.com/en-us/cpp/build/reference/compiler-options-listed-alphabetically?view=msvc-170
-REM TODO(chowie): Check if all warnings are necessary
-set CommonWarningFlags=  -WX -W4 -wd4201 -wd4100 -wd4189 -wd4505 -wd4127 -wd4477
+REM IMPORTANT(chowie): Only x64 is supported for now!
+REM IMPORTANT(chowie): Check if all warnings are necessary
+set CommonWarningFlags=  -diagnostics:caret -WX -W4 -wd4201 -wd4100 -wd4189 -wd4505 -wd4127 -wd4477
 set CommonOptimiseFlags= -Od -Gm- -GR- -EHa- -Oi -fp:fast -fp:except-
 set CommonDefinesFlags=  -DRUINENGLASS_INTERNAL=1 -DRUINENGLASS_SLOW=1 -DRUINENGLASS_WIN32=1
 set CommonDebugFlags=    -FC -Z7 -Zo -Fm
@@ -32,7 +31,7 @@ set ExecutableName= Ruinenglass
 REM ForAllTestingGrounds
 REM cl %CommonCompilerFlags% -D_CRT_SECURE_NO_WARNINGS ..\ruinenglass\code\test_gap_buffer.cpp %CommonLinkerFlags%
 
-REM 64-bit build
+REM GAME
 cl %CommonCompilerFlags% ..\ruinenglass\code\ruinenglass.cpp       %GameDLLFlags%
 del lock.tmp
 cl %CommonCompilerFlags% ..\ruinenglass\code\win32_ruinenglass.cpp %CommonLinkerFlags%
@@ -42,6 +41,9 @@ REM
 REM Batch Notes
 REM
 
+REM For observing how long everything takes, use -d1reportTime
+
+REM RESOURCE(msdn): https://learn.microsoft.com/en-us/cpp/build/reference/compiler-options-listed-alphabetically?view=msvc-170
 REM RESOURCE(msdn): https://learn.microsoft.com/en-us/cpp/c-runtime-library/potential-errors-passing-crt-objects-across-dll-boundaries?view=msvc-170&redirectedfrom=MSDN
 REM NOTE(chowie): Round-braces splits one-liners
 REM NOTE(chowie): 'pwd' prints out the directory

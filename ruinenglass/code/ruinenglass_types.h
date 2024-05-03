@@ -46,7 +46,7 @@
 #define internal static
 #endif
 #define local_persist static
-#define global_variable static
+#define global static
 
 #include <stdint.h>
 #include <limits.h>
@@ -110,6 +110,10 @@ typedef double r64;
 
 #define Minimum(A, B) ((A < B) ? (A) : (B))
 #define Maximum(A, B) ((A > B) ? (A) : (B))
+//#define Maximum3(A, B, C) (Max(A, Max(B, C)))
+// RESOURCE(bipll, 0_): https://stackoverflow.com/questions/61106977/check-max-value-from-three-variables-by-using-preprocessor-in-c
+#define Maximum3(A, B, C) ((A) <= (B) ? (B) <= (C) ? (C) : (B) : (A) <= (C) ? (C) : (A))
+// #define Maximum3(A, B, C) ((A) > (B) ? ((A) > (C) ? (A) : ((C) > (B) ? C : (B))) : ((B) > (C) ? (B) : (C)))
 
 // NOTE(chowie): Limit macros
 #define R32Maximum FLT_MAX
@@ -240,6 +244,15 @@ union v3u
     u32 E[3];
 };
 
+union v3s
+{
+    struct
+    {
+        s32 x, y, z;
+    };
+    s32 E[3];
+};
+
 union v3
 {
     struct
@@ -360,7 +373,7 @@ StringLength(char *String)
     return(Count);
 }
 
-// RESOURCE: https://github.com/fabiensanglard/Shmup/blob/master/engine/src/math.c
+// RESOURCE(fabien): https://github.com/fabiensanglard/Shmup/blob/master/engine/src/math.c
 inline void
 StringReplace(char *String, char Source, char Dest)
 {

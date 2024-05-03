@@ -742,8 +742,7 @@ typedef struct game_memory
 
     platform_api PlatformAPI;
 
-    b32x ExecutableReloaded;
-    b32x IsInitialised;
+    b32x ExecutableReloaded; // TODO(chowie): Find out if this is really necessary!
 } game_memory;
 
 //
@@ -782,6 +781,13 @@ WasPressed(game_button_state State)
 {
     b32x Result = ((State.HalfTransitionCount > 1) ||
                   ((State.HalfTransitionCount == 1) && State.EndedDown));
+    return(Result);
+}
+
+inline b32x
+IsDown(game_button_state State)
+{
+    b32x Result = (State.EndedDown);
     return(Result);
 }
 

@@ -389,7 +389,6 @@ struct concat_buffer
     char Buffer[CONCAT_BUFFER_SIZE]; // TODO(chowie): Is it possible to pass this in into an arena?
 };
 
-// TODO(chowie): Convert to using arenas!
 // RESOURCE: https://gist.github.com/d7samurai/1d778693ba33bbd2b9d709b209cc0aba
 // TODO(chowie): This hideous functions is really convenient! Probably only use this for debugging only!
 struct d7sam_concat
@@ -411,7 +410,7 @@ struct d7sam_concat
         {
             Text.Buffer[Text.CharCount++] = Source[CharIndex];
         }
-        Text.CharCount--; // TODO(chowie): This is ultra suspicious
+        Text.CharCount--;
 
         return(*this);
     }
@@ -438,8 +437,6 @@ main(void)
 
         // NOTE(chowie): String test
         char TextLengthBuffer[256];
-        char *SavedTextBuffer = PushString(&TextArena, TextLengthBuffer);
-
         char *Name = "Slim shady?";
         char *Test = PushString(&TextArena, d7sam_concat("Attention! ")(Name));
 

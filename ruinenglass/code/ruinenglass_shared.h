@@ -35,8 +35,9 @@ CatStrings(umm SourceACount, char *SourceA,
 
 // Probably put "umm CheckLength = StringLength(String);" back rather than args
 inline char *
-StringReverse(char *String, umm CheckLength)
+StringReverse(char *String)
 {
+    umm CheckLength = StringLength(String);
     char *Source = String + 0;
     char *Dest = String + CheckLength - 1;
     CheckLength /= 2;
@@ -47,13 +48,6 @@ StringReverse(char *String, umm CheckLength)
     }
     return(String);
 }
-
-global_variable const char
-NumToCharTable[] =
-    "0123456789"
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    "abcdefghijklmnopqrstuvwxyz"
-    "@$";
 
 // NOTE(chowie): Log10 should really start from 0
 inline s32
@@ -89,7 +83,7 @@ NumDigitsLog10(u32 Value)
 
 #define CONCAT_BUFFER_SIZE 256
 #define Base10 10
-global_variable r32 Bases[] = { 1, 10, 100, 1000, 10000, 100000, 1000000 };
+global r32 Bases[] = { 1, 10, 100, 1000, 10000, 100000, 1000000 };
 
 #if 0
 // NOTE(chowie): String test
@@ -130,12 +124,11 @@ struct d7sam_concat
         {
             TextBuffer[CharCount++] = Source[CharIndex];
         }
-        CharCount--; // TODO(chowie): This is ultra suspicious
+        CharCount--;
 
         return(*this);
     }
 
-#if 1
     d7sam_concat &
     operator()(s32 Value)
     {
@@ -162,49 +155,6 @@ struct d7sam_concat
 
         return(*this);
     }
-#else
-    // TODO(chowie): Handle the reverse-case! I.e. String->Line
-    // IMPORTANT(chowie): What version do I really like better?
-    d7sam_concat &
-    operator()(s32 Value)
-    {
-        char *DummyBuffer = TextBuffer;
-        b32x Negative = false;
-        if(Value < 0)
-        {
-            Negative = true;
-            Value = -Value;
-        }
-
-//        CharCount += NumDigitsLog10(Value) + Negative;
-        if(Value != 0)
-        {
-            while(Value > 0)
-            {
-                *DummyBuffer++ = NumToCharTable[Value % Base10];
-                Value /= Base10;
-            }
-        }
-        else
-        {
-            *DummyBuffer++ = '0';
-        }
-
-        if(Negative)
-        {
-            *DummyBuffer++ = '-';
-        }
-        *DummyBuffer = '\0';
-
-        // TODO(chowie): I wonder if I can remove the concept of CharCount at this point?
-        // If so, move CharCount back on the inside!
-        // TODO(chowie): Debug this! I guess it would not be a +=?
-        CharCount += StringLength(TextBuffer);
-        StringReverse(TextBuffer, (umm)CharCount);
-
-        return(*this);
-    }
-#endif
 
     d7sam_concat &
     operator()(r32 Value, u32 Decimals = 2)

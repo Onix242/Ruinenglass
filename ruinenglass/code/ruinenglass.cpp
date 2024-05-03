@@ -34,7 +34,7 @@ RenderWeirdGradient(game_offscreen_buffer *Buffer, v2 Offset)
 
             // STUDY(chowie): Remember pointer arithmetic advances by
             // 4-bytes, an entire u32!
-            *Pixel++ = ((Green << 8) |
+            *Pixel++ = ((Green << 16) |
                         (Blue << 0));
         }
 
@@ -50,7 +50,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     Assert(sizeof(game_state) <= Memory->Permanent.Size);
     game_state *GameState = (game_state *)Memory->Permanent.Base; // STUDY: Cold-cast
 
-    if(!Memory->IsInitialised)
+    if(!GameState->IsInitialised)
     {
         GameState->Offset = {};
 
@@ -70,7 +70,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         // audio clipping at the beginning?
 //        InitialiseAudioState(&GameState->AudioState);
 
-        Memory->IsInitialised = true; // NOTE(chowie): One less thing the platform layer has to do; the game would always.
+        GameState->IsInitialised = true; // NOTE(chowie): One less thing the platform layer has to do; the game would always.
     }
 
     for(u32 ControllerIndex = 0;
@@ -111,5 +111,5 @@ extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)
     // TODO(chowie): Allow sample offsets here for more robust
     // platform options!
     // TODO(chowie): OutputPlayingSounds() Mixer
-    TestOutputWilwaDialTone(&GameState->AudioState, SoundBuffer);
+    //TestOutputWilwaDialTone(&GameState->AudioState, SoundBuffer);
 }

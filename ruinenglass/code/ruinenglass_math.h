@@ -74,6 +74,14 @@ V3U(u32 X, u32 Y, u32 Z)
     return(Result);
 }
 
+inline v3s
+V3S(s32 X, s32 Y, s32 Z)
+{
+    v3s Result = {X, Y, Z};
+
+    return(Result);
+}
+
 inline v3
 V3(r32 X, r32 Y, r32 Z)
 {
@@ -545,6 +553,29 @@ AreEqual(v3u A, v3u B)
     return(Result);
 }
 
+internal v3s
+operator+(v3s A, v3s B)
+{
+    v3s Result =
+    {
+        A.x + B.x,
+        A.y + B.y,
+        A.z + B.z,
+    };
+
+    return(Result);
+}
+
+internal b32x
+AreEqual(v3s A, v3s B)
+{
+    b32x Result = ((A.x == B.x) &&
+                   (A.y == B.y) &&
+                   (A.z == B.z));
+
+    return(Result);
+}
+
 //
 // NOTE(chowie): v3 operations
 //
@@ -765,8 +796,8 @@ IsParallel(v3 A, v3 B, r32 Epsilon)
 {
     b32x Result;
 
-    A = NOZ(A);
-    B = NOZ(B);
+    A = Normalise(A);
+    B = Normalise(B);
     Result = ((1.0f - AbsoluteValue(Inner(A, B))) < Epsilon);
 
     return(Result);
@@ -1502,7 +1533,7 @@ FastLog2(u32 Value)
     Value |= Value >> 2;
     Value |= Value >> 4;
 
-    return(MagicTable[(uint32_t)(Value * 0x5a1a1a2u) >> 28]);
+    return(MagicTable[(u32)(Value * 0x5a1a1a2u) >> 28]);
 }
 
 // RESOURCE(sam): https://web.archive.org/web/20211023131624/https://lolengine.net/blog/2011/12/14/understanding-motion-in-games
@@ -1528,9 +1559,81 @@ FastLog2(u32 Value)
 // 0x01 * 0xff = 0x01   (  1 * 255 =   1)
 // 0x01 * 0x7f = 0x00   (  1 * 127 =   0) 
 inline u8
-NormalisedMul(u8 A, u8 B)
+D7samNormalisedMul(u8 A, u8 B)
 {
     return (((u16)A + 1) * B) >> 8;
+}
+
+//
+// NOTE(chowie): Hashing Functions
+//
+
+// TODO(chowie): Better Hash Functions!
+
+// RESOURCE(orlp): https://stackoverflow.com/questions/101439/the-most-efficient-way-to-implement-an-integer-based-power-function-powint-int
+// TODO(chowie): iPow? https://gist.github.com/orlp/3551590
+// NOTE(by mauro): Using Szudnik Pairing.
+// * Seed would always be the same based on location, and collisions would only occur as you got very far away from the origin
+// * You could fit two 16-bit integers into a single 32-bit integer with no collisions.
+// RESOURCE(mauro): https://dmauro.com/post/77011214305/a-hashing-function-for-x-y-z-coordinates
+inline u32
+MauroHash(v3u Value)
+{
+    u32 Max = Maximum3(Value.x, Value.y, Value.z);
+    u32 Result = Pow(Max, 3) + (2 * Max * Value.z) + Value.z;
+    if(Max == Value.z)
+    {
+        Result += Pow(Maximum(Value.x, Value.y), 2);
+    }
+
+    if(Value.y >= Value.x)
+    {
+        Result += (Value.x + Value.y);
+    }
+    else
+    {
+        Result += Value.y;
+    }
+
+    return(Result);
+}
+
+inline s32
+MauroHash(v3s Value)
+{
+    s32 NegX = (Value.x >= 0) ? (2 * Value.x) : (-2 * Value.x - 1);
+    s32 NegY = (Value.y >= 0) ? (2 * Value.y) : (-2 * Value.y - 1);
+    s32 NegZ = (Value.z >= 0) ? (2 * Value.z) : (-2 * Value.z - 1);
+
+    s32 Max = Maximum3(NegX, NegY, NegZ);
+    s32 Result = Pow(Max, 3) + (2 * Max * NegZ) + NegZ;
+    if(Max == NegZ)
+    {
+        Result += Pow(Maximum(NegX, NegY), 2);
+    }
+
+    if(NegY >= NegX)
+    {
+        Result += (NegX + NegY);
+    }
+    else
+    {
+        Result += NegY;
+    }
+
+    return(Result);
+}
+
+// TODO(chowie): Spatial Hash Table? For particles?
+// RESOURCE(cincotti): https://carmencincotti.com/2022-10-31/spatial-hash-maps-part-one/#how-to-populate-a-dense-hash-table
+// NOTE(chowie): Originally intended for s32, with an Abs. Why not
+// just type cast to u32?
+inline u32
+MullerHash(v3u Value)
+{
+    u32 Result = (Value.x * 92837111) ^ (Value.y * 689287499) ^ (Value.z * 283923481);
+
+    return(Result);
 }
 
 //

@@ -25,17 +25,17 @@
 #include "win32_ruinenglass.h"
 
 // TODO(chowie): Use this!
-global_variable platform_api Platform;
+global platform_api Platform;
 
 // TODO(chowie): These are global for now!
-global_variable b32x GlobalRunning;
-global_variable b32x GlobalPause;
-global_variable b32x GlobalShowCursor;
-global_variable win32_offscreen_buffer GlobalBackbuffer;
-global_variable IAudioClient *GlobalSoundClient;
-global_variable IAudioRenderClient *GlobalSoundRenderClient;
-global_variable WINDOWPLACEMENT GlobalWindowPosition = {sizeof(GlobalWindowPosition)};
-global_variable u64 GlobalPerfCountFrequency; // TODO(chowie): Time with this
+global b32x GlobalRunning;
+global b32x GlobalPause;
+global b32x GlobalShowCursor;
+global win32_offscreen_buffer GlobalBackbuffer;
+global IAudioClient *GlobalSoundClient;
+global IAudioRenderClient *GlobalSoundRenderClient;
+global WINDOWPLACEMENT GlobalWindowPosition = {sizeof(GlobalWindowPosition)};
+global u64 GlobalPerfCountFrequency; // TODO(chowie): Time with this
 
 // NOTE(chowie): This is the only round trip allowed atm.
 // STUDY(chowie): Alternatively, Allocating/reserve and Read memory
@@ -200,52 +200,63 @@ Win32GetLastWriteTime(char *FileName)
     return(LastWriteTime);
 }
 
-internal win32_game_code
-Win32LoadGameCode(char *SourceDLLName, char *TempDLLName, char *LockFileName)
+internal void
+Win32UnloadCode(win32_loaded_code *Loaded)
 {
-    win32_game_code Result = {};
+    if(Loaded->DLL)
+    {
+        // TODO(chowie): Should I never free lib, we may still be
+        // pointing to strings that are still inside?
+        FreeLibrary(Loaded->DLL);
+        Loaded->DLL = 0;
+    }
+
+    Loaded->IsValid = false;
+    ZeroArray(Loaded->FunctionCount, Loaded->Functions);
+}
+
+internal void
+Win32LoadCode(win32_loaded_code *Loaded)
+{
+    char *SourceDLLName = Loaded->DLLFullPath;
+    char *TempDLLName = Loaded->TempFullPath;
+    char *LockFileName = Loaded->LockFullPath;
 
     WIN32_FILE_ATTRIBUTE_DATA Ignored;
     if(!GetFileAttributesExA(LockFileName, GetFileExInfoStandard, &Ignored))
     {
         // NOTE(chowie): Allows locking a file not the file the compiler is outputting to!
-        Result.Loaded.DLLLastWriteTime = Win32GetLastWriteTime(SourceDLLName);
+        Loaded->DLLLastWriteTime = Win32GetLastWriteTime(SourceDLLName);
+
         CopyFile(SourceDLLName, TempDLLName, FALSE);
-        Result.Loaded.GameCodeDLL = LoadLibraryA(TempDLLName);
-        if(Result.Loaded.GameCodeDLL)
+
+        Loaded->DLL = LoadLibraryA(TempDLLName);
+        if(Loaded->DLL)
         {
-            Result.Table.UpdateAndRender = (game_update_and_render *)
-                GetProcAddress(Result.Loaded.GameCodeDLL, "GameUpdateAndRender");
-
-            Result.Table.GetSoundSamples = (game_get_sound_samples *)
-                GetProcAddress(Result.Loaded.GameCodeDLL, "GameGetSoundSamples");
-
-            Result.Loaded.IsValid = (Result.Table.UpdateAndRender &&
-                                     Result.Table.GetSoundSamples);
+            Loaded->IsValid = true;
+            for(u32 FunctionIndex = 0;
+                FunctionIndex < Loaded->FunctionCount;
+                ++FunctionIndex)
+            {
+                void *Function = GetProcAddress(Loaded->DLL, Loaded->FunctionNames[FunctionIndex]);
+                if(Function)
+                {
+                    Loaded->Functions[FunctionIndex] = Function;
+                }
+                else
+                {
+                    // TODO(chowie): Display error message here?
+                    Loaded->IsValid = false;
+                }
+            }
         }
     }
 
-    if(!Result.Loaded.IsValid)
+    if(!Loaded->IsValid)
     {
-        Result.Table.UpdateAndRender = 0;
-        Result.Table.GetSoundSamples = 0;
+        Win32UnloadCode(Loaded);
+        // TODO(chowie): Display error message here?
     }
-
-    return(Result);
-}
-
-internal void
-Win32UnloadGameCode(win32_game_code *Game)
-{
-    if(Game->Loaded.GameCodeDLL)
-    {
-        FreeLibrary(Game->Loaded.GameCodeDLL);
-        Game->Loaded.GameCodeDLL = 0;
-    }
-
-    Game->Loaded.IsValid = false;
-    Game->Table.UpdateAndRender = 0;
-    Game->Table.GetSoundSamples = 0;
 }
 
 internal void
@@ -301,6 +312,18 @@ Win32LoadWASAPI(void)
     }
 }
 
+/* TODO(chowie): Audio update reference
+   UINT64 PositionFrequency;
+   UINT64 PositionUnits;
+
+   IAudioClock* AudioClock;
+   GlobalSoundClient->GetService(IID_PPV_ARGS(&AudioClock));
+   AudioClock->GetFrequency(&PositionFrequency);
+   AudioClock->GetPosition(&PositionUnits, 0);
+   AudioClock->Release();
+                        
+   Marker->PlayCursor = (DWORD)(SoundOutput.SamplesPerSecond * PositionUnits / PositionFrequency) % SoundOutput.SamplesPerSecond;
+*/
 // TODO(chowie): This is really not a good way to use WASAPI, make a
 // thread-queue first before multithreading this! Make a guard thread
 // that flushes on framedrop? I hear audio cracking - need threads!
@@ -573,8 +596,143 @@ ToggleFullscreen(HWND Window)
     }
 }
 
+internal void
+Win32GetInputFileLocation(win32_state *State, u32 SlotIndex,
+                          u32 DestCount, char *Dest)
+{
+    char Temp[64];
+    wsprintf(Temp, "loop_edit_%d.hmi", SlotIndex);
+    Win32BuildEXEPathFileName(State, Temp, DestCount, Dest);
+}
+
+internal win32_replay_buffer *
+Win32GetReplayBuffer(win32_state *State, u32 Index)
+{
+    Assert(Index > 0);
+    Assert(Index < ArrayCount(State->ReplayBuffers));
+    win32_replay_buffer *Result = &State->ReplayBuffers[Index];
+
+    return(Result);
+}
+
+internal void
+Win32EndRecordingInput(win32_state *State)
+{
+    State->InputRecordingIndex = 0;
+    State->CurrentBuffer->WrittenSize = State->CurrentRecordSize;
+    State->CurrentBuffer = 0;
+}
+
+internal void
+Win32BeginInputRecording(win32_state *State, u32 Index)
+{
+    win32_replay_buffer *Buffer = Win32GetReplayBuffer(State, Index);
+    if(!Buffer->IsInitialised)
+    {
+        Win32GetInputFileLocation(State, Index, sizeof(Buffer->FileName), Buffer->FileName);
+        Buffer->MappedFile = CreateFileA(Buffer->FileName, GENERIC_READ|GENERIC_WRITE, FILE_SHARE_WRITE, 0, CREATE_ALWAYS, 0, 0);
+
+        LARGE_INTEGER Size;
+        Size.QuadPart = State->TotalSize + Kilobytes(4);
+        Buffer->MemoryMap = CreateFileMappingA(Buffer->MappedFile, 0, PAGE_READWRITE,
+                                               Size.HighPart, Size.LowPart, 0);
+        Buffer->Memory = MapViewOfFile(Buffer->MemoryMap, FILE_MAP_ALL_ACCESS, 0, 0, Size.QuadPart);
+        Buffer->FileSize = Size.QuadPart;
+        Buffer->IsInitialised = true;
+        if(!Buffer->Memory)
+        {
+            // TODO(chowie): Logging!
+        }
+    }
+    else
+    {
+        // TODO(chowie): Logging!
+    }
+
+    if(Buffer->Memory)
+    {
+        State->InputRecordingIndex = Index;
+        State->CurrentBuffer = Buffer;
+        CopyMemory(Buffer->Memory, State->GameMemoryBlock, State->TotalSize);
+        State->CurrentRecordSize = State->TotalSize;
+    }
+}
+
+internal void
+Win32BeginInputPlayback(win32_state *State, u32 Index)
+{
+    win32_replay_buffer *Buffer = Win32GetReplayBuffer(State, Index);
+    if(Buffer->IsInitialised)
+    {
+        if(Buffer->Memory)
+        {
+            State->InputPlayingIndex = Index;
+            CopyMemory(State->GameMemoryBlock, Buffer->Memory, State->TotalSize);
+            State->CurrentRecordSize = State->TotalSize;
+            State->CurrentBuffer = Buffer;
+        }
+    }
+    else
+    {
+        // TODO(chowie): Logging
+    }
+}
+
+internal void
+Win32EndInputPlayback(win32_state *State)
+{
+    State->InputPlayingIndex = 0;
+    State->CurrentBuffer = 0;
+}
+
+internal void
+Win32RecordInput(win32_state *State, game_input *NewInput)
+{
+    if(State->CurrentBuffer)
+    {
+        u32 BytesToWrite = sizeof(NewInput);
+        if((State->CurrentRecordSize + BytesToWrite) >= State->CurrentBuffer->FileSize)
+        {
+            State->CurrentBuffer->FileSize += Kilobytes(4);
+
+            void *OldMemory = State->CurrentBuffer->Memory;
+            UnmapViewOfFile(OldMemory);
+            CloseHandle(State->CurrentBuffer->MemoryMap);
+            State->CurrentBuffer->MemoryMap = CreateFileMappingA(State->CurrentBuffer->MappedFile,
+                                                                 0, PAGE_READWRITE,
+                                                                 (State->CurrentBuffer->FileSize >> 32),
+                                                                 State->CurrentBuffer->FileSize & 0xFFFFFFFF, 0); // TODO(chowie): Change this to large int?
+            State->CurrentBuffer->Memory = MapViewOfFile(State->CurrentBuffer->MemoryMap,
+                                                         FILE_MAP_ALL_ACCESS, 0, 0, State->CurrentBuffer->FileSize);
+        }
+
+        void *WriteP = (void *)((char *)State->CurrentBuffer->Memory + State->CurrentRecordSize);
+        CopyMemory(WriteP, (void *)NewInput, BytesToWrite);
+        State->CurrentRecordSize += BytesToWrite;
+    }
+}
+
+internal void
+Win32PlaybackInput(win32_state *State, game_input *NewInput)
+{
+    if(State->CurrentBuffer)
+    {
+        u32 BytesToRead = sizeof(NewInput);
+        if(State->CurrentRecordSize >= State->CurrentBuffer->WrittenSize)
+        {
+            u32 Index = State->InputPlayingIndex;
+            Win32EndInputPlayback(State);
+            Win32BeginInputPlayback(State, Index);
+        }
+
+        void *ReadP = (void *)((char *)State->CurrentBuffer->Memory + State->CurrentRecordSize);
+        CopyMemory((void *)NewInput, ReadP, BytesToRead);
+        State->CurrentRecordSize += BytesToRead;
+    }
+}
+
 /*
-// TODO(chowie): Test with this?
+// TODO(chowie): Buckle with this Keyboard test case!
 OutputDebugStringA("ESCAPE: ");
 if(IsDown)
 {
@@ -644,7 +802,7 @@ Win32ProcessStickValue(SHORT Value, SHORT DeadZoneThreshold)
 // NOTE(chowie): Conceptional purity of being in the same stack,
 // nothing in particular. Rather than global variables.
 internal void
-Win32ProcessPendingMessages(game_controller_input *KeyboardController)
+Win32ProcessPendingMessages(win32_state *State, game_controller_input *KeyboardController)
 {
     MSG Message;
     while(PeekMessageA(&Message, 0, 0, 0, PM_REMOVE))
@@ -667,87 +825,144 @@ Win32ProcessPendingMessages(game_controller_input *KeyboardController)
                 // (1 << 30) or 0. "!= 0" forces 1 or 0.
 #define KeyMessageWasDownBit BitSet(30)
 #define KeyMessageWasUpBit BitSet(31)
+#define AltKeyWasDownBit BitSet(29)
+#define KeyStateBit BitSet(15)
                 b32x WasDown = ((Message.lParam & KeyMessageWasDownBit) != 0);
                 b32x IsDown = ((Message.lParam & KeyMessageWasUpBit) == 0);
+                b32x AltKeyWasDown = (Message.lParam & AltKeyWasDownBit);
+                b32x ShiftKeyWasDown = (GetKeyState(VK_SHIFT) & KeyStateBit);
 
                 // NOTE(chowie): Holding down a key would otherwise
                 // display both WasDown and IsDown messages!
                 if(WasDown != IsDown)
                 {
-                    if(VKCode == 'W')
+                    switch(VKCode)
                     {
-                        Win32ProcessKeyboardMessage(&KeyboardController->MoveUp, IsDown);
-                    }
-                    else if(VKCode == 'A')
-                    {
-                        Win32ProcessKeyboardMessage(&KeyboardController->MoveLeft, IsDown);
-                    }
-                    else if(VKCode == 'S')
-                    {
-                        Win32ProcessKeyboardMessage(&KeyboardController->MoveDown, IsDown);
-                    }
-                    else if(VKCode == 'D')
-                    {
-                        Win32ProcessKeyboardMessage(&KeyboardController->MoveRight, IsDown);
-                    }
-                    else if(VKCode == 'Q')
-                    {
-                        Win32ProcessKeyboardMessage(&KeyboardController->LeftShoulder, IsDown);
-                    }
-                    else if(VKCode == 'E')
-                    {
-                        Win32ProcessKeyboardMessage(&KeyboardController->RightShoulder, IsDown);
-                    }
-                    else if(VKCode == VK_UP)
-                    {
-                        Win32ProcessKeyboardMessage(&KeyboardController->ActionUp, IsDown);
-                    }
-                    else if(VKCode == VK_LEFT)
-                    {
-                        Win32ProcessKeyboardMessage(&KeyboardController->ActionLeft, IsDown);
-                    }
-                    else if(VKCode == VK_DOWN)
-                    {                                        
-                        Win32ProcessKeyboardMessage(&KeyboardController->ActionDown, IsDown);
-                    }
-                    else if(VKCode == VK_RIGHT)
-                    {
-                        Win32ProcessKeyboardMessage(&KeyboardController->ActionRight, IsDown);
-                    }
-                    else if(VKCode == VK_ESCAPE)
-                    {
-                        Win32ProcessKeyboardMessage(&KeyboardController->Back, IsDown);
-                    }
-                    else if(VKCode == VK_SPACE)
-                    {
-                        Win32ProcessKeyboardMessage(&KeyboardController->Start, IsDown);
-                    }
-#if RUINENGLASS_INTERNAL
-                    else if(VKCode == 'P')
-                    {
-                        if(IsDown)
+                        case 'W':
                         {
-                            GlobalPause = !GlobalPause;
-                        }
-                    }
-#endif
-                }
+                            Win32ProcessKeyboardMessage(&KeyboardController->MoveUp, IsDown);
+                        } break;
+                        case 'A':
+                        {
+                            Win32ProcessKeyboardMessage(&KeyboardController->MoveLeft, IsDown);
+                        } break;
+                        case 'S':
+                        {
+                            Win32ProcessKeyboardMessage(&KeyboardController->MoveDown, IsDown);
+                        } break;
+                        case 'D':
+                        {
+                            Win32ProcessKeyboardMessage(&KeyboardController->MoveRight, IsDown);
+                        } break;
+                        case 'Q':
+                        {
+                            Win32ProcessKeyboardMessage(&KeyboardController->LeftShoulder, IsDown);
+                        } break;
+                        case 'E':
+                        {
+                            Win32ProcessKeyboardMessage(&KeyboardController->RightShoulder, IsDown);
+                        } break;
+                        case VK_UP:
+                        {
+                            Win32ProcessKeyboardMessage(&KeyboardController->ActionUp, IsDown);
+                        } break;
+                        case VK_LEFT:
+                        {
+                            Win32ProcessKeyboardMessage(&KeyboardController->ActionLeft, IsDown);
+                        } break;
+                        case VK_DOWN:
+                        {                                        
+                            Win32ProcessKeyboardMessage(&KeyboardController->ActionDown, IsDown);
+                        } break;
+                        case VK_RIGHT:
+                        {
+                            Win32ProcessKeyboardMessage(&KeyboardController->ActionRight, IsDown);
+                        } break;
+                        case VK_ESCAPE:
+                        {
+                            Win32ProcessKeyboardMessage(&KeyboardController->Back, IsDown);
+                        } break;
+                        case VK_SPACE:
+                        {
+                            Win32ProcessKeyboardMessage(&KeyboardController->Start, IsDown);
+                        } break;
+                        // NOTE(chowie): Below are pressed once keys!
+                        case VK_F1:
+                        case VK_F2:
+                        case VK_F3:
+                        case VK_F4:
+                        case VK_F5:
+                        case VK_F6:
+                        case VK_F7:
+                        case VK_F8:
+                        case VK_F9:
+                        case VK_F10:
+                        case VK_F11:
+                        case VK_F12:
+                        {
+                            if(IsDown)
+                            {
+                                if(VKCode == VK_F4)
+                                {
+                                    if(AltKeyWasDown)
+                                    {
+                                        GlobalRunning = false;
+                                    }
+                                }
+                                else if(VKCode == VK_F11)
+                                {
+                                    if(Message.hwnd)
+                                    {
+                                        ToggleFullscreen(Message.hwnd);
+                                    }
+                                }
+                            }
+//                            Input->FKeyPressed[VKCode] = true;
+                        } break;
 
-                if(IsDown)
-                {
-#define AltKeyWasDownBit BitSet(29)
-                    b32x AltKeyWasDown = (Message.lParam & AltKeyWasDownBit);
-                    if((VKCode == VK_F4) && AltKeyWasDown)
-                    {
-                        GlobalRunning = false;
-                    }
-                    if(((VKCode == VK_RETURN) && AltKeyWasDown) ||
-                       (VKCode == VK_F11))
-                    {
-                        if(Message.hwnd)
+                        case VK_RETURN:
                         {
-                            ToggleFullscreen(Message.hwnd);
-                        }
+                            if(IsDown)
+                            {
+                                if(AltKeyWasDown)
+                                {
+                                    if(Message.hwnd)
+                                    {
+                                        ToggleFullscreen(Message.hwnd);
+                                    }
+                                }
+                            }
+                        } break;
+#if RUINENGLASS_INTERNAL
+                        case 'P':
+                        {
+                            if(IsDown)
+                            {
+                                GlobalPause = !GlobalPause;
+                            }
+                        } break;
+                        case 'L':
+                        {
+                            if(IsDown)
+                            {
+                                if(State->InputPlayingIndex == 0)
+                                {
+                                    if(State->InputRecordingIndex == 0)
+                                    {
+                                        State->InputRecordingIndex = 1;
+                                    }
+                                    else
+                                    {
+                                        State->InputRecordingIndex = 0;
+                                        State->InputPlayingIndex = 1;
+                                    }
+                                }
+                                else
+                                {
+                                }
+                            }
+                        } break;
+#endif
                     }
                 }
             } break;
@@ -863,9 +1078,9 @@ WinMain(HINSTANCE Instance,
     Win32BuildEXEPathFileName(&Win32State, "ruinenglass_temp.dll",
                               sizeof(TempGameCodeDLLFullPath), TempGameCodeDLLFullPath);
 
-    char LockGameCodeDLLFullPath[WIN32_STATE_FILE_NAME_COUNT];
+    char LockFullPath[WIN32_STATE_FILE_NAME_COUNT];
     Win32BuildEXEPathFileName(&Win32State, "lock.tmp",
-                              sizeof(LockGameCodeDLLFullPath), LockGameCodeDLLFullPath);
+                              sizeof(LockFullPath), LockFullPath);
 
     WNDCLASSA WindowClass = {};
 
@@ -992,21 +1207,27 @@ WinMain(HINSTANCE Instance,
                 u64 LastCounter = Win32GetWallClock();
                 u64 LastCycleCount = Win32ReadCPUTimer(RdtscpSupported);
 
-                win32_game_code Game = Win32LoadGameCode(SourceGameCodeDLLFullPath,
-                                                         TempGameCodeDLLFullPath,
-                                                         LockGameCodeDLLFullPath);
+                win32_game_function_table Game = {};
+                win32_loaded_code GameCode = {};
+                GameCode.DLLFullPath = SourceGameCodeDLLFullPath;
+                GameCode.TempFullPath = TempGameCodeDLLFullPath;
+                GameCode.LockFullPath = LockFullPath;
+
+                GameCode.FunctionCount = ArrayCount(Win32GameFunctionTableNames);
+                GameCode.FunctionNames = Win32GameFunctionTableNames;
+                GameCode.Functions = (void **)&Game;
+
+                Win32LoadCode(&GameCode);
                 while(GlobalRunning)
                 {
                     NewInput->dtForFrame = TargetSecondsPerFrame;
 
                     GameMemory.ExecutableReloaded = false;
                     FILETIME NewDLLWriteTime = Win32GetLastWriteTime(SourceGameCodeDLLFullPath);
-                    if(CompareFileTime(&NewDLLWriteTime, &Game.Loaded.DLLLastWriteTime) != 0)
+                    if(CompareFileTime(&NewDLLWriteTime, &GameCode.DLLLastWriteTime) != 0)
                     {
-                        Win32UnloadGameCode(&Game);
-                        Game = Win32LoadGameCode(SourceGameCodeDLLFullPath,
-                                                 TempGameCodeDLLFullPath,
-                                                 LockGameCodeDLLFullPath);
+                        Win32UnloadCode(&GameCode);
+                        Win32LoadCode(&GameCode);
                         // NOTE(chowie): Leaves unlocked in between
                         // two lines. Because DLL is not being
                         // reloaded again. Locked while used.
@@ -1020,7 +1241,7 @@ WinMain(HINSTANCE Instance,
                     // NOTE(chowie): We can't zero everything, otherwise the up/down state will be wrong
                     game_controller_input *OldKeyboardController = GetController(OldInput, 0);
                     game_controller_input *NewKeyboardController = GetController(NewInput, 0);
-                    *NewKeyboardController = {};
+                    ZeroStruct(*NewKeyboardController);
                     NewKeyboardController->IsConnected = true; // TODO(chowie): Poll for multiple keyboards?
 
                     // NOTE(chowie): Reset HalfTransitionCount (per
@@ -1036,7 +1257,7 @@ WinMain(HINSTANCE Instance,
                     // STUDY(chowie): Messages don't always field in the
                     // dispatch queue. Windows reserves the rights to
                     // 'cold-call' sometimes (in Win32MainWindowCallback).
-                    Win32ProcessPendingMessages(NewKeyboardController);
+                    Win32ProcessPendingMessages(&Win32State, NewKeyboardController);
 
                     if(!GlobalPause)
                     {
@@ -1162,12 +1383,24 @@ WinMain(HINSTANCE Instance,
 
                     if(!GlobalPause)
                     {
+                        if(Win32State.InputRecordingIndex)
+                        {
+                            Win32RecordInput(&Win32State, NewInput);
+                        }
+
+                        if(Win32State.InputPlayingIndex)
+                        {
+                            // NOTE(chowie): Overwrite what new input
+                            // was from the stream of previous inputs.
+                            Win32PlaybackInput(&Win32State, NewInput);
+                        }
+
                         // IMPORTANT(chowie): Without this check the
                         // lock file would fail, you would sleep on
                         // executable reload, or use a stub!
-                        if(Game.Table.UpdateAndRender)
+                        if(Game.UpdateAndRender)
                         {
-                            Game.Table.UpdateAndRender(&GameMemory, Input, &Buffer);
+                            Game.UpdateAndRender(&GameMemory, NewInput, &Buffer);
                         }
                     }
 
@@ -1213,9 +1446,9 @@ WinMain(HINSTANCE Instance,
                         // IMPORTANT(chowie): Without this check the
                         // lock file would fail, you would sleep on
                         // executable reload, or use a stub!
-                        if(Game.Table.GetSoundSamples)
+                        if(Game.GetSoundSamples)
                         {
-                            Game.Table.GetSoundSamples(&GameMemory, &SoundBuffer); // TODO(chowie): This seems superflous for getsound samples which takes both! But needed for fill sound buffer
+                            Game.GetSoundSamples(&GameMemory, &SoundBuffer); // TODO(chowie): This seems superflous for getsound samples which takes both! But needed for fill sound buffer
                         }
 
                         Win32FillSoundBuffer(&SoundOutput, SamplesToWrite, &SoundBuffer);
@@ -1250,19 +1483,6 @@ WinMain(HINSTANCE Instance,
                     r32 FPS = ((r32)GlobalPerfCountFrequency / (r32)CounterElapsed);
                     r32 MCPF = ((r32)CyclesElapsed / Square(1000.0f));
 //                    OutputDebugStringA(d7sam_concat(MSPerFrame)("ms/f, ")(FPS)("f/s, ")(MCPF)("mc/f")("\n"));
-
-                    /* TODO(chowie): Audio update reference
-                    UINT64 PositionFrequency;
-                    UINT64 PositionUnits;
-
-                    IAudioClock* AudioClock;
-                    GlobalSoundClient->GetService(IID_PPV_ARGS(&AudioClock));
-                    AudioClock->GetFrequency(&PositionFrequency);
-                    AudioClock->GetPosition(&PositionUnits, 0);
-                    AudioClock->Release();
-                        
-                    Marker->PlayCursor = (DWORD)(SoundOutput.SamplesPerSecond * PositionUnits / PositionFrequency) % SoundOutput.SamplesPerSecond;
-                    */
 
                     // TODO: Should we clear these here?
                     Swap(game_input *, NewInput, OldInput);

@@ -27,11 +27,19 @@
 #include "ruinenglass_shared.h"
 #include "ruinenglass_audio.h"
 
+// NOTE(chowie): Historical linguist
+struct controlled_linguist
+{
+    v2 P;
+};
+
 struct game_state
 {
     v2 Offset;
 
     audio_state AudioState;
+
+    b32x IsInitialised;
 };
 
 #define RUINENGLASS_H
