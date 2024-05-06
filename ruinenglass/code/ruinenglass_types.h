@@ -110,10 +110,7 @@ typedef double r64;
 
 #define Minimum(A, B) ((A < B) ? (A) : (B))
 #define Maximum(A, B) ((A > B) ? (A) : (B))
-//#define Maximum3(A, B, C) (Max(A, Max(B, C)))
-// RESOURCE(bipll, 0_): https://stackoverflow.com/questions/61106977/check-max-value-from-three-variables-by-using-preprocessor-in-c
-#define Maximum3(A, B, C) ((A) <= (B) ? (B) <= (C) ? (C) : (B) : (A) <= (C) ? (C) : (A))
-// #define Maximum3(A, B, C) ((A) > (B) ? ((A) > (C) ? (A) : ((C) > (B) ? C : (B))) : ((B) > (C) ? (B) : (C)))
+#define Maximum3(A, B, C) (Maximum(A, Maximum(B, C)))
 
 // NOTE(chowie): Limit macros
 #define R32Maximum FLT_MAX

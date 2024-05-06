@@ -45,7 +45,7 @@ struct win32_state
     void *GameMemoryBlock;
 
     win32_replay_buffer *CurrentBuffer;
-    win32_replay_buffer *ReplayBuffers;
+    win32_replay_buffer ReplayBuffers[1];
 
 //    HANDLE RecordingHandle;
     u32 InputRecordingIndex;
@@ -176,6 +176,20 @@ global set_process_dpi_aware *SetProcessDpiAware_;
 typedef SET_PROCESS_DPI_AWARENESS_CONTEXT(set_process_dpi_awareness_context);
 global set_process_dpi_awareness_context *SetProcessDpiAwarenessContext_;
 #define SetProcessDpiAwarenessContext SetProcessDpiAwarenessContext_
+
+/*
+// TODO(chowie): Buckle with this Keyboard test case!
+OutputDebugStringA("ESCAPE: ");
+if(IsDown)
+{
+    OutputDebugStringA("IsDown");
+}
+if(WasDown)
+{
+    OutputDebugStringA("WasDown");
+}
+OutputDebugStringA("\n");
+*/
 
 #define WIN32_RUINENGLASS_H
 #endif

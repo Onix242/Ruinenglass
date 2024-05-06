@@ -600,23 +600,22 @@ internal void
 Win32GetInputFileLocation(win32_state *State, u32 SlotIndex,
                           u32 DestCount, char *Dest)
 {
-    char Temp[64];
-    wsprintf(Temp, "loop_edit_%d.hmi", SlotIndex);
-    Win32BuildEXEPathFileName(State, Temp, DestCount, Dest);
+    char *Test = d7sam_concat("loop_edit_")((s32)SlotIndex)(".hmi");
+    Win32BuildEXEPathFileName(State, Test, DestCount, Dest);
 }
 
 internal win32_replay_buffer *
 Win32GetReplayBuffer(win32_state *State, u32 Index)
 {
     Assert(Index > 0);
-    Assert(Index < ArrayCount(State->ReplayBuffers));
+//    Assert(Index < ArrayCount(State->ReplayBuffers));
     win32_replay_buffer *Result = &State->ReplayBuffers[Index];
 
     return(Result);
 }
 
 internal void
-Win32EndRecordingInput(win32_state *State)
+Win32EndInputRecording(win32_state *State)
 {
     State->InputRecordingIndex = 0;
     State->CurrentBuffer->WrittenSize = State->CurrentRecordSize;
@@ -686,11 +685,11 @@ Win32EndInputPlayback(win32_state *State)
 }
 
 internal void
-Win32RecordInput(win32_state *State, game_input *NewInput)
+Win32RecordInput(win32_state *State, game_input *NewInput) // TODO(chowie): This keeps on replaying until the write crashes?
 {
     if(State->CurrentBuffer)
     {
-        u32 BytesToWrite = sizeof(NewInput);
+        u32 BytesToWrite = sizeof(*NewInput);
         if((State->CurrentRecordSize + BytesToWrite) >= State->CurrentBuffer->FileSize)
         {
             State->CurrentBuffer->FileSize += Kilobytes(4);
@@ -717,7 +716,7 @@ Win32PlaybackInput(win32_state *State, game_input *NewInput)
 {
     if(State->CurrentBuffer)
     {
-        u32 BytesToRead = sizeof(NewInput);
+        u32 BytesToRead = sizeof(*NewInput);
         if(State->CurrentRecordSize >= State->CurrentBuffer->WrittenSize)
         {
             u32 Index = State->InputPlayingIndex;
@@ -728,31 +727,6 @@ Win32PlaybackInput(win32_state *State, game_input *NewInput)
         void *ReadP = (void *)((char *)State->CurrentBuffer->Memory + State->CurrentRecordSize);
         CopyMemory((void *)NewInput, ReadP, BytesToRead);
         State->CurrentRecordSize += BytesToRead;
-    }
-}
-
-/*
-// TODO(chowie): Buckle with this Keyboard test case!
-OutputDebugStringA("ESCAPE: ");
-if(IsDown)
-{
-    OutputDebugStringA("IsDown");
-}
-if(WasDown)
-{
-    OutputDebugStringA("WasDown");
-}
-OutputDebugStringA("\n");
-*/
-
-internal void
-Win32ProcessKeyboardMessage(game_button_state *NewState, b32x IsDown)
-{
-    // NOTE(chowie): Because of switching windows / apps, industrial strength will be later
-    if(NewState->EndedDown != IsDown)
-    {
-        NewState->EndedDown = IsDown;
-        ++NewState->HalfTransitionCount;
     }
 }
 
@@ -797,6 +771,17 @@ Win32ProcessStickValue(SHORT Value, SHORT DeadZoneThreshold)
     }
 
     return(Result);
+}
+
+internal void
+Win32ProcessKeyboardMessage(game_button_state *NewState, b32x IsDown)
+{
+    // NOTE(chowie): Because of switching windows / apps, industrial strength will be later
+    if(NewState->EndedDown != IsDown)
+    {
+        NewState->EndedDown = IsDown;
+        ++NewState->HalfTransitionCount;
+    }
 }
 
 // NOTE(chowie): Conceptional purity of being in the same stack,
@@ -949,16 +934,17 @@ Win32ProcessPendingMessages(win32_state *State, game_controller_input *KeyboardC
                                 {
                                     if(State->InputRecordingIndex == 0)
                                     {
-                                        State->InputRecordingIndex = 1;
+                                        Win32BeginInputRecording(State, 1);
                                     }
                                     else
                                     {
-                                        State->InputRecordingIndex = 0;
-                                        State->InputPlayingIndex = 1;
+                                        Win32EndInputRecording(State);
+                                        Win32BeginInputPlayback(State, 1);
                                     }
                                 }
                                 else
                                 {
+                                    Win32EndInputPlayback(State);
                                 }
                             }
                         } break;

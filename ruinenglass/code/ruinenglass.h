@@ -30,7 +30,7 @@
 // NOTE(chowie): Historical linguist
 struct controlled_linguist
 {
-    v2 P;
+    v2s P; // TODO(chowie): Change to v2
 };
 
 struct game_state
@@ -38,6 +38,8 @@ struct game_state
     v2 Offset;
 
     audio_state AudioState;
+
+    controlled_linguist PlayerP;
 
     b32x IsInitialised;
 };

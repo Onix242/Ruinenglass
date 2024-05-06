@@ -103,12 +103,10 @@ OutputDebugStringA(d7sam_concat(" attention!")(line)("\n"));
 struct d7sam_concat
 {
     d7sam_concat(char* Source) { operator()(Source); }
-
     d7sam_concat(s32 Value) { operator()(Value); }
-
     d7sam_concat(r32 Value, u32 Decimals = 2) { operator()(Value, Decimals); }
 
-    s32 CharCount = 0;
+    u32 CharCount = 0;
     char TextBuffer[CONCAT_BUFFER_SIZE];
 
     d7sam_concat &
@@ -169,17 +167,17 @@ struct d7sam_concat
         u32 CastValue = RoundR32ToU32(Bases[Decimals] * Value);
         u32 MaxDecimals = Maximum(NumDigitsLog10(CastValue), (s32)Decimals + 1);
         CharCount += MaxDecimals + Negative + (Decimals > 0);
-        s32 CharIndex = CharCount;
+        u32 CharIndex = CharCount;
 
         TextBuffer[CharIndex--] = 0;
         do {
             TextBuffer[CharIndex--] = '0' + (CastValue % Base10);
             CastValue /= Base10;
-            if(CharIndex == (CharCount - (s32)Decimals - 1))
+            if(CharIndex == (CharCount - Decimals - 1))
             {
                 TextBuffer[CharIndex--] = '.';
             }
-        } while(CastValue || ((CharCount - CharIndex) <= ((s32)Decimals ? (s32)Decimals + 2 : 0)));
+        } while(CastValue || ((CharCount - CharIndex) <= (Decimals ? Decimals + 2 : 0)));
 
         if(Negative)
         {

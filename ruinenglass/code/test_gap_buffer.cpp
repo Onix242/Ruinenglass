@@ -129,7 +129,7 @@ internal void
 ShiftGapTo(gap_buffer *GapBuffer, umm Cursor)
 {
     umm GapLength = GapBuffer->End - GapBuffer->Start;
-    Cursor = Clamp(Cursor, 0, GapBuffer->Length - GapLength); // TODO(chowie): Check if clamped is correct?
+    Cursor = Clamp(0, Cursor, GapBuffer->Length - GapLength); // TODO(chowie): Check if clamped is correct?
     //printf("GapLength: %d, Cursor: %d\n", GapLength, Cursor); // NOTE(chowie): Accounts for expansion
     if(Cursor != GapBuffer->Start) // NOTE(chowie): Something inside
     {
@@ -168,9 +168,10 @@ CheckGapSize(gap_buffer *GapBuffer, umm Required)
     if(GapLength < Required)
     {
         ShiftGapTo(GapBuffer, GapBuffer->Length - GapLength);
-        umm RequiredBufferSize = Required + GapBuffer->Length - GapLength;
-        u8 *NewBuffer = (u8 *)malloc(2 * RequiredBufferSize); // NOTE(chowie): Maximum to account for big writes // TODO(chowie): Check if it's correct! TIMESTAMP: 12:44
-        memcpy(NewBuffer, GapBuffer->Buffer, GapBuffer->End); // TODO(chowie): Check if it's correct! It should only take until the end. Off by one?
+        umm RequiredBufferSize = Required + GapBuffer->Length - GapLength; // NOTE(chowie): Optimisation, as you know the gap buffer len is the end size!
+        u8 *NewBuffer = (u8 *)malloc((2 * RequiredBufferSize) * sizeof(u8)); // NOTE(chowie): Maximum to account for big writes // TODO(chowie): Check if it's correct! TIMESTAMP: 12:44
+        memcpy(NewBuffer, GapBuffer->Buffer, GapBuffer->Length); // TODO(chowie): Check if it's correct! It should only take until the end. Off by one?
+        GapBuffer->Length = (2 * RequiredBufferSize);
         free(GapBuffer->Buffer);
         GapBuffer->Buffer = NewBuffer;
         GapBuffer->End = GapBuffer->Length; // NOTE(chowie): All of the good data is in the start-to-middle. IMPORTANT: Gap start does not change here!
@@ -201,7 +202,7 @@ InsertChar(gap_buffer *GapBuffer, umm Cursor, u8 Char)
     CheckGapSize(GapBuffer, 1);
     ShiftGapTo(GapBuffer, Cursor);
     GapBuffer->Buffer[GapBuffer->Start++] = Char;
-    GapBuffer->Length++;
+    //GapBuffer->Length++;
 }
 
 internal void
@@ -235,7 +236,6 @@ InsertString(gap_buffer *GapBuffer, umm Cursor, char *String)
 }
 */
 
-// TODO(chowie): Ideally want cursor position - length to find the composite string between the two -> left and right of the cursor!
 int
 main(void)
 {
@@ -253,16 +253,8 @@ main(void)
     // TODO(chowie): Insertion/Removal of the character is wrong LOL
     char TextLengthBuffer[256];
     _snprintf_s(TextLengthBuffer, sizeof(TextLengthBuffer),
-                "\nInside Gap Buffer: %d\n", GapBuffer);
+                "\nInside Gap Buffer: %s\n", GapBuffer.Buffer);
     OutputDebugStringA(TextLengthBuffer);
-    //printf("%.*s", 16, GapBuffer);
-
-    char TextBuffer[256];
-    // RESORUCE: https://stackoverflow.com/questions/8170697/printf-a-buffer-of-char-with-length-in-c
-    umm BufferLength = GetGapBufferLength(&GapBuffer);
-    _snprintf_s(TextBuffer, sizeof(TextBuffer),
-                "Buffer Length: %d\n", BufferLength);
-    OutputDebugStringA(TextBuffer);
     return(0);
 }
 
@@ -301,8 +293,16 @@ typedef double r64;
 #define ArrayCount(arr)(sizeof((arr)) /(sizeof((arr)[0])))
 #define Minimum(A, B) ((A < B) ? (A) : (B))
 #define Maximum(A, B) ((A > B) ? (A) : (B))
-
 #define Assert(Expression) if(!(Expression)) {*(int *)0 = 0;}
+
+#define Swap(type, A, B) {type Temp = (A); (A) = (B); (B) = Temp;}
+
+inline s32
+SignOf(s32 Value)
+{
+    s32 Result = (Value >= 0) ? 1 : -1;
+    return (Result);
+}
 
 inline u32
 StringLength(char *String)
@@ -389,13 +389,57 @@ struct concat_buffer
     char Buffer[CONCAT_BUFFER_SIZE]; // TODO(chowie): Is it possible to pass this in into an arena?
 };
 
-// RESOURCE: https://gist.github.com/d7samurai/1d778693ba33bbd2b9d709b209cc0aba
+// NOTE(chowie): Log10 should really start from 0
+inline s32
+NumDigitsLog10(u32 Value)
+{
+    u32 Result = 0;
+    if(Value < 10000000000)
+    {
+        Result = ((Value >= 1000000000) ? 10 :
+                  (Value >= 100000000) ? 9 :
+                  (Value >= 10000000) ? 8 :
+                  (Value >= 1000000) ? 7 :
+                  (Value >= 100000) ? 6 :
+                  (Value >= 10000) ? 5 :
+                  (Value >= 1000) ? 4 :
+                  (Value >= 100) ? 3 :
+                  (Value >= 10) ? 2 : 1);
+    }
+    else
+    {
+        Result = ((Value >= 1000000000000000000) ? 19 :
+                  (Value >= 100000000000000000) ? 18 :
+                  (Value >= 10000000000000000) ? 17 :
+                  (Value >= 1000000000000000) ? 16 :
+                  (Value >= 100000000000000) ? 15 :
+                  (Value >= 10000000000000) ? 14 :
+                  (Value >= 1000000000000) ? 13 :
+                  (Value >= 100000000000) ? 12 : 11);
+    }
+
+    return(Result);
+}
+#define Base10 10
+global_variable r32 Bases[] = { 1, 10, 100, 1000, 10000, 100000, 1000000 };
+
+inline u32
+RoundR32ToU32(r32 R32)
+{
+    u32 Result = (u32)roundf(R32);
+    return(Result);
+}
+
+// RESOURCE(d7samurai): https://gist.github.com/d7samurai/1d778693ba33bbd2b9d709b209cc0aba
 // TODO(chowie): This hideous functions is really convenient! Probably only use this for debugging only!
 struct d7sam_concat
 {
     d7sam_concat(char* Source) { operator()(Source); }
+    d7sam_concat(s32 Value) { operator()(Value); }
+    d7sam_concat(r32 Value, u32 Decimals = 2) { operator()(Value, Decimals); }
 
-    concat_buffer Text = {};
+    u32 CharCount = 0;
+    char TextBuffer[CONCAT_BUFFER_SIZE];
 
     d7sam_concat &
     operator()(char* Source)
@@ -408,18 +452,201 @@ struct d7sam_concat
             CharIndex < Size;
             ++CharIndex)
         {
-            Text.Buffer[Text.CharCount++] = Source[CharIndex];
+            TextBuffer[CharCount++] = Source[CharIndex];
         }
-        Text.CharCount--;
+        CharCount--;
+
+        return(*this);
+    }
+
+    d7sam_concat &
+    operator()(s32 Value)
+    {
+        b32x Negative = false;
+        if(Value < 0)
+        {
+            Negative = true;
+            Value = -Value;
+        }
+
+        CharCount += NumDigitsLog10(Value) + Negative;
+        s32 CharIndex = CharCount;
+
+        TextBuffer[CharIndex--] = 0;
+        do {
+            TextBuffer[CharIndex--] = '0' + (Value % Base10);
+            Value /= Base10;
+        } while(Value);
+
+        if(Negative)
+        {
+            TextBuffer[CharIndex] = '-';
+        }
+
+        return(*this);
+    }
+
+    d7sam_concat &
+    operator()(r32 Value, u32 Decimals = 2)
+    {
+        b32x Negative = false;
+        if(Value < 0)
+        {
+            Negative = true;
+            Value = -Value;
+        }
+
+        u32 CastValue = RoundR32ToU32(Bases[Decimals] * Value);
+        u32 MaxDecimals = Maximum(NumDigitsLog10(CastValue), (s32)Decimals + 1);
+        CharCount += MaxDecimals + Negative + (Decimals > 0);
+        u32 CharIndex = CharCount;
+
+        TextBuffer[CharIndex--] = 0;
+        do {
+            TextBuffer[CharIndex--] = '0' + (CastValue % Base10);
+            CastValue /= Base10;
+            if(CharIndex == (CharCount - (s32)Decimals - 1))
+            {
+                TextBuffer[CharIndex--] = '.';
+            }
+        } while(CastValue || ((CharCount - CharIndex) <= (Decimals ? Decimals + 2 : 0)));
+
+        if(Negative)
+        {
+            TextBuffer[CharIndex] = '-';
+        }
 
         return(*this);
     }
 
     operator char* ()
     {
-        return(Text.Buffer);
+        return(TextBuffer);
     }
 };
+
+//
+// NOTE(chowie): Start of triangle numbers
+//
+
+// TODO(chowie): This can be extended to layers, are there enough
+// entity types yet?
+enum entity_type : u16
+{
+    EntityType_Null,
+
+    EntityType_Space,
+
+    EntityType_Hero,
+    EntityType_Wall,
+//    EntityType_Familiar,
+//    EntityType_Monstar,
+//    EntityType_Sword,
+//    EntityType_Stairwell,
+
+    EntityType_Count,
+};
+
+#define ENTITY_PAIR_TABLE_MAX(TableDim) (TableDim * (TableDim + 1) / 2)
+struct entity
+{
+    u32 EntityTypePairTable[ENTITY_PAIR_TABLE_MAX(EntityType_Count)];
+    u32 TriangleNumbersTable[EntityType_Count + 1];
+};
+
+// RESOURCE(remaley): https://anthropicstudios.com/2020/03/30/symmetric-matrices/
+internal u32
+MapEntityPairToIndex(u16 A, u16 B)
+{
+    // TODO(chowie): I assume that if with swap is better than two if min/max
+    // STUDY(chowie): This makes entity pairs AB vs BA pair agnostic
+    u32 Low = B;
+    u32 High = A;
+    if(A < B)
+    {
+        Swap(u32, Low, High);
+    }
+
+    u32 Triangle = High * (High + 1) / 2;
+    u32 Column = Low;
+
+    u32 Result = Triangle + Column;
+    return(Result);
+}
+
+struct triangle_number_result
+{
+    b32x IsTriangleNumber;
+    u32 CurrTriangleNumber;
+    u32 PrevTriangleNumber;
+};
+inline triangle_number_result
+IsTriangleNumber(entity *Entity, u32 Value)
+{
+    triangle_number_result Result = {};
+    Result.IsTriangleNumber = false;
+
+    // TODO(chowie): Is it possible to combine the prev and current cases?
+    for(u32 TriangleIndex = 0;
+        TriangleIndex < (EntityType_Count + 1); // TODO(chowie): Can I remove the one extra loop check?
+        ++TriangleIndex)
+    {
+        // NOTE(chowie): Grabs whatever the closest previous triangle is
+        if(Value == Entity->TriangleNumbersTable[TriangleIndex])
+        {
+            Result.IsTriangleNumber = true;
+
+            if(Value != 0)
+            {
+                Result.PrevTriangleNumber = Entity->TriangleNumbersTable[TriangleIndex - 1];
+            }
+            else
+            {
+                // TODO(chowie): I hate having an explicit 0 check to guard for underflow! Rather have a clamp!
+                Result.PrevTriangleNumber = Entity->TriangleNumbersTable[TriangleIndex];
+            }
+            break;
+        }
+        else if(SignOf(Value - Entity->TriangleNumbersTable[TriangleIndex]) == -1)
+        {
+            // NOTE(chowie): Lookahead if TestValue < TriangleNumber,
+            // if so PrevTriangle must be its row
+            Result.IsTriangleNumber = false;
+
+            // IMPORTANT(chowie): No clamps ever needed! Must always be past 0!
+            Result.CurrTriangleNumber = Entity->TriangleNumbersTable[TriangleIndex - 1];
+            Result.PrevTriangleNumber = Entity->TriangleNumbersTable[TriangleIndex - 2];
+            break;
+        }
+    }
+
+    return(Result);
+}
+
+// TODO(chowie): Change to v2enum
+struct entity_pair_index_result
+{
+    u16 Row;
+    u16 Col;
+};
+internal entity_pair_index_result
+GetEntityPairFromIndex(entity *Entity, u32 Index)
+{
+    entity_pair_index_result Result = {};
+
+    triangle_number_result TriangleNumber = IsTriangleNumber(Entity, Index);
+    if(TriangleNumber.IsTriangleNumber)
+    {
+        Result.Col = 0;
+    }
+    else
+    {
+        Result.Col = (u16)(Index - TriangleNumber.CurrTriangleNumber);
+    }
+    Result.Row = (u16)(Index - Result.Col - TriangleNumber.PrevTriangleNumber);
+
+    return(Result);
+}
 
 int
 main(void)
@@ -435,20 +662,49 @@ main(void)
         InitialiseArena(&TextArena, GameMemory.TextStorageSize - sizeof(game_memory),
                         GameMemory.TextStorage + sizeof(game_memory));
 
-        // NOTE(chowie): String test
-        char TextLengthBuffer[256];
-        char *Name = "Slim shady?";
-        char *Test = PushString(&TextArena, d7sam_concat("Attention! ")(Name));
+        entity Entity = {};
 
-        _snprintf_s(TextLengthBuffer, sizeof(TextLengthBuffer),
-                    "Inside Buffer: %s\n", Test);
-        OutputDebugStringA(TextLengthBuffer);
+        //
+        // NOTE(chowie): At startup
+        //
+
+        // NOTE(chowie): Generate tables
+        // IMPORTANT(chowie): Think of triangle numbers like OnePastPitch.
+        u32 PairTableIndex = 0;
+        for(u32 Y = 0;
+            Y < EntityType_Count;
+            ++Y)
+        {
+            u32 Pitch = (Y + 1); // NOTE(chowie): N + 1
+            for(u32 X = 0;
+                X < Pitch;
+                ++X, ++PairTableIndex)
+            {
+                // TODO(chowie): Figure out why ++PairTableIndex in loop body overwrites to the next memory?
+                Entity.EntityTypePairTable[PairTableIndex] = PairTableIndex; // NOTE(chowie): Shortcut instead of MapEntityPairToIndex((u16)X, (u16)Y)
+            }
+            Entity.TriangleNumbersTable[Pitch] = PairTableIndex; // IMPORTANT(chowie): Rows must "begin" as a triangle number, skips first index abusing 0 initialisation
+        }
+
+        //
+        // NOTE(chowie): At runtime
+        //
+
+        u32 EntityPair = MapEntityPairToIndex(EntityType_Wall, EntityType_Wall);
+        entity_pair_index_result TestPair = GetEntityPairFromIndex(&Entity, EntityPair);
+        char *Test = PushString(&TextArena, d7sam_concat("Testing Unpacking Pairs: ")(TestPair.Row)(", ")(TestPair.Col)("\n"));
+        OutputDebugStringA(Test);
+
+        /*
+        // NOTE(chowie): String test
+        char *Name = "Slim shady?";
+        char *Test = PushString(&TextArena, d7sam_concat("Attention! ")(Name)("\n"));
+        OutputDebugStringA(Test);
+        */
 
         ClearArena(&TextArena);
     }
 
-    // attention, slim shady! there's an error in line 1337 : the error code is 666 and the temperature is -98.6 degrees
-    //OutputDebugStringA(d7sam_concat("attention, ")(name)("! there's an error in line ")(line)(" : the error code is ")(666)(" and the temperature is ")(temp, 1)(" degrees\n"));
     return(0);
 }
 

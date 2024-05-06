@@ -29,7 +29,7 @@ REM RESOURCE(theinternetftw): https://hero.handmade.network/forums/code-discussi
 set ExecutableName= Ruinenglass
 
 REM ForAllTestingGrounds
-REM cl %CommonCompilerFlags% -D_CRT_SECURE_NO_WARNINGS ..\ruinenglass\code\test_gap_buffer.cpp %CommonLinkerFlags%
+cl %CommonCompilerFlags% -D_CRT_SECURE_NO_WARNINGS ..\ruinenglass\code\test_gap_buffer.cpp %CommonLinkerFlags%
 
 REM GAME
 cl %CommonCompilerFlags% ..\ruinenglass\code\ruinenglass.cpp       %GameDLLFlags%

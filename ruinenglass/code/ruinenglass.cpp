@@ -42,6 +42,36 @@ RenderWeirdGradient(game_offscreen_buffer *Buffer, v2 Offset)
     }
 }
 
+internal void
+TestRenderPlayer(game_offscreen_buffer *Buffer, v2s PlayerP)
+{
+    u8 *EndOfBuffer = (u8 *)Buffer->Memory + Buffer->Pitch * Buffer->Dim.Height;
+    
+    u32 Color = 0xFFFFFFFF;
+    int Top = PlayerP.x;
+    int Bottom = PlayerP.y+10;
+    for(int X = PlayerP.x;
+        X < PlayerP.x+10;
+        ++X)
+    {
+        u8 *Pixel = ((u8 *)Buffer->Memory +
+                     X*BITMAP_BYTES_PER_PIXEL +
+                     Top*Buffer->Pitch);
+        for(int Y = Top;
+            Y < Bottom;
+            ++Y)
+        {
+            if((Pixel >= Buffer->Memory) &&
+               ((Pixel + 4) <= EndOfBuffer))
+            {
+                *(u32 *)Pixel = Color;
+            }
+
+            Pixel += Buffer->Pitch;
+        }
+    }
+}
+
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
     // TODO(chowie): Use this!
@@ -64,6 +94,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             Memory->PlatformAPI.DEBUGFreeFileMemory(File.Contents);
         }
 #endif
+
+        GameState->PlayerP = {100, 100};
 
         // TODO(chowie): Initialise Audio State when there's proper
         // sound! Do I have to rearrange "audio -> game" to prevent
@@ -99,9 +131,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         {
             --GameState->Offset.y;
         }
+
+        GameState->PlayerP.P.x += (s32)(4.0f*(Controller->StickAverage.x));
+        GameState->PlayerP.P.y += (s32)(4.0f*(Controller->StickAverage.y));
     }
 
     RenderWeirdGradient(Buffer, GameState->Offset);
+    TestRenderPlayer(Buffer, GameState->PlayerP.P);
 }
 
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)
