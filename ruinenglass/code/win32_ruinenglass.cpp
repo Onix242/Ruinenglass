@@ -277,9 +277,9 @@ Win32LoadXInput(void)
 
     if(XInputLibrary)
     {
-        // RESOURCE(chowie): https://hero.handmade.network/forums/code-discussion/t/2686-function_pointer_assignment_trick#13360
-        // RESOURCE(chowie): https://man7.org/linux/man-pages/man3/dlopen.3.html
-        // TODO(chowie): A big advantage is assigning to a struct or
+        // RESOURCE(lacton): https://hero.handmade.network/forums/code-discussion/t/2686-function_pointer_assignment_trick
+        // RESOURCE(kerrisk): https://man7.org/linux/man-pages/man3/dlopen.3.html
+        // NOTE(chowie): A big advantage is assigning to a struct or
         // an array of function pointers, since you can use a loop.
         *(void **)(&XInputGetState) = GetProcAddress(XInputLibrary, "XInputGetState");
         *(void **)(&XInputSetState) = GetProcAddress(XInputLibrary, "XInputSetState");
@@ -295,14 +295,18 @@ Win32LoadXInput(void)
 }
 
 internal void
-Win32LoadWASAPI(void)
+Win32LoadWASAPI(win32_loaded_sound_code *Loaded)
 {
     HMODULE WASAPILibrary = LoadLibraryA("ole32.dll");
-
     if(WASAPILibrary)
     {
-        *(void **)(&CoInitializeEx) = GetProcAddress(WASAPILibrary, "CoInitializeEx");
-        *(void **)(&CoCreateInstance) = GetProcAddress(WASAPILibrary, "CoCreateInstance");
+        for(u32 FunctionIndex = 0;
+            FunctionIndex < ArrayCount(Win32SoundFunctionTableNames);
+            ++FunctionIndex)
+        {
+            // TODO(chowie): Check for failure?
+            Loaded->Functions[FunctionIndex] = GetProcAddress(WASAPILibrary, Loaded->FunctionNames[FunctionIndex]);
+        }
 
         // TODO(chowie): Logging/Diagnostic
     }
@@ -312,18 +316,6 @@ Win32LoadWASAPI(void)
     }
 }
 
-/* TODO(chowie): Audio update reference
-   UINT64 PositionFrequency;
-   UINT64 PositionUnits;
-
-   IAudioClock* AudioClock;
-   GlobalSoundClient->GetService(IID_PPV_ARGS(&AudioClock));
-   AudioClock->GetFrequency(&PositionFrequency);
-   AudioClock->GetPosition(&PositionUnits, 0);
-   AudioClock->Release();
-                        
-   Marker->PlayCursor = (DWORD)(SoundOutput.SamplesPerSecond * PositionUnits / PositionFrequency) % SoundOutput.SamplesPerSecond;
-*/
 // TODO(chowie): This is really not a good way to use WASAPI, make a
 // thread-queue first before multithreading this! Make a guard thread
 // that flushes on framedrop? I hear audio cracking - need threads!
@@ -334,18 +326,18 @@ Win32LoadWASAPI(void)
 // STUDY(chowie): WASAPI is COM! Stepping over the func looks though a jump table
 // RESOURCE: https://kodi.wiki/view/Windows_audio_APIs
 internal void
-Win32InitWASAPI(s32 SamplesPerSecond, s32 BufferSizeInSamples)
+Win32InitWASAPI(win32_sound_function_table Table, s32 SamplesPerSecond, s32 BufferSizeInSamples)
 {
     // TODO(chowie): Abstract the audio api architecture?
     // TODO(chowie): Output HRESULT to be able to be inspected in watch window!
     // TODO(chowie): Test that FAILED = !SUCCEEDED
-    if(FAILED(CoInitializeEx(0, COINIT_SPEED_OVER_MEMORY)))
+    if(FAILED(Table.CoInitializeEx(0, COINIT_SPEED_OVER_MEMORY)))
     {
         Assert(!"Error");
     }
 
     IMMDeviceEnumerator *Enumerator;
-    if(FAILED(CoCreateInstance(__uuidof(MMDeviceEnumerator), 0, CLSCTX_ALL, IID_PPV_ARGS(&Enumerator))))
+    if(FAILED(Table.CoCreateInstance(__uuidof(MMDeviceEnumerator), 0, CLSCTX_ALL, IID_PPV_ARGS(&Enumerator))))
     {
         Assert(!"Error");
     }
@@ -485,10 +477,10 @@ Win32GetWindowDim(HWND Window)
     GetClientRect(Window, &ClientRect);
 
     v2u Result =
-        {
-            (u32)(ClientRect.right - ClientRect.left),
-            (u32)(ClientRect.bottom - ClientRect.top),
-        };
+    {
+        (u32)(ClientRect.right - ClientRect.left),
+        (u32)(ClientRect.bottom - ClientRect.top),
+    };
 
     return(Result);
 }
@@ -567,7 +559,7 @@ internal void
 ToggleFullscreen(HWND Window)
 {
     // NOTE(chowie): This follows Raymond Chen's prescription for fullscreen toggling
-    // RESOURCE: https://devblogs.microsoft.com/oldnewthing/20100412-00/?p=14353
+    // RESOURCE(raymond chen): https://devblogs.microsoft.com/oldnewthing/20100412-00/?p=14353
 
     DWORD Style = GetWindowLong(Window, GWL_STYLE);
     if(Style & WS_OVERLAPPEDWINDOW)
@@ -600,17 +592,14 @@ internal void
 Win32GetInputFileLocation(win32_state *State, u32 SlotIndex,
                           u32 DestCount, char *Dest)
 {
-    Assert(SlotIndex == 1); // TODO(chowie): Remove SlotIndex number append?
-    char *Test = d7sam_concat("loop_edit_")((s32)SlotIndex)(".hmi");
-    Win32BuildEXEPathFileName(State, Test, DestCount, Dest);
+    Assert(SlotIndex == 1);
+    Win32BuildEXEPathFileName(State, "loop_edit.hmi", DestCount, Dest);
 }
 
 internal win32_replay_buffer *
-Win32GetReplayBuffer(win32_state *State, u32 Index)
+Win32GetReplayBuffer(win32_state *State)
 {
-    Assert(Index > 0);
-//    Assert(Index < ArrayCount(State->ReplayBuffers));
-    win32_replay_buffer *Result = &State->ReplayBuffers;
+    win32_replay_buffer *Result = &State->SaveBuffer;
 
     return(Result);
 }
@@ -619,11 +608,12 @@ Win32GetReplayBuffer(win32_state *State, u32 Index)
 // the transient storage will reconstruct itself!
 // TODO(chowie): This could live on layer above the platform?
 // TODO(chowie): Strobing memory-mapped file?
-// TODO(chowie): Can I alleviate the stuttering?
+// TODO(chowie): Can I better alleviate the stalling?
+#define REPLAY_BUFFER_RESIZE_BYTES Kilobytes(4)
 internal void
 Win32BeginInputRecording(win32_state *State, u32 Index)
 {
-    win32_replay_buffer *Buffer = Win32GetReplayBuffer(State, Index);
+    win32_replay_buffer *Buffer = Win32GetReplayBuffer(State);
     if(!Buffer->IsInitialised)
     {
         Win32GetInputFileLocation(State, Index, sizeof(Buffer->FileName), Buffer->FileName);
@@ -633,16 +623,16 @@ Win32BeginInputRecording(win32_state *State, u32 Index)
         // NOTE(chowie): Memory mapping doesn't allow extending the
         // size of the file, you must recreate the file mapping with a
         // larger size, then map a new view of the file.
-        LARGE_INTEGER Size;
-        Size.QuadPart = State->TotalSize + Kilobytes(4); // NOTE(chowie): Avoids the mandatory resizing for the first inputs
+        LARGE_INTEGER MaxSize;
+        MaxSize.QuadPart = State->TotalSize + REPLAY_BUFFER_RESIZE_BYTES; // NOTE(chowie): Avoids the mandatory resizing for the first inputs
         Buffer->MemoryMap = CreateFileMappingA(Buffer->MappedFile, 0, PAGE_READWRITE,
-                                               Size.HighPart, Size.LowPart, 0);
+                                               MaxSize.HighPart, MaxSize.LowPart, 0);
         Assert(Buffer->MemoryMap != INVALID_HANDLE_VALUE);
 
-        Buffer->Memory = MapViewOfFile(Buffer->MemoryMap, FILE_MAP_ALL_ACCESS, 0, 0, Size.QuadPart);
-        Assert(Buffer->Memory);
+        Buffer->MemoryBlock = MapViewOfFile(Buffer->MemoryMap, FILE_MAP_ALL_ACCESS, 0, 0, MaxSize.QuadPart);
+        Assert(Buffer->MemoryBlock);
 
-        Buffer->FileSize = Size.QuadPart;
+        Buffer->FileSize = MaxSize.QuadPart;
         Buffer->IsInitialised = true;
     }
     else
@@ -650,12 +640,12 @@ Win32BeginInputRecording(win32_state *State, u32 Index)
         // TODO(chowie): Logging!
     }
 
-    if(Buffer->Memory)
+    if(Buffer->MemoryBlock)
     {
         State->InputRecordingIndex = Index;
-        State->CurrentBuffer = Buffer;
-        CopyMemory(Buffer->Memory, State->GameMemoryBlock, State->TotalSize);
+        CopyMemory(Buffer->MemoryBlock, State->GameMemoryBlock, State->TotalSize);
         State->CurrentRecordSize = State->TotalSize;
+        State->CurrentBuffer = Buffer;
     }
 }
 
@@ -675,10 +665,10 @@ Win32RecordInput(win32_state *State, game_input *NewInput)
         u32 BytesToWrite = sizeof(*NewInput);
         if((State->CurrentRecordSize + BytesToWrite) >= State->CurrentBuffer->FileSize)
         {
-            State->CurrentBuffer->FileSize += Kilobytes(4);
+            State->CurrentBuffer->FileSize += REPLAY_BUFFER_RESIZE_BYTES;
             Assert(State->CurrentBuffer->FileSize >= (State->CurrentRecordSize + BytesToWrite));
 
-#if 1
+#if 0
             void *OldMemory = State->CurrentBuffer->Memory;
 
             LARGE_INTEGER Size;
@@ -695,7 +685,9 @@ Win32RecordInput(win32_state *State, game_input *NewInput)
             Assert(TestUnmap);
 
 #else
-            void *OldMemory = State->CurrentBuffer->Memory;
+            // RESOURCE(raymond chen): https://devblogs.microsoft.com/oldnewthing/20031007-00/?p=42263
+            // NOTE(chowie): Raymond Chen's shared memory technique below.
+            void *OldMemory = State->CurrentBuffer->MemoryBlock;
             BOOL TestUnmap = UnmapViewOfFile(OldMemory);
             Assert(TestUnmap);
 
@@ -704,19 +696,19 @@ Win32RecordInput(win32_state *State, game_input *NewInput)
             BOOL TestClose = CloseHandle(State->CurrentBuffer->MemoryMap);
             Assert(TestClose);
 
-            LARGE_INTEGER Size;
-            Size.QuadPart = State->CurrentBuffer->FileSize;
+            LARGE_INTEGER MaxSize;
+            MaxSize.QuadPart = State->CurrentBuffer->FileSize;
             State->CurrentBuffer->MemoryMap = CreateFileMappingA(State->CurrentBuffer->MappedFile, 0, PAGE_READWRITE,
-                                                                 Size.HighPart, Size.LowPart, 0);
+                                                                 MaxSize.HighPart, MaxSize.LowPart, 0);
             Assert(State->CurrentBuffer->MemoryMap != NULL);
 
-            State->CurrentBuffer->Memory = MapViewOfFile(State->CurrentBuffer->MemoryMap, FILE_MAP_ALL_ACCESS,
-                                                         0, 0, State->CurrentBuffer->FileSize);
-            Assert(State->CurrentBuffer->Memory);
+            State->CurrentBuffer->MemoryBlock = MapViewOfFile(State->CurrentBuffer->MemoryMap, FILE_MAP_ALL_ACCESS,
+                                                              0, 0, State->CurrentBuffer->FileSize);
+            Assert(State->CurrentBuffer->MemoryBlock);
 #endif
         }
 
-        void *WriteP = (void *)((char *)State->CurrentBuffer->Memory + State->CurrentRecordSize);
+        void *WriteP = (void *)((u8 *)State->CurrentBuffer->MemoryBlock + State->CurrentRecordSize);
         CopyMemory(WriteP, (void *)NewInput, BytesToWrite);
         State->CurrentRecordSize += BytesToWrite;
     }
@@ -725,13 +717,13 @@ Win32RecordInput(win32_state *State, game_input *NewInput)
 internal void
 Win32BeginInputPlayback(win32_state *State, u32 Index)
 {
-    win32_replay_buffer *Buffer = Win32GetReplayBuffer(State, Index);
+    win32_replay_buffer *Buffer = Win32GetReplayBuffer(State);
     if(Buffer->IsInitialised)
     {
-        if(Buffer->Memory)
+        if(Buffer->MemoryBlock)
         {
             State->InputPlayingIndex = Index;
-            CopyMemory(State->GameMemoryBlock, Buffer->Memory, State->TotalSize);
+            CopyMemory(State->GameMemoryBlock, Buffer->MemoryBlock, State->TotalSize);
             State->CurrentRecordSize = State->TotalSize;
             State->CurrentBuffer = Buffer;
         }
@@ -764,7 +756,7 @@ Win32PlaybackInput(win32_state *State, game_input *NewInput)
         }
 
         // NOTE(chowie): There's still input.
-        void *ReadP = (void *)((char *)State->CurrentBuffer->Memory + State->CurrentRecordSize);
+        void *ReadP = (void *)((u8 *)State->CurrentBuffer->MemoryBlock + State->CurrentRecordSize);
         CopyMemory((void *)NewInput, ReadP, BytesToRead);
         State->CurrentRecordSize += BytesToRead;
     }
@@ -1123,9 +1115,15 @@ WinMain(HINSTANCE Instance,
 //    WindowClass.hbrBackground = ;
     WindowClass.lpszClassName = "RuinenglassWindowClass";
 
+    win32_loaded_sound_code SoundCode = {};
+    win32_sound_function_table SoundTable = {};
+
+    SoundCode.Functions = (void **)&SoundTable;
+    SoundCode.FunctionNames = Win32SoundFunctionTableNames;
+
     Win32PreventDPIScaling();
     Win32LoadXInput();
-    Win32LoadWASAPI();
+    Win32LoadWASAPI(&SoundCode);
 
 #if RUINENGLASS_INTERNAL
     GlobalShowCursor = true;
@@ -1163,7 +1161,7 @@ WinMain(HINSTANCE Instance,
             SoundOutput.BytesPerSample = sizeof(s16)*2;
             SoundOutput.SecondaryBufferSize = SoundOutput.SamplesPerSecond*SoundOutput.BytesPerSample;
             SoundOutput.LatencySampleCount = FramesOfAudioLatency*(u32)(SoundOutput.SamplesPerSecond / GameUpdateHz); // NOTE(chowie): Number of samples that can be played without updating with new info
-            Win32InitWASAPI(SoundOutput.SamplesPerSecond, SoundOutput.SecondaryBufferSize);
+            Win32InitWASAPI(SoundTable, SoundOutput.SamplesPerSecond, SoundOutput.SecondaryBufferSize);
 
             GlobalRunning = true;
             b32x RdtscpSupported = Win32SupportsRdtscp();

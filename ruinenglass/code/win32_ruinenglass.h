@@ -7,39 +7,79 @@
    $Notice: $
    ======================================================================== */
 
+/*
+  RESOURCE: https://d3s.mff.cuni.cz/legacy/~holub/c_features.html
+  STUDY(chowie): Defining an array at the end of a struct e.g.
+  BITMAPINFO, allows variable-length arrays accessor-wise. Don't
+  recommend.
+  ______________________________________________________________
+  RESOURCE(BitTwiddleGames): https://www.reddit.com/r/learnprogramming/comments/12q5bho/can_somebody_explain_back_buffers_and_how_they/
+  NOTE(chowie): Reserve an extra memory region of memory representing
+  the "offscreen" image. If the code was representing the same region,
+  there could be strange artifacts to having the screen partially
+  drawn. Graphics are typically double-buffered, perform all drawing
+  code against the offscreen buffer. After, tell the hardware or
+  software stack to switch buffers. Offscreen -> Onscreen, and vice
+  versa. You next draw becomes the other buffer, repeat.
+*/
+struct win32_offscreen_buffer
+{
+    BITMAPINFO Info;
+    void *Memory;
+    v2u Dim;
+    s32 Pitch;
+};
+
+struct win32_sound_output
+{
+    u32 SamplesPerSecond;
+    u32 RunningSampleIndex; // TODO(chowie): Record with this!
+    u32 BytesPerSample;
+    DWORD SecondaryBufferSize;
+    u32 LatencySampleCount;
+    // TODO(chowie): BytesPerSecond field would make for easier computation
+    // TODO(chowie): Should RunningSampleIndex be in bytes?
+};
+
 // RESOURCE(gilman & nimbok): https://hero.handmade.network/forums/code-discussion/t/1990-memory_mapping_.hmi_files_and_interpreting_msdn
-// TODO(chowie): Test this code!
-// TODO(chowie): Clean this up!
+
+// STUDY(from nimbok): "When using memory-mapped files, operates in memory
+// isn't immediately reflected in file itself. Windows does not write
+// into files until it swaps mapped memory out of RAM (physical mem).
+// This could be in pieces or in aggregate; Same idea as swapping data
+// between RAM and paging memory to make room in RAM, instead of
+// paging the file, it uses your mapped file on disk."
+
+// STUDY(from nimbok): "Windows guarantees coherency among views of the same
+// file. However, the views doesn't necessarily match the data in the
+// file itself in a given moment."
+
 // NOTE(chowie): Never use MAX_PATH for user-facing code, we would get
 // a truncated file path if it was larger than it was passed in!
 #define WIN32_STATE_FILE_NAME_COUNT MAX_PATH
 struct win32_replay_buffer
 {
-    HANDLE MappedFile; // NOTE(chowie): FileHandle
+    HANDLE MappedFile;
     HANDLE MemoryMap;
     u64 FileSize;
-    void *Memory; // NOTE(chowie): MemoryBlock // TODO(chowie): (u8 *) instead?
+    void *MemoryBlock;
 
-    // NOTE(chowie): Only for win32_current_buffer
-    u64 WrittenSize;
+    u64 WrittenSize; // STUDY(chowie): Read/write are blocking API, guarantees file contains data on next LOC)
 
-    // NOTE(chowie): Only for replay_buffers
     char FileName[WIN32_STATE_FILE_NAME_COUNT];
     b32x IsInitialised;
 };
 
-// NOTE(chowie): Memory snapshot is akin to a save-state like an emulator
+// NOTE(chowie): Memory snapshot is akin to an emulator's save-states
 struct win32_state
 {
     u64 TotalSize;
     void *GameMemoryBlock;
 
     win32_replay_buffer *CurrentBuffer;
-    win32_replay_buffer ReplayBuffers; // TODO(chowie): Does this need to be passed by ref?
+    win32_replay_buffer SaveBuffer; // TODO(chowie): Remove?
 
-//    HANDLE RecordingHandle;
     u32 InputRecordingIndex;
-//    HANDLE InputPlayingHandle;
     u32 InputPlayingIndex;
     u64 CurrentRecordSize;
 
@@ -52,6 +92,8 @@ struct win32_state
 #define WIN32_LOADED_CODE_ENTRY_POINT(name) b32x name(HMODULE Module, void *FunctionTable)
 typedef WIN32_LOADED_CODE_ENTRY_POINT(win32_loaded_code_entry_point);
 
+// STUDY(chowie): This was how the function started as
+// *(void **)(&XInputGetState) = GetProcAddress(XInputLibrary, "XInputGetState");
 struct win32_loaded_code
 {
     b32x IsValid;
@@ -83,38 +125,33 @@ global char *Win32GameFunctionTableNames[] =
     "GameGetSoundSamples",
 };
 
-/*
-  RESOURCE: https://d3s.mff.cuni.cz/legacy/~holub/c_features.html
-  STUDY(chowie): Defining an array at the end of a struct e.g.
-  BITMAPINFO, allows variable-length arrays accessor-wise. Don't
-  recommend.
-  ______________________________________________________________
-  RESOURCE(BitTwiddleGames): https://www.reddit.com/r/learnprogramming/comments/12q5bho/can_somebody_explain_back_buffers_and_how_they/
-  NOTE(chowie): Reserve an extra memory region of memory representing
-  the "offscreen" image. If the code was representing the same region,
-  there could be strange artifacts to having the screen partially
-  drawn. Graphics are typically double-buffered, perform all drawing
-  code against the offscreen buffer. After, tell the hardware or
-  software stack to switch buffers. Offscreen -> Onscreen, and vice
-  versa. You next draw becomes the other buffer, repeat.
-*/
-struct win32_offscreen_buffer
+#define CO_INITIALIZE_EX(name) HRESULT WINAPI name(LPVOID pvReserved, DWORD dwCoInit)
+typedef CO_INITIALIZE_EX(co_initalize_ex);
+
+#define CO_CREATE_INSTANCE(name) HRESULT WINAPI name(REFCLSID rclsid, LPUNKNOWN pUnkOuter, DWORD dwClsContext, REFIID riid, LPVOID *ppv)
+typedef CO_CREATE_INSTANCE(co_create_instance);
+
+// TODO(chowie): Generalise this?
+// NOTE(chowie): Sound functions are always loaded unlike game_functions!
+struct win32_loaded_sound_code
 {
-    BITMAPINFO Info;
-    void *Memory;
-    v2u Dim;
-    s32 Pitch;
+    char **FunctionNames;
+    void **Functions;
 };
 
-struct win32_sound_output
+struct win32_sound_function_table
 {
-    u32 SamplesPerSecond;
-    u32 RunningSampleIndex; // TODO(chowie): Record this!
-    u32 BytesPerSample;
-    DWORD SecondaryBufferSize;
-    u32 LatencySampleCount;
-    // TODO(chowie): BytesPerSecond field would make for easier computation
-    // TODO(chowie): Should RunningSampleIndex be in bytes?
+    // IMPORTANT(chowie): All callbacks can be null! Must check before
+    // calling, or check the IsValid in Win32LoadedGameCode
+    co_initalize_ex *CoInitializeEx;
+    co_create_instance *CoCreateInstance;
+};
+// TODO(chowie): Introspection to automatically expand here? Removing
+// the need to double-up calling function names!
+global char *Win32SoundFunctionTableNames[] =
+{
+    "CoInitializeEx",
+    "CoCreateInstance",
 };
 
 //
@@ -143,18 +180,6 @@ X_INPUT_SET_STATE(XInputSetStateStub)
 global x_input_set_state *XInputSetState_ = XInputSetStateStub;
 #define XInputSetState XInputSetState_
 
-// NOTE(chowie): CoInitalizeEx
-#define CO_INITIALIZE_EX(name) HRESULT WINAPI name(LPVOID pvReserved, DWORD dwCoInit)
-typedef CO_INITIALIZE_EX(co_initalize_ex);
-global co_initalize_ex *CoInitializeEx_;
-#define CoInitializeEx CoInitializeEx_
-
-// NOTE(chowie): CoCreateInstance
-#define CO_CREATE_INSTANCE(name) HRESULT WINAPI name(REFCLSID rclsid, LPUNKNOWN pUnkOuter, DWORD dwClsContext, REFIID riid, LPVOID *ppv)
-typedef CO_CREATE_INSTANCE(co_create_instance);
-global co_create_instance *CoCreateInstance_;
-#define CoCreateInstance CoCreateInstance_
-
 // NOTE(chowie): SetProcessDpiAware
 #define SET_PROCESS_DPI_AWARE(name) BOOL WINAPI name(void)
 typedef SET_PROCESS_DPI_AWARE(set_process_dpi_aware);
@@ -166,6 +191,10 @@ global set_process_dpi_aware *SetProcessDpiAware_;
 typedef SET_PROCESS_DPI_AWARENESS_CONTEXT(set_process_dpi_awareness_context);
 global set_process_dpi_awareness_context *SetProcessDpiAwarenessContext_;
 #define SetProcessDpiAwarenessContext SetProcessDpiAwarenessContext_
+
+//
+//
+//
 
 // HRESULT Test = HRESULT_FROM_WIN32(GetLastError());
 
@@ -183,34 +212,26 @@ if(WasDown)
 OutputDebugStringA("\n");
 */
 
-// RESOURCE(microsoft): https://github.com/microsoft/cpprestsdk/blob/master/Release/tests/functional/streams/CppSparseFile.cpp
+// TODO(chowie): Sparse files?
 // #include <winioctl.h> // NOTE(chowie): For sparse files; above macros removes this
+// RESOURCE(microsoft): https://github.com/microsoft/cpprestsdk/blob/master/Release/tests/functional/streams/CppSparseFile.cpp
+// TODO(chowie): When copying directly to memory, seems like
+// it makes little difference. Do I need to define the range?
 // DWORD Ignored;
 // DeviceIoControl(Buffer->MappedFile, FSCTL_SET_SPARSE, 0, 0, 0, 0, &Ignored, 0);
-// NOTE(chowie): When copying directly to memory, seems like
-// it makes hardly any difference. Probably need to define the range?
 
-            /*
-            win32_replay_buffer *ReplayBuffer = &Win32State.ReplayBuffers[1];
+/* TODO(chowie): Audio update reference
+   UINT64 PositionFrequency;
+   UINT64 PositionUnits;
 
-            // TODO: Recording systems takes too long on record start, find out what
-            // windows is doing. And can speed up / defer some of that processing.
-                
-            Win32GetInputFileLocation(&Win32State, 1, sizeof(ReplayBuffer->FileName), ReplayBuffer->FileName);
-
-            ReplayBuffer->MappedFile =
-                CreateFileA(ReplayBuffer->FileName, 
-                            GENERIC_WRITE|GENERIC_READ, 0, 0, CREATE_ALWAYS, 0, 0);
-
-            LARGE_INTEGER MaxSize;
-            MaxSize.QuadPart = Win32State.TotalSize;
-            ReplayBuffer->MemoryMap = CreateFileMappingA(
-                ReplayBuffer->MappedFile, 0, PAGE_READWRITE,
-                MaxSize.HighPart, MaxSize.LowPart, 0);
-
-            ReplayBuffer->Memory = MapViewOfFile(
-                ReplayBuffer->MemoryMap, FILE_MAP_ALL_ACCESS, 0, 0, Win32State.TotalSize);
-            */
+   IAudioClock* AudioClock;
+   GlobalSoundClient->GetService(IID_PPV_ARGS(&AudioClock));
+   AudioClock->GetFrequency(&PositionFrequency);
+   AudioClock->GetPosition(&PositionUnits, 0);
+   AudioClock->Release();
+                        
+   Marker->PlayCursor = (DWORD)(SoundOutput.SamplesPerSecond * PositionUnits / PositionFrequency) % SoundOutput.SamplesPerSecond;
+*/
 
 #define WIN32_RUINENGLASS_H
 #endif
