@@ -14,6 +14,86 @@
 #include <string.h>
 #include <windows.h>
 
+#if !defined(internal)
+#define internal static
+#endif
+#define local_persist static
+#define global_variable static
+
+typedef int8_t s8;
+typedef int16_t s16;
+typedef int32_t s32;
+typedef int64_t s64;
+typedef int_least32_t b32x;
+
+typedef uint8_t u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
+typedef uint64_t u64;
+
+typedef intptr_t smm;
+typedef uintptr_t umm;
+
+typedef size_t memory_index;
+
+typedef float r32;
+typedef double r64;
+
+#define Kilobytes(Value) ((Value)*1024LL)
+#define Megabytes(Value) (Kilobytes(Value)*1024LL)
+#define Gigabytes(Value) (Megabytes(Value)*1024LL)
+#define Terabytes(Value) (Gigabytes(Value)*1024LL)
+
+#define ArrayCount(arr)(sizeof((arr)) /(sizeof((arr)[0])))
+#define Minimum(A, B) ((A < B) ? (A) : (B))
+#define Maximum(A, B) ((A > B) ? (A) : (B))
+#define Assert(Expression) if(!(Expression)) {*(int *)0 = 0;}
+
+#define Swap(type, A, B) {type Temp = (A); (A) = (B); (B) = Temp;}
+
+inline s32
+SignOf(s32 Value)
+{
+    s32 Result = (Value >= 0) ? 1 : -1;
+    return (Result);
+}
+
+inline b32x
+IsEndOfLine(char C)
+{
+    b32x Result = ((C == '\n') ||
+                   (C == '\r'));
+
+    return(Result);
+}
+
+inline b32x
+IsWhitespace(char C)
+{
+    b32x Result = ((C == ' ') ||
+                   (C == '\t') ||
+                   (C == '\v') ||
+                   (C == '\f') ||
+                   IsEndOfLine(C));
+
+    return(Result);
+}
+
+inline u32
+StringLength(char *String)
+{
+    u32 Count = 0;
+    if(String)
+    {
+        while(*String++)
+        {
+            ++Count;
+        }
+    }
+
+    return(Count);
+}
+
 #if 0
 typedef uint8_t u8;
 typedef uint16_t u16;
@@ -259,65 +339,6 @@ main(void)
 }
 
 #else
-
-#if !defined(internal)
-#define internal static
-#endif
-#define local_persist static
-#define global_variable static
-
-typedef int8_t s8;
-typedef int16_t s16;
-typedef int32_t s32;
-typedef int64_t s64;
-typedef int_least32_t b32x;
-
-typedef uint8_t u8;
-typedef uint16_t u16;
-typedef uint32_t u32;
-typedef uint64_t u64;
-
-typedef intptr_t smm;
-typedef uintptr_t umm;
-
-typedef size_t memory_index;
-
-typedef float r32;
-typedef double r64;
-
-#define Kilobytes(Value) ((Value)*1024LL)
-#define Megabytes(Value) (Kilobytes(Value)*1024LL)
-#define Gigabytes(Value) (Megabytes(Value)*1024LL)
-#define Terabytes(Value) (Gigabytes(Value)*1024LL)
-
-#define ArrayCount(arr)(sizeof((arr)) /(sizeof((arr)[0])))
-#define Minimum(A, B) ((A < B) ? (A) : (B))
-#define Maximum(A, B) ((A > B) ? (A) : (B))
-#define Assert(Expression) if(!(Expression)) {*(int *)0 = 0;}
-
-#define Swap(type, A, B) {type Temp = (A); (A) = (B); (B) = Temp;}
-
-inline s32
-SignOf(s32 Value)
-{
-    s32 Result = (Value >= 0) ? 1 : -1;
-    return (Result);
-}
-
-inline u32
-StringLength(char *String)
-{
-    u32 Count = 0;
-    if(String)
-    {
-        while(*String++)
-        {
-            ++Count;
-        }
-    }
-
-    return(Count);
-}
 
 struct memory_arena
 {
@@ -588,7 +609,7 @@ IsTriangleNumber(entity *Entity, u32 Value)
 
     // TODO(chowie): Is it possible to combine the prev and current cases?
     for(u32 TriangleIndex = 0;
-        TriangleIndex < (EntityType_Count + 1); // TODO(chowie): Can I remove the one extra loop check?
+        TriangleIndex < (EntityType_Count + 1);
         ++TriangleIndex)
     {
         // NOTE(chowie): Grabs whatever the closest previous triangle is
@@ -602,7 +623,7 @@ IsTriangleNumber(entity *Entity, u32 Value)
             }
             else
             {
-                // TODO(chowie): I hate having an explicit 0 check to guard for underflow! Rather have a clamp!
+                // TODO(chowie): I hate having an explicit 0 check to guard for underflow!
                 Result.PrevTriangleNumber = Entity->TriangleNumbersTable[TriangleIndex];
             }
             break;
@@ -613,7 +634,10 @@ IsTriangleNumber(entity *Entity, u32 Value)
             // if so PrevTriangle must be its row
             Result.IsTriangleNumber = false;
 
-            // IMPORTANT(chowie): No clamps ever needed! Must always be past 0!
+            // IMPORTANT(chowie): In exchange for an additional
+            // triangle number and loop, no clamps are needed to
+            // handle the 0 case! Even the way the signof check is
+            // constructed; must always be past the first two index!
             Result.CurrTriangleNumber = Entity->TriangleNumbersTable[TriangleIndex - 1];
             Result.PrevTriangleNumber = Entity->TriangleNumbersTable[TriangleIndex - 2];
             break;

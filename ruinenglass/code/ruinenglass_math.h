@@ -710,6 +710,7 @@ LengthSq(v3 A)
     return(Result);
 }
 
+// TODO(chowie): Am I able to remove this now that I have InvSquareRoot?
 // STUDY(chowie): Sqrt is undefined negative numbers. LengthSq
 // cannot produce a negative number, i.e Negative*Negative is positive
 inline r32
@@ -719,12 +720,15 @@ Length(v3 A)
     return(Result);
 }
 
-// RESOURCE: https://fgiesen.wordpress.com/2010/10/21/finish-your-derivations-please/
+// RESOURCE(fabien): https://fgiesen.wordpress.com/2010/10/21/finish-your-derivations-please/
 // TODO(chowie): I don't want to be using angles, right?
+// RESOURCE(owl): https://fastcpp.blogspot.com/2012/02/calculating-length-of-3d-vector-using.html
+// TODO(chowie): SSE?
 inline v3
 Normalise(v3 A)
 {
-    v3 Result = A * (1.0f / Length(A));
+    r32 LenSq = LengthSq(A);
+    v3 Result = A * InvSquareRoot(LenSq);
 
     return(Result);
 }
@@ -738,7 +742,7 @@ NOZ(v3 A)
     r32 LenSq = LengthSq(A);
     if(LenSq > Square(0.0001f))
     {
-        Result = A * (1.0f / SquareRoot(LenSq));
+        Result = A * InvSquareRoot(LenSq);
     }
 
     return(Result);
@@ -1331,6 +1335,8 @@ ToRectangleXY(rectangle3 A)
 //
 //
 
+// RESOURCE(paniq): https://gist.github.com/paniq/3f882c50f1790e323482
+// TODO(chowie): Can this be refined with better abs-identities?
 // TODO(chowie): Could this be the base of collision dectection?
 union rectangle2i
 {
@@ -1522,7 +1528,7 @@ Linear1ToSRGB255(v4 C)
 // RESOURCE: https://web.archive.org/web/20211023131624/https://lolengine.net/blog/2012/4/3/beyond-de-bruijn
 // RESOURCE: https://web.archive.org/web/20210724051712/https://lolengine.net/attachment/blog/2012/4/3/beyond-de-bruijn/debruijn.cpp
 // NOTE(chowie): Beyond De Bruijn: fast binary logarithm of a 10-bit number
-s32 MagicTable[16] = 
+global s32 MagicTable[16] = 
 {
     0, 1, 2, 8, -1, 3, 5, 9, 9, 7, 4, -1, 6, -1, -1, -1,
 };
@@ -1731,6 +1737,133 @@ DecodeMorton3(u32 Value)
     };
 
     return(Result);
+}
+
+//
+// NOTE(chowie): Sorting
+//
+
+#define Prefetch64 64
+#define Prefetch128 128
+#define Prefetch0(Value, HistIndex) _mm_prefetch((char *)(Value + HistIndex + Prefetch64), 0)
+#define Prefetch1(Value, HistIndex) _mm_prefetch((char *)(Value + HistIndex + Prefetch128), 0)
+
+#define PrefetchHist0_(Value) (Value & 0x7FF)
+#define PrefetchHist1_(Value) (Value >> 11 & 0x7FF)
+#define PrefetchHist2_(Value) (Value >> 22)
+
+// RESOURCE(chowie): https://fastcpp.blogspot.com/2011/03/changing-sign-of-float-values-using-sse.html
+// TODO(chowie): Convert to BitscanForward & Reverse? Or SSE?
+inline u32
+FloatFlip(u32 R32)
+{
+    u32 Mask = -(s32)(R32 >> 31) | 0x80000000;
+    u32 Result = R32 ^ Mask;
+    return(Result);
+}
+
+inline void
+FloatFlipX(u32 *R32)
+{
+    u32 Mask = -(s32)(*R32 >> 31) | 0x80000000;
+    *R32 ^= Mask;
+}
+
+inline u32
+InvFloatFlip(u32 R32)
+{
+    u32 Mask = ((R32 >> 31) - 1) | 0x80000000;
+    u32 Result = R32 ^ Mask;
+    return(Result);
+}
+
+internal void
+HerfRadixSort(u32 Count, r32 *First, r32 *Temp)
+{
+    u32 *Source = (u32 *)First;
+    u32 *Dest = (u32 *)Temp;
+
+    // NOTE(chowie): 3 Histograms on stack, by bytes
+#define HistogramMax 2048
+    u32 Hist0[HistogramMax * 3] = {};
+    u32 *Hist1 = Hist0 + HistogramMax;
+    u32 *Hist2 = Hist1 + HistogramMax;
+
+    // NOTE(chowie): 1. Parallel Histogram Pass
+    for(u32 HistIndex = 0;
+        HistIndex < Count;
+        ++HistIndex)
+    {
+        Prefetch0(Source, HistIndex);
+
+        u32 Flip = FloatFlip(Source[HistIndex]);
+
+        ++Hist0[PrefetchHist0_(Flip)];
+        ++Hist1[PrefetchHist1_(Flip)];
+        ++Hist2[PrefetchHist2_(Flip)];
+    }
+
+    // NOTE(chowie): 2. Sum histograms' entries, records number of values preceeding itself.
+    {
+        u32 SumHist0 = 0;
+        u32 SumHist1 = 0;
+        u32 SumHist2 = 0;
+        u32 Total;
+
+        for(u32 HistIndex = 0;
+            HistIndex < HistogramMax;
+            ++HistIndex)
+        {
+            Total = Hist0[HistIndex] + SumHist0;
+            Hist0[HistIndex] = SumHist0 - 1;
+            SumHist0 = Total;
+
+            Total = Hist1[HistIndex] + SumHist1;
+            Hist1[HistIndex] = SumHist1 - 1;
+            SumHist1 = Total;
+
+            Total = Hist2[HistIndex] + SumHist2;
+            Hist2[HistIndex] = SumHist2 - 1;
+            SumHist2 = Total;
+        }
+    }
+
+    // NOTE(chowie): Byte 0, Flip value, read/write histogram, write out flipped
+    for(u32 HistIndex = 0;
+        HistIndex < HistogramMax;
+        ++HistIndex)
+    {
+        u32 Flip = Source[HistIndex];
+        FloatFlipX(&Flip);
+        u32 Pos = PrefetchHist0_(Flip);
+
+        Prefetch1(Source, HistIndex);
+        Dest[++Hist0[Pos]] = Flip;
+    }
+
+    // NOTE(chowie): Byte 1, Read-write histogram, copy dest -> source
+    for(u32 HistIndex = 0;
+        HistIndex < HistogramMax;
+        ++HistIndex)
+    {
+        u32 DestIndex = Dest[HistIndex];
+        u32 Pos = PrefetchHist1_(DestIndex);
+
+        Prefetch1(Dest, HistIndex);
+        Source[++Hist1[Pos]] = DestIndex;
+    }
+
+    // NOTE(chowie): Byte 2, Read-write histogram, copy & flip out source -> dest
+    for(u32 HistIndex = 0;
+        HistIndex < HistogramMax;
+        ++HistIndex)
+    {
+        u32 SourceIndex = Source[HistIndex];
+        u32 Pos = PrefetchHist2_(SourceIndex);
+
+        Prefetch1(Source, HistIndex);
+        Dest[++Hist2[Pos]] = InvFloatFlip(SourceIndex);
+    }
 }
 
 #define RUINENGLASS_MATH_H

@@ -129,6 +129,11 @@ typedef double r64;
 #define Align8(Value) ((Value + 7) & ~7)
 #define Align16(Value) ((Value + 15) & ~15)
 
+// RESOURCE(fabien): 
+// NOTE(chowie): Round to nearest congrument k % Alignment
+// TODO(chowie): Can I use this for memory allocators, which address falls off alignment by specified distance.
+#define AlignPow(Value, Alignment, k) ((Value - k + (Alignment - 1)) & ~((Alignment) - 1) + k)
+
 inline b32x
 IsPow2(u32 Value)
 {
@@ -483,19 +488,22 @@ BufferAreEqual(buffer A, buffer B)
 #if COMPILER_MSVC
 #define CompletePreviousReadsBeforeFutureReads _ReadBarrier()
 #define CompletePreviousWritesBeforeFutureWrites _WriteBarrier()
-inline u32 AtomicCompareExchangeU32(u32 volatile *Value, u32 New, u32 Expected)
+inline u32
+AtomicCompareExchangeU32(u32 volatile *Value, u32 New, u32 Expected)
 {
     u32 Result = _InterlockedCompareExchange((long *)Value, New, Expected);
 
     return(Result);
 }
-inline u64 AtomicCompareExchangeU64(u64 volatile *Value, u64 New, u64 Expected)
+inline u64
+AtomicCompareExchangeU64(u64 volatile *Value, u64 New, u64 Expected)
 {
     u64 Result = _InterlockedCompareExchange64((long long *)Value, New, Expected);
 
     return(Result);
 }
-inline u64 AtomicExchangeU64(u64 volatile *Value, u64 New)
+inline u64
+AtomicExchangeU64(u64 volatile *Value, u64 New)
 {
     u64 Result = _InterlockedExchange64((__int64 *)Value, New);
 
@@ -503,14 +511,16 @@ inline u64 AtomicExchangeU64(u64 volatile *Value, u64 New)
 }
 // NOTE: Could be Atomicincrement, but add has more flexibility
 // Linux equivalent "(__sync_fetch_and_add(Value, Addend) + Addend)"
-inline u64 AtomicAddU64(u64 volatile *Value, u64 Addend)
+inline u64
+AtomicAddU64(u64 volatile *Value, u64 Addend)
 {
     // NOTE: Returns the original value _prior_ to adding
     u64 Result = _InterlockedExchangeAdd64((__int64 *)Value, Addend);
 
     return(Result);
 }
-inline u32 GetThreadID(void)
+inline u32
+GetThreadID(void)
 {
     u8 *ThreadLocalStorage = (u8 *)__readgsqword(0x30);
     u32 ThreadID = *(u32 *)(ThreadLocalStorage + 0x48);

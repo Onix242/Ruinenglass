@@ -42,10 +42,20 @@ Pow(u32 A, u32 B)
     return(Result);
 }
 
+// RESOURCE(cbloom): http://cbloomrants.blogspot.com/2010/11/11-20-10-function-approximation-by_20.html
+// NOTE(chowie): 1/sqrt(x), replaces normalising vectors
+inline r32
+InvSquareRoot(r32 R32)
+{
+    r32 Result = _mm_cvtss_f32(_mm_rsqrt_ss(_mm_set_ss(R32)));
+    return(Result);
+}
+
+// TODO(chowie): Backup? "r32 Result = sqrtf(R32);"
 inline r32
 SquareRoot(r32 R32)
 {
-    r32 Result = sqrtf(R32);
+    r32 Result = _mm_cvtss_f32(_mm_sqrt_ss(_mm_set_ss(R32)));
     return(Result);
 }
 
@@ -98,10 +108,57 @@ RoundR32ToU32(r32 R32)
     return(Result);
 }
 
+// NOTE(chowie): Thanks martins, Includes INF & NaN
+// RESOURCE(martins): https://gist.github.com/mmozeiko/56db3df14ab380152d6875383d0f4afd
+internal r32
+MartinsFloor(r32 Value)
+{
+    __m128 SignBit = _mm_set1_ps(-0.0f);
+    __m128 One = _mm_set1_ps(1.0f);
+    __m128 MaxValue = _mm_set1_ps(2147483648.0f); // TODO(chowie): 8388608.f if needed
+
+    // NOTE(chowie): (float)(int)Float;
+    __m128 Float = _mm_set_ss(Value);
+    __m128 Result = _mm_cvtepi32_ps(_mm_cvttps_epi32(Float));
+
+    // RESOURCE(christer): https://web.archive.org/web/20120119131226/http://realtimecollisiondetection.net/blog/?p=90
+    // STUDY(chowie): This is an example of branchless selection
+    // NOTE(chowie): if(Float < Result) Result -= 1;
+    Result = _mm_sub_ss(Result, _mm_and_ps(_mm_cmplt_ss(Float, Result), One));
+
+    // NOTE(chowie): if(!(2**31 > Abs(Float))) Result = Float;
+    __m128 Mag = _mm_cmpgt_ss(MaxValue, _mm_andnot_ps(SignBit, Float));
+    Result = _mm_or_ps(_mm_and_ps(Mag, Float), _mm_andnot_ps(Mag, Float));
+
+    return(_mm_cvtss_f32(Result));
+}
+
+// NOTE(chowie): Floor for non-negative values, only [0 .. +2147483648) range.
+internal r32
+MartinsFloorPositive(r32 Value)
+{
+    __m128 Float = _mm_set_ss(Value);
+    __m128 Result = _mm_cvtepi32_ps(_mm_cvttps_epi32(Float));
+
+    return(_mm_cvtss_f32(Result));
+}
+
+/*
+// TODO(chowie): Sse4?
+internal r32
+Floor2(r32 Value)
+{
+    __m128 Float = _mm_set_ss(Value);
+    __m128 Result = _mm_floor_ss(Float, Float);
+
+    return(_mm_cvtss_f32(Result));
+}
+*/
+
 inline s32
 FloorR32ToS32(r32 R32)
 {
-    s32 Result = (s32)floorf(R32);
+    s32 Result = (s32)MartinsFloor(R32);
     return(Result);
 }
 

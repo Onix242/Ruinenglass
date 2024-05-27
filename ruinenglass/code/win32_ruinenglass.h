@@ -20,32 +20,22 @@ struct win32_replay_buffer
     u64 FileSize;
     void *Memory; // NOTE(chowie): MemoryBlock // TODO(chowie): (u8 *) instead?
 
+    // NOTE(chowie): Only for win32_current_buffer
+    u64 WrittenSize;
+
     // NOTE(chowie): Only for replay_buffers
     char FileName[WIN32_STATE_FILE_NAME_COUNT];
     b32x IsInitialised;
-
-    // NOTE(chowie): Only for win32_current_buffer
-    u64 WrittenSize;
 };
 
-/*
-struct win32_current_buffer
-{
-    HANDLE MappedFile; 
-    HANDLE MemoryMap;
-    u64 FileSize;
-    void *Memory; 
-    u64 WrittenSize;
-};
-*/
-
+// NOTE(chowie): Memory snapshot is akin to a save-state like an emulator
 struct win32_state
 {
     u64 TotalSize;
     void *GameMemoryBlock;
 
     win32_replay_buffer *CurrentBuffer;
-    win32_replay_buffer ReplayBuffers[1];
+    win32_replay_buffer ReplayBuffers; // TODO(chowie): Does this need to be passed by ref?
 
 //    HANDLE RecordingHandle;
     u32 InputRecordingIndex;
@@ -177,6 +167,8 @@ typedef SET_PROCESS_DPI_AWARENESS_CONTEXT(set_process_dpi_awareness_context);
 global set_process_dpi_awareness_context *SetProcessDpiAwarenessContext_;
 #define SetProcessDpiAwarenessContext SetProcessDpiAwarenessContext_
 
+// HRESULT Test = HRESULT_FROM_WIN32(GetLastError());
+
 /*
 // TODO(chowie): Buckle with this Keyboard test case!
 OutputDebugStringA("ESCAPE: ");
@@ -190,6 +182,35 @@ if(WasDown)
 }
 OutputDebugStringA("\n");
 */
+
+// RESOURCE(microsoft): https://github.com/microsoft/cpprestsdk/blob/master/Release/tests/functional/streams/CppSparseFile.cpp
+// #include <winioctl.h> // NOTE(chowie): For sparse files; above macros removes this
+// DWORD Ignored;
+// DeviceIoControl(Buffer->MappedFile, FSCTL_SET_SPARSE, 0, 0, 0, 0, &Ignored, 0);
+// NOTE(chowie): When copying directly to memory, seems like
+// it makes hardly any difference. Probably need to define the range?
+
+            /*
+            win32_replay_buffer *ReplayBuffer = &Win32State.ReplayBuffers[1];
+
+            // TODO: Recording systems takes too long on record start, find out what
+            // windows is doing. And can speed up / defer some of that processing.
+                
+            Win32GetInputFileLocation(&Win32State, 1, sizeof(ReplayBuffer->FileName), ReplayBuffer->FileName);
+
+            ReplayBuffer->MappedFile =
+                CreateFileA(ReplayBuffer->FileName, 
+                            GENERIC_WRITE|GENERIC_READ, 0, 0, CREATE_ALWAYS, 0, 0);
+
+            LARGE_INTEGER MaxSize;
+            MaxSize.QuadPart = Win32State.TotalSize;
+            ReplayBuffer->MemoryMap = CreateFileMappingA(
+                ReplayBuffer->MappedFile, 0, PAGE_READWRITE,
+                MaxSize.HighPart, MaxSize.LowPart, 0);
+
+            ReplayBuffer->Memory = MapViewOfFile(
+                ReplayBuffer->MemoryMap, FILE_MAP_ALL_ACCESS, 0, 0, Win32State.TotalSize);
+            */
 
 #define WIN32_RUINENGLASS_H
 #endif

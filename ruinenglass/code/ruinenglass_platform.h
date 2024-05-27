@@ -817,6 +817,18 @@ typedef struct game_controller_input
     });
 } game_controller_input;
 
+enum game_input_mouse_button
+{
+    PlatformMouseButton_Left,
+    PlatformMouseButton_Middle,
+    PlatformMouseButton_Right,
+    PlatformMouseButton_Extended0,
+    PlatformMouseButton_Extended1,
+
+    PlatformMouseButton_Count,
+};
+
+#define KeyStateBit BitSet(15)
 typedef struct game_input
 {
     // STUDY(chowie): The wall clock is passed as an input device
@@ -829,6 +841,9 @@ typedef struct game_input
 // NOTE(chowie): Includes Keyboard
 #define MAX_CONTROLLERS 5
     game_controller_input Controllers[MAX_CONTROLLERS];
+
+    game_button_state MouseButtons[PlatformMouseButton_Count];
+    v3 Mouse;
     // TODO(chowie): Find better ways for ShiftDown, ControlDown, AltDown etc...
 } game_input;
 

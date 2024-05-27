@@ -485,10 +485,10 @@ Win32GetWindowDim(HWND Window)
     GetClientRect(Window, &ClientRect);
 
     v2u Result =
-    {
-        (u32)(ClientRect.right - ClientRect.left),
-        (u32)(ClientRect.bottom - ClientRect.top),
-    };
+        {
+            (u32)(ClientRect.right - ClientRect.left),
+            (u32)(ClientRect.bottom - ClientRect.top),
+        };
 
     return(Result);
 }
@@ -530,7 +530,7 @@ Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, v2u WindowDim)
     Buffer->Info.bmiHeader.biWidth = Buffer->Dim.Width;
     Buffer->Info.bmiHeader.biHeight = Buffer->Dim.Height; // NOTE(chowie): Removed the minus, TODO(chowie): Buckle top-down bitmaps down!
     Buffer->Info.bmiHeader.biPlanes = 1;
-    Buffer->Info.bmiHeader.biBitCount = BITMAP_BYTES_PER_PIXEL*8; // NOTE: 8(chowie)-bits per 1-byte of colour
+    Buffer->Info.bmiHeader.biBitCount = BITMAP_BYTES_PER_PIXEL*8; // NOTE(chowie): 8-bits per 1-byte of colour
     Buffer->Info.bmiHeader.biCompression = BI_RGB;
 
     /*
@@ -600,6 +600,7 @@ internal void
 Win32GetInputFileLocation(win32_state *State, u32 SlotIndex,
                           u32 DestCount, char *Dest)
 {
+    Assert(SlotIndex == 1); // TODO(chowie): Remove SlotIndex number append?
     char *Test = d7sam_concat("loop_edit_")((s32)SlotIndex)(".hmi");
     Win32BuildEXEPathFileName(State, Test, DestCount, Dest);
 }
@@ -609,19 +610,16 @@ Win32GetReplayBuffer(win32_state *State, u32 Index)
 {
     Assert(Index > 0);
 //    Assert(Index < ArrayCount(State->ReplayBuffers));
-    win32_replay_buffer *Result = &State->ReplayBuffers[Index];
+    win32_replay_buffer *Result = &State->ReplayBuffers;
 
     return(Result);
 }
 
-internal void
-Win32EndInputRecording(win32_state *State)
-{
-    State->InputRecordingIndex = 0;
-    State->CurrentBuffer->WrittenSize = State->CurrentRecordSize;
-    State->CurrentBuffer = 0;
-}
-
+// TODO(chowie): Can intead just loop over the permanent storage as
+// the transient storage will reconstruct itself!
+// TODO(chowie): This could live on layer above the platform?
+// TODO(chowie): Strobing memory-mapped file?
+// TODO(chowie): Can I alleviate the stuttering?
 internal void
 Win32BeginInputRecording(win32_state *State, u32 Index)
 {
@@ -630,18 +628,22 @@ Win32BeginInputRecording(win32_state *State, u32 Index)
     {
         Win32GetInputFileLocation(State, Index, sizeof(Buffer->FileName), Buffer->FileName);
         Buffer->MappedFile = CreateFileA(Buffer->FileName, GENERIC_READ|GENERIC_WRITE, FILE_SHARE_WRITE, 0, CREATE_ALWAYS, 0, 0);
+        Assert(Buffer->MappedFile != INVALID_HANDLE_VALUE);
 
+        // NOTE(chowie): Memory mapping doesn't allow extending the
+        // size of the file, you must recreate the file mapping with a
+        // larger size, then map a new view of the file.
         LARGE_INTEGER Size;
-        Size.QuadPart = State->TotalSize + Kilobytes(4);
+        Size.QuadPart = State->TotalSize + Kilobytes(4); // NOTE(chowie): Avoids the mandatory resizing for the first inputs
         Buffer->MemoryMap = CreateFileMappingA(Buffer->MappedFile, 0, PAGE_READWRITE,
                                                Size.HighPart, Size.LowPart, 0);
+        Assert(Buffer->MemoryMap != INVALID_HANDLE_VALUE);
+
         Buffer->Memory = MapViewOfFile(Buffer->MemoryMap, FILE_MAP_ALL_ACCESS, 0, 0, Size.QuadPart);
+        Assert(Buffer->Memory);
+
         Buffer->FileSize = Size.QuadPart;
         Buffer->IsInitialised = true;
-        if(!Buffer->Memory)
-        {
-            // TODO(chowie): Logging!
-        }
     }
     else
     {
@@ -654,6 +656,69 @@ Win32BeginInputRecording(win32_state *State, u32 Index)
         State->CurrentBuffer = Buffer;
         CopyMemory(Buffer->Memory, State->GameMemoryBlock, State->TotalSize);
         State->CurrentRecordSize = State->TotalSize;
+    }
+}
+
+internal void
+Win32EndInputRecording(win32_state *State)
+{
+    State->InputRecordingIndex = 0;
+    State->CurrentBuffer->WrittenSize = State->CurrentRecordSize;
+    State->CurrentBuffer = 0;
+}
+
+internal void
+Win32RecordInput(win32_state *State, game_input *NewInput)
+{
+    if(State->CurrentBuffer)
+    {
+        u32 BytesToWrite = sizeof(*NewInput);
+        if((State->CurrentRecordSize + BytesToWrite) >= State->CurrentBuffer->FileSize)
+        {
+            State->CurrentBuffer->FileSize += Kilobytes(4);
+            Assert(State->CurrentBuffer->FileSize >= (State->CurrentRecordSize + BytesToWrite));
+
+#if 1
+            void *OldMemory = State->CurrentBuffer->Memory;
+
+            LARGE_INTEGER Size;
+            Size.QuadPart = State->CurrentBuffer->FileSize;
+            State->CurrentBuffer->MemoryMap = CreateFileMappingA(State->CurrentBuffer->MappedFile, 0, PAGE_READWRITE,
+                                                                 Size.HighPart, Size.LowPart, 0);
+            Assert(State->CurrentBuffer->MemoryMap != NULL);
+
+            State->CurrentBuffer->Memory = MapViewOfFile(State->CurrentBuffer->MemoryMap, FILE_MAP_ALL_ACCESS,
+                                                         0, 0, State->CurrentBuffer->FileSize);
+            Assert(State->CurrentBuffer->Memory);
+
+            BOOL TestUnmap = UnmapViewOfFile(OldMemory);
+            Assert(TestUnmap);
+
+#else
+            void *OldMemory = State->CurrentBuffer->Memory;
+            BOOL TestUnmap = UnmapViewOfFile(OldMemory);
+            Assert(TestUnmap);
+
+            // NOTE(chowie): This is not really necessary, and goes
+            // counter to what MSDN says, but we'll do it anyway!
+            BOOL TestClose = CloseHandle(State->CurrentBuffer->MemoryMap);
+            Assert(TestClose);
+
+            LARGE_INTEGER Size;
+            Size.QuadPart = State->CurrentBuffer->FileSize;
+            State->CurrentBuffer->MemoryMap = CreateFileMappingA(State->CurrentBuffer->MappedFile, 0, PAGE_READWRITE,
+                                                                 Size.HighPart, Size.LowPart, 0);
+            Assert(State->CurrentBuffer->MemoryMap != NULL);
+
+            State->CurrentBuffer->Memory = MapViewOfFile(State->CurrentBuffer->MemoryMap, FILE_MAP_ALL_ACCESS,
+                                                         0, 0, State->CurrentBuffer->FileSize);
+            Assert(State->CurrentBuffer->Memory);
+#endif
+        }
+
+        void *WriteP = (void *)((char *)State->CurrentBuffer->Memory + State->CurrentRecordSize);
+        CopyMemory(WriteP, (void *)NewInput, BytesToWrite);
+        State->CurrentRecordSize += BytesToWrite;
     }
 }
 
@@ -685,33 +750,6 @@ Win32EndInputPlayback(win32_state *State)
 }
 
 internal void
-Win32RecordInput(win32_state *State, game_input *NewInput) // TODO(chowie): This keeps on replaying until the write crashes?
-{
-    if(State->CurrentBuffer)
-    {
-        u32 BytesToWrite = sizeof(*NewInput);
-        if((State->CurrentRecordSize + BytesToWrite) >= State->CurrentBuffer->FileSize)
-        {
-            State->CurrentBuffer->FileSize += Kilobytes(4);
-
-            void *OldMemory = State->CurrentBuffer->Memory;
-            UnmapViewOfFile(OldMemory);
-            CloseHandle(State->CurrentBuffer->MemoryMap);
-            State->CurrentBuffer->MemoryMap = CreateFileMappingA(State->CurrentBuffer->MappedFile,
-                                                                 0, PAGE_READWRITE,
-                                                                 (State->CurrentBuffer->FileSize >> 32),
-                                                                 State->CurrentBuffer->FileSize & 0xFFFFFFFF, 0); // TODO(chowie): Change this to large int?
-            State->CurrentBuffer->Memory = MapViewOfFile(State->CurrentBuffer->MemoryMap,
-                                                         FILE_MAP_ALL_ACCESS, 0, 0, State->CurrentBuffer->FileSize);
-        }
-
-        void *WriteP = (void *)((char *)State->CurrentBuffer->Memory + State->CurrentRecordSize);
-        CopyMemory(WriteP, (void *)NewInput, BytesToWrite);
-        State->CurrentRecordSize += BytesToWrite;
-    }
-}
-
-internal void
 Win32PlaybackInput(win32_state *State, game_input *NewInput)
 {
     if(State->CurrentBuffer)
@@ -719,11 +757,13 @@ Win32PlaybackInput(win32_state *State, game_input *NewInput)
         u32 BytesToRead = sizeof(*NewInput);
         if(State->CurrentRecordSize >= State->CurrentBuffer->WrittenSize)
         {
+            // NOTE(chowie): We've hit the end of the stream, restart.
             u32 Index = State->InputPlayingIndex;
             Win32EndInputPlayback(State);
             Win32BeginInputPlayback(State, Index);
         }
 
+        // NOTE(chowie): There's still input.
         void *ReadP = (void *)((char *)State->CurrentBuffer->Memory + State->CurrentRecordSize);
         CopyMemory((void *)NewInput, ReadP, BytesToRead);
         State->CurrentRecordSize += BytesToRead;
@@ -811,7 +851,6 @@ Win32ProcessPendingMessages(win32_state *State, game_controller_input *KeyboardC
 #define KeyMessageWasDownBit BitSet(30)
 #define KeyMessageWasUpBit BitSet(31)
 #define AltKeyWasDownBit BitSet(29)
-#define KeyStateBit BitSet(15)
                 b32x WasDown = ((Message.lParam & KeyMessageWasDownBit) != 0);
                 b32x IsDown = ((Message.lParam & KeyMessageWasUpBit) == 0);
                 b32x AltKeyWasDown = (Message.lParam & AltKeyWasDownBit);
@@ -871,6 +910,7 @@ Win32ProcessPendingMessages(win32_state *State, game_controller_input *KeyboardC
                         {
                             Win32ProcessKeyboardMessage(&KeyboardController->Start, IsDown);
                         } break;
+
                         // NOTE(chowie): Below are pressed once keys!
                         case VK_F1:
                         case VK_F2:
@@ -1153,7 +1193,7 @@ WinMain(HINSTANCE Instance,
             PermanentArena->Size = Megabytes(64);
 
             memory_arena *TransientArena = &GameMemory.Transient;
-            TransientArena->Size = Gigabytes(1);
+            TransientArena->Size = Megabytes(256); // TODO(chowie): How big should this realisically be?
 
             memory_arena *SamplesArena = &GameMemory.Samples;
             SamplesArena->Size = (umm)SoundOutput.SecondaryBufferSize; // TODO(chowie): Roll "Samples + Audio" & Offset initial samples
@@ -1165,17 +1205,18 @@ WinMain(HINSTANCE Instance,
             // and memory usage. While dyanamic allocation hides the
             // platform's memory constraints; overflowing memory,
             // fragmentation, or needs more memory than it can provide.
-            umm TotalSize = 0;
             for(u32 ArenaSizeIndex = 0;
                 ArenaSizeIndex < ArrayCount(GameMemory.E);
                 ++ArenaSizeIndex)
             {
                 memory_arena *Arena = GameMemory.E + ArenaSizeIndex;
-                TotalSize += Arena->Size;
+                Win32State.TotalSize += Arena->Size;
             }
 
-            GameMemory.Permanent.Base = (u8 *)VirtualAlloc(BaseAddress, TotalSize,
-                                                           MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+            // NOTE(chowie): This is for replay!
+            Win32State.GameMemoryBlock = VirtualAlloc(BaseAddress, Win32State.TotalSize,
+                                                      MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+            GameMemory.Permanent.Base = (u8 *)Win32State.GameMemoryBlock;
             GameMemory.Transient.Base = (GameMemory.Permanent.Base +
                                          GameMemory.Permanent.Size);
             GameMemory.Samples.Base = (GameMemory.Transient.Base +
@@ -1240,6 +1281,10 @@ WinMain(HINSTANCE Instance,
                             OldKeyboardController->E[ButtonIndex].EndedDown;
                     }
 
+                    //
+                    // NOTE(chowie): Keyboard
+                    //
+
                     // STUDY(chowie): Messages don't always field in the
                     // dispatch queue. Windows reserves the rights to
                     // 'cold-call' sometimes (in Win32MainWindowCallback).
@@ -1247,6 +1292,40 @@ WinMain(HINSTANCE Instance,
 
                     if(!GlobalPause)
                     {
+                        //
+                        // NOTE(chowie): Mouse (On bounds, not half-coordinates; in pixels)
+                        //
+
+                        POINT MouseP;
+                        GetCursorPos(&MouseP);
+                        ScreenToClient(Window, &MouseP);
+                        NewInput->Mouse.x = (r32)MouseP.x;
+                        NewInput->Mouse.y = (r32)((GlobalBackbuffer.Dim.Height - 1) - MouseP.y);
+                        NewInput->Mouse.z = 0; // TODO(chowie): Support Mousewheel
+
+                        DWORD WinButtonID[PlatformMouseButton_Count]
+                        {
+                            VK_LBUTTON,
+                            VK_MBUTTON,
+                            VK_RBUTTON,
+                            VK_XBUTTON1,
+                            VK_XBUTTON2,
+                        };
+
+                        for(u32 ButtonIndex = 0;
+                            ButtonIndex < PlatformMouseButton_Count;
+                            ++ButtonIndex)
+                        {
+                            NewInput->MouseButtons[ButtonIndex] = OldInput->MouseButtons[ButtonIndex];
+                            NewInput->MouseButtons[ButtonIndex].HalfTransitionCount = 0;
+                            Win32ProcessKeyboardMessage(&NewInput->MouseButtons[ButtonIndex],
+                                                        GetKeyState(WinButtonID[ButtonIndex]) & KeyStateBit);
+                        }
+
+                        //
+                        // NOTE(chowie): Controllers
+                        //
+
                         // TODO(chowie): Avoid polling disconnected
                         // controllers to reduce xinput framerate hit
                         // on older libraries?
@@ -1274,6 +1353,9 @@ WinMain(HINSTANCE Instance,
                                 // NOTE(chowie): The controller is plugged in
                                 NewController->IsConnected = true;
                                 NewController->IsAnalog = OldController->IsAnalog;
+                                // NOTE(chowie): Guards if neither Dpad or Stick, defaults to value the
+                                // controller before the previous previous frame. Old is set to
+                                // analog, but New should also be set.
 
                                 // TODO(chowie): See if ControllerState.dwPacketNumber increments too rapidly
                                 XINPUT_GAMEPAD *Pad = &ControllerState.Gamepad; // STUDY(chowie): Syntactic convience by snapping the pointer
