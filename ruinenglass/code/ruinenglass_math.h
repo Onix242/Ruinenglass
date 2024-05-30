@@ -120,7 +120,6 @@ inline r32
 SafeRatioN(r32 Numerator, r32 Divisor, r32 N)
 {
     r32 Result = N;
-
     if(Divisor != 0.0f)
     {
         Result = Numerator / Divisor;
@@ -133,7 +132,6 @@ inline r32
 SafeRatio0(r32 Numerator, r32 Divisor)
 {
     r32 Result = SafeRatioN(Numerator, Divisor, 0.0f);
-
     return(Result);
 }
 
@@ -141,7 +139,6 @@ inline r32
 SafeRatio1(r32 Numerator, r32 Divisor)
 {
     r32 Result = SafeRatioN(Numerator, Divisor, 1.0f);
-
     return(Result);
 }
 
@@ -155,7 +152,6 @@ Square(r32 A)
 {
 #define SQUARE(A) ((A)*(A))
     r32 Result = SQUARE(A);
-
     return(Result);
 }
 
@@ -164,7 +160,6 @@ Cube(r32 A)
 {
 #define CUBE(A) ((A)*(A)*(A))
     r32 Result = CUBE(A);
-
     return(Result);
 }
 
@@ -175,7 +170,6 @@ inline r32
 Lerp(r32 A, r32 t, r32 B)
 {
     r32 Result = Fma(t, B - A, A);
-
     return(Result);
 }
 
@@ -202,7 +196,6 @@ inline r32
 Clamp01(r32 Value)
 {
     r32 Result = Clamp(0.0f, Value, 1.0f);
-
     return(Result);
 }
 
@@ -228,7 +221,6 @@ inline r32
 SmoothStep(r32 t)
 {
     r32 Result = Square(t) - (2.0f*Cube(t)); /* 3t^2 - 2t^3 */
-
     return(Result);
 }
 
@@ -346,7 +338,6 @@ AreEqual(v2u A, v2u B)
 {
     b32x Result = ((A.x == B.x) &&
                    (A.y == B.y));
-
     return(Result);
 }
 
@@ -472,7 +463,6 @@ inline r32
 Inner(v2 A, v2 B)
 {
     r32 Result = A.x*B.x + A.y*B.y;
-
     return(Result);
 }
 
@@ -572,7 +562,6 @@ AreEqual(v3s A, v3s B)
     b32x Result = ((A.x == B.x) &&
                    (A.y == B.y) &&
                    (A.z == B.z));
-
     return(Result);
 }
 
@@ -686,7 +675,6 @@ inline r32
 Inner(v3 A, v3 B)
 {
     r32 Result = A.x*B.x + A.y*B.y + A.z*B.z;
-
     return(Result);
 }
 
@@ -804,6 +792,20 @@ IsParallel(v3 A, v3 B, r32 Epsilon)
     B = Normalise(B);
     Result = ((1.0f - AbsoluteValue(Inner(A, B))) < Epsilon);
 
+    return(Result);
+}
+
+internal v3
+Floor(v3 Value)
+{
+    v3 Result = {MartinsFloor(Value.x), MartinsFloor(Value.y), MartinsFloor(Value.z)};
+    return(Result);
+}
+
+internal v3
+Round(v3 Value)
+{
+    v3 Result = {Round(Value.x), Round(Value.y), Round(Value.z)};
     return(Result);
 }
 
@@ -1031,8 +1033,8 @@ InvertedInfinityRectangle2(void)
 {
     rectangle2 Result
     {
-        V2(R32Maximum),
-        V2(-R32Maximum),
+        V2(R32Max),
+        V2(-R32Max),
     };
 
     return(Result);
@@ -1147,7 +1149,6 @@ inline rectangle2
 RectCenterDim(v2 Center, v2 Dim)
 {
     rectangle2 Result = RectCenterHalfDim(Center, 0.5f*Dim);
-
     return(Result);
 }
 
@@ -1158,7 +1159,6 @@ IsInRectangle(rectangle2 Rectangle, v2 Test)
                    (Test.y >= Rectangle.Min.y) &&
                    (Test.x < Rectangle.Max.x) &&
                    (Test.y < Rectangle.Max.y));
-
     return(Result);
 }
 
@@ -1274,7 +1274,6 @@ inline rectangle3
 RectCenterDim(v3 Center, v3 Dim)
 {
     rectangle3 Result = RectCenterHalfDim(Center, 0.5f*Dim);
-
     return(Result);
 }
 
@@ -1289,7 +1288,6 @@ IsInRectangle(rectangle3 Rectangle, v3 Test)
                    (Test.x < Rectangle.Max.x) &&
                    (Test.y < Rectangle.Max.y) &&
                    (Test.z < Rectangle.Max.z));
-
     return(Result);
 }
 
@@ -1302,7 +1300,6 @@ RectanglesIntersect(rectangle3 A, rectangle3 B)
                     (B.Min.y >= A.Max.y) ||
                     (B.Max.z <= A.Min.z) ||
                     (B.Min.z >= A.Max.z));
-
     return(Result);
 }
 
@@ -1384,7 +1381,6 @@ inline rectangle2i
 UnionN(rectangle2i A, rectangle2i B)
 {
     rectangle2i Result;
-
     for(s32 Index = 0;
         Index < ArrayCount(Result.E);
         ++Index)
@@ -1399,8 +1395,7 @@ UnionN(rectangle2i A, rectangle2i B)
 inline rectangle2i
 IntersectN(rectangle2i A, rectangle2i B)
 {
-    rectangle2i Result;
-    
+    rectangle2i Result;    
     for(s32 Index = 0;
         Index < ArrayCount(Result.E);
         ++Index)
@@ -1467,7 +1462,6 @@ inline b32x
 HasArea(rectangle2i A)
 {
     b32x Result = ((A.Min.x < A.Max.x) && (A.Min.y < A.Max.y));
-
     return(Result);
 }
 
@@ -1586,10 +1580,10 @@ inline u32
 MauroHash(v3u Value)
 {
     u32 Max = Maximum3(Value.x, Value.y, Value.z);
-    u32 Result = Pow(Max, 3) + (2 * Max * Value.z) + Value.z;
+    u32 Result = CUBE(Max) + (2 * Max * Value.z) + Value.z;
     if(Max == Value.z)
     {
-        Result += Pow(Maximum(Value.x, Value.y), 2);
+        Result += SQUARE(Maximum(Value.x, Value.y));
     }
 
     if(Value.y >= Value.x)
@@ -1612,10 +1606,10 @@ MauroHash(v3s Value)
     s32 NegZ = (Value.z >= 0) ? (2 * Value.z) : (-2 * Value.z - 1);
 
     s32 Max = Maximum3(NegX, NegY, NegZ);
-    s32 Result = Pow(Max, 3) + (2 * Max * NegZ) + NegZ;
+    s32 Result = CUBE(Max) + (2 * Max * NegZ) + NegZ;
     if(Max == NegZ)
     {
-        Result += Pow(Maximum(NegX, NegY), 2);
+        Result += SQUARE(Maximum(NegX, NegY));
     }
 
     if(NegY >= NegX)
@@ -1753,7 +1747,7 @@ DecodeMorton3(u32 Value)
 #define PrefetchHist2_(Value) (Value >> 22)
 
 // RESOURCE(chowie): https://fastcpp.blogspot.com/2011/03/changing-sign-of-float-values-using-sse.html
-// TODO(chowie): Convert to BitscanForward & Reverse? Or SSE?
+// TODO(chowie): Convert to BitscanForward & Reverse? Or SSE SIMD?
 inline u32
 FloatFlip(u32 R32)
 {

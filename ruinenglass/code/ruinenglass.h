@@ -26,6 +26,7 @@
 #include "ruinenglass_platform.h"
 #include "ruinenglass_shared.h"
 #include "ruinenglass_audio.h"
+#include "ruinenglass_random.h"
 
 // NOTE(chowie): Historical linguist
 struct controlled_linguist

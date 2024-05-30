@@ -24,7 +24,15 @@ SignOf(s32 Value)
 inline r32
 SignOf(r32 Value)
 {
-    r32 Result = (Value >= 0.0f) ? 1.0f : -1.0f;
+    u32 MaskU32 = (u32)(BitSet(31));
+    __m128 Mask = _mm_set_ss(*(float *)&MaskU32);
+
+    __m128 One = _mm_set_ss(1.0f);
+    __m128 SignBit = _mm_and_ps(_mm_set_ss(Value), Mask);
+    __m128 Combined = _mm_or_ps(One, SignBit);
+
+    r32 Result = _mm_cvtss_f32(Combined);
+
     return(Result);
 }
 
@@ -35,10 +43,25 @@ Fma(r32 MultA, r32 MultB, r32 AddValue)
     return(Result);
 }
 
+// RESOURCE: https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-fmod
 inline u32
-Pow(u32 A, u32 B)
+FMod(u32 X, u32 Y)
 {
-    u32 Result = (u32)pow(A, B);
+    u32 Result = (u32)fmod(X, Y);
+    return(Result);
+}
+
+inline r32
+FMod(r32 X, r32 Y)
+{
+    r32 Result = fmodf(X, Y);
+    return(Result);
+}
+
+inline r32
+SquareRoot(r32 R32)
+{
+    r32 Result = _mm_cvtss_f32(_mm_sqrt_ss(_mm_set_ss(R32)));
     return(Result);
 }
 
@@ -48,14 +71,6 @@ inline r32
 InvSquareRoot(r32 R32)
 {
     r32 Result = _mm_cvtss_f32(_mm_rsqrt_ss(_mm_set_ss(R32)));
-    return(Result);
-}
-
-// TODO(chowie): Backup? "r32 Result = sqrtf(R32);"
-inline r32
-SquareRoot(r32 R32)
-{
-    r32 Result = _mm_cvtss_f32(_mm_sqrt_ss(_mm_set_ss(R32)));
     return(Result);
 }
 
@@ -94,21 +109,29 @@ RotateRight(u32 Value, s32 Amount)
     return(Result);
 }
 
+inline r32
+Round(r32 R32)
+{
+    r32 Result = _mm_cvtss_f32(_mm_round_ss(_mm_setzero_ps(), _mm_set_ss(R32),
+                                            (_MM_FROUND_TO_NEAREST_INT |_MM_FROUND_NO_EXC)));
+    return(Result);
+}
+
 inline s32
 RoundR32ToS32(r32 R32)
 {
-    s32 Result = (s32)roundf(R32);
+    s32 Result = _mm_cvtss_si32(_mm_set_ss(R32));
     return(Result);
 }
 
 inline u32
 RoundR32ToU32(r32 R32)
 {
-    u32 Result = (u32)roundf(R32);
+    u32 Result = (u32)_mm_cvtss_si32(_mm_set_ss(R32));
     return(Result);
 }
 
-// NOTE(chowie): Thanks martins, Includes INF & NaN
+// NOTE(chowie): SSE2 Floor - Thanks martins, Includes INF & NaN
 // RESOURCE(martins): https://gist.github.com/mmozeiko/56db3df14ab380152d6875383d0f4afd
 internal r32
 MartinsFloor(r32 Value)
@@ -133,16 +156,6 @@ MartinsFloor(r32 Value)
     return(_mm_cvtss_f32(Result));
 }
 
-// NOTE(chowie): Floor for non-negative values, only [0 .. +2147483648) range.
-internal r32
-MartinsFloorPositive(r32 Value)
-{
-    __m128 Float = _mm_set_ss(Value);
-    __m128 Result = _mm_cvtepi32_ps(_mm_cvttps_epi32(Float));
-
-    return(_mm_cvtss_f32(Result));
-}
-
 /*
 // TODO(chowie): Sse4?
 internal r32
@@ -155,10 +168,33 @@ Floor2(r32 Value)
 }
 */
 
+// NOTE(chowie): Floor for non-negative values, only [0 .. +2147483648) range.
+internal r32
+MartinsFloorPositive(r32 Value)
+{
+    r32 Result = _mm_cvtss_f32(_mm_cvtepi32_ps(_mm_cvttps_epi32(_mm_set_ss(Value))));
+    return(Result);
+}
+
+inline r32
+Fract(r32 R32)
+{
+    r32 Result = (R32 - MartinsFloor(R32));
+    return(Result);
+}
+
 inline s32
 FloorR32ToS32(r32 R32)
 {
     s32 Result = (s32)MartinsFloor(R32);
+    return(Result);
+}
+
+inline u32
+FloorR32ToU32(r32 R32)
+{
+    Assert(SignOf(R32) == 1.0f);
+    u32 Result = (u32)MartinsFloorPositive(R32);
     return(Result);
 }
 
@@ -176,10 +212,11 @@ TruncateR32ToS32(r32 R32)
     return(Result);
 }
 
+// TODO(chowie): Replace with SSE2 instruction of sin?
 inline r32
 Sin(r32 Angle)
 {
-    r32 Result = sinf(Angle); // TODO(chowie): Replace with SSE2 instruction of sin?
+    r32 Result = sinf(Angle);
     return(Result);
 }
 
@@ -194,21 +231,6 @@ inline r32
 ATan2(r32 Y, r32 X)
 {
     r32 Result = atan2f(Y, X);
-    return(Result);
-}
-
-// RESOURCE: https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-fmod
-inline u32
-FMod(u32 X, u32 Y)
-{
-    u32 Result = (u32)fmod(X, Y);
-    return(Result);
-}
-
-inline r32
-FMod(r32 X, r32 Y)
-{
-    r32 Result = fmodf(X, Y);
     return(Result);
 }
 
@@ -232,6 +254,30 @@ FindLeastSignificantSetBit(u32 Value)
         if(Value & (1 << Test))
         {
             Result.Index = Test;
+            Result.Found = true;
+            break;
+        }
+    }
+#endif
+
+    return(Result);
+}
+
+inline bit_scan_result
+FindMostSignificantSetBit(u32 Value)
+{
+    bit_scan_result Result = {};
+
+#if COMPILER_MSVC
+    Result.Found =  _BitScanReverse((unsigned long *)&Result.Index, Value);
+#else
+    for(u32 Test = 32;
+        Test > 32;
+        --Test)
+    {
+        if(Value & (1 << (Test - 1)))
+        {
+            Result.Index = Test - 1;
             Result.Found = true;
             break;
         }

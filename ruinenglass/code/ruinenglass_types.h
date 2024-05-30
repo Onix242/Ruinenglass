@@ -113,11 +113,11 @@ typedef double r64;
 #define Maximum3(A, B, C) (Maximum(A, Maximum(B, C)))
 
 // NOTE(chowie): Limit macros
-#define R32Maximum FLT_MAX
-#define R32Minimum -FLT_MAX
-#define U32Maximum UINT32_MAX
-#define U16Maximum UINT16_MAX
-#define U8Maximum UINT8_MAX
+#define R32Max FLT_MAX
+#define R32Min -FLT_MAX
+#define U32Max ((u32) - 1)
+#define U16Max ((u16) - 1)
+#define U8Max ((u8) - 1)
 
 #define Odd(Value) ((Value) & 1)
 
@@ -145,13 +145,13 @@ IsPow2(u32 Value)
 inline u32
 SafeTruncateU64(u64 Value)
 {
-    Assert(Value <= U32Maximum);
+    Assert(Value <= U32Max);
     u32 Result = (u32)Value;
     return(Result);
 }
 
 // RESOURCE: https://github.com/gingerBill/gb/blob/master/gb.h
-// TODO(chowie): Utilise these!
+// TODO(chowie): How do I utilise this?
 #define BitSet(Bit) (1 << (Bit))
 #define MaskSet(Var, Set, Mask) do {            \
         if(Set) (Var) |= (Mask);                \
