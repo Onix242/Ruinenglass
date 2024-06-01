@@ -44,6 +44,7 @@ REM
 REM Batch Notes
 REM
 
+REM Testing on new comp
 REM For observing how long everything takes, use -d1reportTime
 
 REM NOTE(chowie): According to martins, fp:fast generates broken instructions
