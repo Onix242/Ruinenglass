@@ -163,16 +163,6 @@ Cube(r32 A)
     return(Result);
 }
 
-// RESOURCE(fabian): https://fgiesen.wordpress.com/2012/08/15/linear-interpolation-past-present-and-future/
-// NOTE(chowie): Can be also represented as "A + T*(B - A)",
-// or "(1.0f - t)*A + t*B"
-inline r32
-Lerp(r32 A, r32 t, r32 B)
-{
-    r32 Result = Fma(t, B - A, A);
-    return(Result);
-}
-
 inline r32
 Clamp(r32 Min, r32 Value, r32 Max)
 {
@@ -216,11 +206,12 @@ Clamp01MapToRange(r32 Min, r32 t, r32 Max)
     return(Result);
 }
 
+// NOTE(chowie): It could be rewritten as "Square(Result) * (3.0f - 2.0f*Result)"
 // RESOURCE: https://handmade.network/p/64/geometer/blog/p/3048-1_year_of_geometer_-_lessons_learnt
 inline r32
 SmoothStep(r32 t)
 {
-    r32 Result = Square(t) - (2.0f*Cube(t)); /* 3t^2 - 2t^3 */
+    r32 Result = DifferenceOfProducts(3.0f, Square(t), 2.0f, Cube(t)); /* 3t^2 - 2t^3 */
     return(Result);
 }
 
@@ -230,9 +221,8 @@ SmoothStep(r32 t)
 inline r32
 SmoothStep(r32 Min, r32 t, r32 Max)
 {
-    r32 Result = Clamp01MapToRange(Min, t, Max);
-    Result = Square(Result) * (3.0f - 2.0f*Result);
-
+    r32 Clamp = Clamp01MapToRange(Min, t, Max);
+    r32 Result = SmoothStep(Clamp);
     return(Result);
 }
 
@@ -500,8 +490,8 @@ Lerp(v2 A, r32 t, v2 B)
 {
     v2 Result =
     {
-        Fma(t, B.x - A.x, A.x),
-        Fma(t, B.y - A.y, A.y),
+        Lerp(A.x, t, B.x),
+        Lerp(A.y, t, B.y),
     };
 
     return(Result);
@@ -678,14 +668,17 @@ Inner(v3 A, v3 B)
     return(Result);
 }
 
+// A.y*B.z - A.z*B.y,
+// A.z*B.x - A.x*B.z,
+// A.x*B.y - A.y*B.x,
 inline v3
 Cross(v3 A, v3 B)
 {
     v3 Result =
     {
-        A.y*B.z - A.z*B.y,
-        A.z*B.x - A.x*B.z,
-        A.x*B.y - A.y*B.x,
+        DifferenceOfProducts(A.y, B.z, A.z, B.y),
+        DifferenceOfProducts(A.z, B.x, A.x, B.z),
+        DifferenceOfProducts(A.x, B.y, A.y, B.x),
     };
 
     return(Result);
@@ -698,7 +691,7 @@ LengthSq(v3 A)
     return(Result);
 }
 
-// TODO(chowie): Am I able to remove this now that I have InvSquareRoot?
+// TODO(chowie): Am I able to remove this now that I have ReciprocalSquareRoot?
 // STUDY(chowie): Sqrt is undefined negative numbers. LengthSq
 // cannot produce a negative number, i.e Negative*Negative is positive
 inline r32
@@ -716,7 +709,7 @@ inline v3
 Normalise(v3 A)
 {
     r32 LenSq = LengthSq(A);
-    v3 Result = A * InvSquareRoot(LenSq);
+    v3 Result = A * ReciprocalSquareRoot(LenSq);
 
     return(Result);
 }
@@ -730,7 +723,7 @@ NOZ(v3 A)
     r32 LenSq = LengthSq(A);
     if(LenSq > Square(0.0001f))
     {
-        Result = A * InvSquareRoot(LenSq);
+        Result = A * ReciprocalSquareRoot(LenSq);
     }
 
     return(Result);
@@ -827,9 +820,9 @@ Lerp(v3 A, r32 t, v3 B)
 {
     v3 Result =
     {
-        Fma(t, B.x - A.x, A.x),
-        Fma(t, B.y - A.y, A.y),
-        Fma(t, B.z - A.z, A.z),
+        Lerp(A.x, t, B.x),
+        Lerp(A.y, t, B.y),
+        Lerp(A.z, t, B.z),
     };
 
     return(Result);
@@ -1014,10 +1007,10 @@ Lerp(v4 A, r32 t, v4 B)
 {
     v4 Result =
     {
-        Fma(t, B.x - A.x, A.x),
-        Fma(t, B.y - A.y, A.y),
-        Fma(t, B.z - A.z, A.z),
-        Fma(t, B.w - A.w, A.w),
+        Lerp(A.x, t, B.x),
+        Lerp(A.y, t, B.y),
+        Lerp(A.z, t, B.z),
+        Lerp(A.w, t, B.w),
     };
 
     return(Result);
@@ -1532,8 +1525,8 @@ FastLog2(u32 Value)
     Value |= Value >> 1;
     Value |= Value >> 2;
     Value |= Value >> 4;
-
-    return(MagicTable[(u32)(Value * 0x5a1a1a2u) >> 28]);
+    s32 Result = MagicTable[(u32)(Value * 0x5a1a1a2u) >> 28];
+    return(Result);
 }
 
 // RESOURCE(sam): https://web.archive.org/web/20211023131624/https://lolengine.net/blog/2011/12/14/understanding-motion-in-games
@@ -1571,7 +1564,6 @@ D7samNormalisedMul(u8 A, u8 B)
 // TODO(chowie): Better Hash Functions!
 
 // RESOURCE(orlp): https://stackoverflow.com/questions/101439/the-most-efficient-way-to-implement-an-integer-based-power-function-powint-int
-// TODO(chowie): iPow? https://gist.github.com/orlp/3551590
 // NOTE(by mauro): Using Szudnik Pairing.
 // * Seed would always be the same based on location, and collisions would only occur as you got very far away from the origin
 // * You could fit two 16-bit integers into a single 32-bit integer with no collisions.
@@ -1632,7 +1624,6 @@ inline u32
 MullerHash(v3u Value)
 {
     u32 Result = (Value.x * 92837111) ^ (Value.y * 689287499) ^ (Value.z * 283923481);
-
     return(Result);
 }
 

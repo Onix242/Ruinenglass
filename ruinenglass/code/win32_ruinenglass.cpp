@@ -1153,8 +1153,7 @@ WinMain(HINSTANCE Instance,
             {
                 MonitorRefreshHz = Win32RefreshRate;
             }
-            r32 GameUpdateHz = (r32)(MonitorRefreshHz / 2.0f);
-            r32 TargetSecondsPerFrame = 1.0f / (r32)GameUpdateHz;
+            r32 GameUpdateHz = (r32)(MonitorRefreshHz);
 
             win32_sound_output SoundOutput = {};
             SoundOutput.SamplesPerSecond = 48000; // TODO(chowie): Set to 60 seconds?
@@ -1225,6 +1224,21 @@ WinMain(HINSTANCE Instance,
                GameMemory.Transient.Base &&
                GameMemory.Samples.Base)
             {
+                // NOTE(chowie): Removes x4 repeat messages if a
+                // controller was not plugged in!
+                // TODO(chowie): Transforms the game into one where
+                // you must plug the controller at startup. Not
+                // ideal! Monitor XBoxControllers for being plugged in
+                // after the fact! Repoll and change, but for now
+                // assume they all present from the beginning!
+                b32x XBoxControllerPresent[XUSER_MAX_COUNT] = {};
+                for(u32 ControllerIndex = 0;
+                    ControllerIndex < XUSER_MAX_COUNT;
+                    ++ControllerIndex)
+                {
+                    XBoxControllerPresent[ControllerIndex] = true;
+                }
+
                 game_input Input[2] = {};
                 game_input *NewInput = &Input[0];
                 game_input *OldInput = &Input[1];
@@ -1243,6 +1257,8 @@ WinMain(HINSTANCE Instance,
                 GameCode.Functions = (void **)&Game;
 
                 Win32LoadCode(&GameCode);
+                u32 ExpectedFramesPerUpdate = 1;
+                r32 TargetSecondsPerFrame = (r32)ExpectedFramesPerUpdate / (r32)GameUpdateHz;
                 while(GlobalRunning)
                 {
                     NewInput->dtForFrame = TargetSecondsPerFrame;
@@ -1346,7 +1362,8 @@ WinMain(HINSTANCE Instance,
                             game_controller_input *NewController = GetController(NewInput, OurControllerIndex);
 
                             XINPUT_STATE ControllerState;
-                            if(XInputGetState(ControllerIndex, &ControllerState) == ERROR_SUCCESS)
+                            if(XBoxControllerPresent[ControllerIndex] &&
+                               XInputGetState(ControllerIndex, &ControllerState) == ERROR_SUCCESS)
                             {
                                 // NOTE(chowie): The controller is plugged in
                                 NewController->IsConnected = true;
@@ -1434,6 +1451,7 @@ WinMain(HINSTANCE Instance,
                             {
                                 // NOTE(chowie): The controller is unavailable
                                 NewController->IsConnected = false;
+                                XBoxControllerPresent[ControllerIndex] = false;
                             }
                         }
                     }
