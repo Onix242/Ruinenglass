@@ -240,6 +240,7 @@ FindMostSignificantSetBit(u32 Value)
 // r32 Result = fmaf(MultA, MultB, AddValue);
 // NOTE(chowie): "A x B + C". A hidden benefit of fma is that it only rounds once (at the end).
 // A * B is maintained with enough accuracy, by the time that C is added, it's much closer to the result of A * B + C.
+// NOTE(chowie): DifferenceOfProducts multiplying by a power of 2 is exact to IEEE, Quadratic Formula = DifferenceOfProducts(b, b, 4 * a, c)
 inline r32
 Fma(r32 A, r32 B, r32 Add)
 {
@@ -248,6 +249,8 @@ Fma(r32 A, r32 B, r32 Add)
 }
 
 // RESOURCE(pharr): https://pharr.org/matt/blog/2019/11/03/difference-of-floats
+// RESOURCE(njuffa): https://stackoverflow.com/questions/63665010/accurate-floating-point-computation-of-the-sum-and-difference-of-two-products
+// RESOURCE(njuffa): https://stackoverflow.com/questions/49191477/companion-to-hypot/58511178#58511178
 // NOTE(chowie): A * B - C * D for better accuracy; avoids catatrophic cancellation (high pricision calculations without needing to convert to r64)
 // TODO(chowie): Convert this to SIMD?
 // TODO(chowie): Also use this for quadratic discriminant, 2x2 matrix etc...
@@ -257,7 +260,18 @@ DifferenceOfProducts(r32 A, r32 B, r32 C, r32 D)
     r32 Mult = C*D;
     r32 Error = Fma(-C, D, Mult);
     r32 Difference = Fma(A, B, -Mult);
-    r32 Result = Error + Difference;
+    r32 Result = Difference + Error;
+    return(Result);
+}
+
+// NOTE(chowie): A * B + C * D
+inline r32
+SumOfProducts(r32 A, r32 B, r32 C, r32 D)
+{
+    r32 Mult = C*D;
+    r32 Error = Fma(C, -D, Mult);
+    r32 Difference = Fma(A, B, Mult);
+    r32 Result = Difference - Error;
     return(Result);
 }
 
@@ -283,6 +297,30 @@ Lerp(r32 A, r32 t, r32 B)
 //
 
 #include <math.h>
+
+// RESOURCE(fabien): https://fgiesen.wordpress.com/2010/10/21/finish-your-derivations-please/
+// TODO(chowie): I don't want to be using angles, right? Hopefully I can replace everything with rational trig
+// TODO(chowie): Replace with SSE2 instruction of sin?
+inline r32
+Sin(r32 Angle)
+{
+    r32 Result = sinf(Angle);
+    return(Result);
+}
+
+inline r32
+Cos(r32 Angle)
+{
+    r32 Result = cosf(Angle);
+    return(Result);
+}
+
+inline r32
+ATan2(r32 Y, r32 X)
+{
+    r32 Result = atan2f(Y, X);
+    return(Result);
+}
 
 /*
 // RESOURCE: https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-fmod
@@ -318,28 +356,6 @@ Factorial(u32 Value)
     return(Result);
 }
 */
-
-// TODO(chowie): Replace with SSE2 instruction of sin?
-inline r32
-Sin(r32 Angle)
-{
-    r32 Result = sinf(Angle);
-    return(Result);
-}
-
-inline r32
-Cos(r32 Angle)
-{
-    r32 Result = cosf(Angle);
-    return(Result);
-}
-
-inline r32
-ATan2(r32 Y, r32 X)
-{
-    r32 Result = atan2f(Y, X);
-    return(Result);
-}
 
 #define RUINENGLASS_INTRINSICS_H
 #endif

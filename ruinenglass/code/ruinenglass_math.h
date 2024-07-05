@@ -240,10 +240,11 @@ SquarePulse(r32 A, r32 B, r32 Value)
     return(Result);
 }
 
+// Clamp01(A.x*t + B.x) - Clamp01(A.y*t + B.y)
 inline r32
 TrianglePulse(v2 A, r32 t, v2 B)
 {
-    r32 Result = Clamp01(A.x*t + B.x) - Clamp01(A.y*t + B.y);
+    r32 Result = Clamp01(Fma(A.x, t, B.x)) - Clamp01(Fma(A.y, t, B.y));
     return(Result);
 }
 
@@ -449,10 +450,11 @@ Hadamard(v2 A, v2 B)
    if the value is negative they are pointing in opposite general
    direction if the value is 0 they are perpendicular.
 */
+// A.x*B.x + A.y*B.y
 inline r32
 Inner(v2 A, v2 B)
 {
-    r32 Result = A.x*B.x + A.y*B.y;
+    r32 Result = SumOfProducts(A.x, B.x, A.y, B.y);
     return(Result);
 }
 
@@ -661,10 +663,13 @@ Hadamard(v3 A, v3 B)
     return(Result);
 }
 
+// TODO(chowie): Is there a better way?
+// A.x*B.x + A.y*B.y + A.z*B.z
+// Fma(A.x, B.x, Fma(A.y, B.y, A.z*B.z))
 inline r32
 Inner(v3 A, v3 B)
 {
-    r32 Result = A.x*B.x + A.y*B.y + A.z*B.z;
+    r32 Result = Fma(A.z, B.z, SumOfProducts(A.x, B.x, A.y, B.y));
     return(Result);
 }
 
@@ -701,10 +706,8 @@ Length(v3 A)
     return(Result);
 }
 
-// RESOURCE(fabien): https://fgiesen.wordpress.com/2010/10/21/finish-your-derivations-please/
-// TODO(chowie): I don't want to be using angles, right?
 // RESOURCE(owl): https://fastcpp.blogspot.com/2012/02/calculating-length-of-3d-vector-using.html
-// TODO(chowie): SSE?
+// TODO(chowie): Convert to SSE4?
 inline v3
 Normalise(v3 A)
 {
@@ -964,10 +967,11 @@ Hadamard(v4 A, v4 B)
     return(Result);
 }
 
+// A.x*B.x + A.y*B.y + A.z*B.z + A.w*B.w
 inline r32
 Inner(v4 A, v4 B)
 {
-    r32 Result = A.x*B.x + A.y*B.y + A.z*B.z + A.w*B.w;
+    r32 Result = SumOfProducts(A.x, B.x, A.y, A.y) + SumOfProducts(A.z, B.z, A.w, B.w);
 
     return(Result);
 }
