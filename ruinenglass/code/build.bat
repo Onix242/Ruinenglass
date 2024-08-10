@@ -1,7 +1,7 @@
 @echo off
 REM IMPORTANT(chowie): Only x64 is supported for now!
 REM IMPORTANT(chowie): Check if all warnings are necessary
-set CommonWarningFlags=  -diagnostics:caret -WX -W4 -wd4201 -wd4100 -wd4189 -wd4505 -wd4127 -wd4477
+set CommonWarningFlags=  -diagnostics:column -WX -W4 -wd4201 -wd4100 -wd4189 -wd4505 -wd4127 -wd4477
 set CommonOptimiseFlags= -Od -Gm- -GR- -EHa- -Oi -fp:except-
 set CommonDefinesFlags=  -DRUINENGLASS_INTERNAL=1 -DRUINENGLASS_SLOW=1 -DRUINENGLASS_WIN32=1
 set CommonDebugFlags=    -FC -Z7 -Zo -Fm
@@ -20,9 +20,6 @@ IF NOT EXIST ..\..\build (
 mkdir ..\..\build
 )
 pushd ..\..\build
-
-REM NOTE(Chowie): InputRecording Stupidity
-REM del *.hmi > NUL 2> NUL
 
 del *.pdb > NUL 2> NUL
 echo WAITING FOR PDB > lock.tmp

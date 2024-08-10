@@ -95,14 +95,14 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         }
 #endif
 
-        GameState->PlayerP = {100, 100};
+        GameState->Player.P = {100, 100};
 
         // TODO(chowie): Initialise Audio State when there's proper
         // sound! Do I have to rearrange "audio -> game" to prevent
         // audio clipping at the beginning?
 //        InitialiseAudioState(&GameState->AudioState);
 
-        GameState->IsInitialised = true; // NOTE(chowie): One less thing the platform layer has to do; the game would always.
+        GameState->IsInitialised = true; // STUDY(chowie): One less thing the platform layer has to do; the game would always.
     }
 
     for(u32 ControllerIndex = 0;
@@ -132,12 +132,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             --GameState->Offset.y;
         }
 
-        GameState->PlayerP.P.x += (s32)(4.0f*(Controller->StickAverage.x));
-        GameState->PlayerP.P.y += (s32)(4.0f*(Controller->StickAverage.y));
+        GameState->Player.P.x += (s32)(4.0f*(Controller->StickAverage.x));
+        GameState->Player.P.y += (s32)(4.0f*(Controller->StickAverage.y));
     }
 
     RenderWeirdGradient(Buffer, GameState->Offset);
-    TestRenderPlayer(Buffer, GameState->PlayerP.P);
+    TestRenderPlayer(Buffer, GameState->Player.P);
 }
 
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)

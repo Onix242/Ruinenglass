@@ -595,6 +595,9 @@ MapEntityPairToIndex(u16 A, u16 B)
     return(Result);
 }
 
+// TODO(chowie): Could hold next - 1 to get the current and to prevent
+// wrapping. e.g. See debug system (DebugState->NextFreeFrame - 1) %
+// DEBUG_FRAME_COUNT.
 struct triangle_number_result
 {
     b32x IsTriangleNumber;

@@ -24,7 +24,6 @@
 
 #include "win32_ruinenglass.h"
 
-// TODO(chowie): Use this!
 global platform_api Platform;
 
 // TODO(chowie): These are global for now!
@@ -555,12 +554,11 @@ Win32DisplayBufferInWindow(win32_offscreen_buffer *Buffer, HDC DeviceContext,
                   DIB_RGB_COLORS, SRCCOPY);
 }
 
+// NOTE(chowie): This follows Raymond Chen's prescription for fullscreen toggling
+// RESOURCE(raymond chen): https://devblogs.microsoft.com/oldnewthing/20100412-00/?p=14353
 internal void
 ToggleFullscreen(HWND Window)
 {
-    // NOTE(chowie): This follows Raymond Chen's prescription for fullscreen toggling
-    // RESOURCE(raymond chen): https://devblogs.microsoft.com/oldnewthing/20100412-00/?p=14353
-
     DWORD Style = GetWindowLong(Window, GWL_STYLE);
     if(Style & WS_OVERLAPPEDWINDOW)
     {
@@ -600,7 +598,6 @@ internal win32_replay_buffer *
 Win32GetReplayBuffer(win32_state *State)
 {
     win32_replay_buffer *Result = &State->SaveBuffer;
-
     return(Result);
 }
 
@@ -675,7 +672,7 @@ Win32RecordInput(win32_state *State, game_input *NewInput)
             Size.QuadPart = State->CurrentBuffer->FileSize;
             State->CurrentBuffer->MemoryMap = CreateFileMappingA(State->CurrentBuffer->MappedFile, 0, PAGE_READWRITE,
                                                                  Size.HighPart, Size.LowPart, 0);
-            Assert(State->CurrentBuffer->MemoryMap != NULL);
+            Assert(State->CurrentBuffer->MemoryMap != 0);
 
             State->CurrentBuffer->Memory = MapViewOfFile(State->CurrentBuffer->MemoryMap, FILE_MAP_ALL_ACCESS,
                                                          0, 0, State->CurrentBuffer->FileSize);
@@ -700,7 +697,7 @@ Win32RecordInput(win32_state *State, game_input *NewInput)
             MaxSize.QuadPart = State->CurrentBuffer->FileSize;
             State->CurrentBuffer->MemoryMap = CreateFileMappingA(State->CurrentBuffer->MappedFile, 0, PAGE_READWRITE,
                                                                  MaxSize.HighPart, MaxSize.LowPart, 0);
-            Assert(State->CurrentBuffer->MemoryMap != NULL);
+            Assert(State->CurrentBuffer->MemoryMap != 0);
 
             State->CurrentBuffer->MemoryBlock = MapViewOfFile(State->CurrentBuffer->MemoryMap, FILE_MAP_ALL_ACCESS,
                                                               0, 0, State->CurrentBuffer->FileSize);
@@ -887,7 +884,7 @@ Win32ProcessPendingMessages(win32_state *State, game_controller_input *KeyboardC
                             Win32ProcessKeyboardMessage(&KeyboardController->ActionLeft, IsDown);
                         } break;
                         case VK_DOWN:
-                        {                                        
+                        {
                             Win32ProcessKeyboardMessage(&KeyboardController->ActionDown, IsDown);
                         } break;
                         case VK_RIGHT:
@@ -955,28 +952,35 @@ Win32ProcessPendingMessages(win32_state *State, game_controller_input *KeyboardC
                         {
                             if(IsDown)
                             {
-                                GlobalPause = !GlobalPause;
+                                if(AltKeyWasDown)
+                                {
+                                    GlobalPause = !GlobalPause;
+                                }
                             }
                         } break;
+
                         case 'L':
                         {
                             if(IsDown)
                             {
-                                if(State->InputPlayingIndex == 0)
+                                if(AltKeyWasDown)
                                 {
-                                    if(State->InputRecordingIndex == 0)
+                                    if(State->InputPlayingIndex == 0)
                                     {
-                                        Win32BeginInputRecording(State, 1);
+                                        if(State->InputRecordingIndex == 0)
+                                        {
+                                            Win32BeginInputRecording(State, 1);
+                                        }
+                                        else
+                                        {
+                                            Win32EndInputRecording(State);
+                                            Win32BeginInputPlayback(State, 1);
+                                        }
                                     }
                                     else
                                     {
-                                        Win32EndInputRecording(State);
-                                        Win32BeginInputPlayback(State, 1);
+                                        Win32EndInputPlayback(State);
                                     }
-                                }
-                                else
-                                {
-                                    Win32EndInputPlayback(State);
                                 }
                             }
                         } break;

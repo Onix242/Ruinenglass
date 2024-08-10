@@ -10,6 +10,19 @@
 #include "ruinenglass_intrinsics.h"
 #include "ruinenglass_math.h"
 
+// NOTE(chowie): Don't need to do zero struct, can use "*NewKey = {};"
+#define ZeroStruct(Instance) ZeroSize(sizeof(Instance), &(Instance))
+#define ZeroArray(Count, Pointer) ZeroSize((Count)*sizeof((Pointer)[0]), Pointer)
+inline void
+ZeroSize(umm Size, void *Ptr)
+{
+    u8 *Byte = (u8 *)Ptr;
+    while(Size--)
+    {
+        *Byte++ = 0;
+    }
+}
+
 internal void
 CatStrings(umm SourceACount, char *SourceA,
            umm SourceBCount, char *SourceB,

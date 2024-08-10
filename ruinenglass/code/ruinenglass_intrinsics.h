@@ -26,6 +26,18 @@ SignOf(r32 Value)
     return(Result);
 }
 
+// RESOURCE(wychmaster): https://stackoverflow.com/questions/57870896/writing-a-portable-sse-avx-version-of-stdcopysign
+inline r32
+CopySign(r32 Sign, r32 Value)
+{
+    __m128 SignMask = _mm_set1_ps(-0.0f);
+    __m128 ExtractSign = _mm_and_ps(_mm_set_ss(Sign), SignMask);
+    __m128 ExtractValue = _mm_andnot_ps(SignMask, _mm_set_ss(Value)); // STUDY(chowie): Equivalent of AbsoluteValue(Value)
+
+    r32 Result = _mm_cvtss_f32(_mm_or_ps(ExtractSign, ExtractValue));
+    return(Result);
+}
+
 inline r32
 SquareRoot(r32 R32)
 {
@@ -35,10 +47,30 @@ SquareRoot(r32 R32)
 
 // RESOURCE(cbloom): http://cbloomrants.blogspot.com/2010/11/11-20-10-function-approximation-by_20.html
 // NOTE(chowie): 1/sqrt(x), replaces normalising vectors
+// RESOURCE(martins): https://handmade.network/forums/t/6940-understanding_basic_simd#21153
+// NOTE(chowie): Newton-Raphson method
 inline r32
 ReciprocalSquareRoot(r32 R32)
 {
-    r32 Result = _mm_cvtss_f32(_mm_rsqrt_ss(_mm_set_ss(R32)));
+    __m128 Half = _mm_set1_ps(0.5f);
+    __m128 Three = _mm_set1_ps(3.0f);
+    __m128 Value = _mm_set_ss(R32);
+
+    __m128 Rsqrt = _mm_rsqrt_ss(Value);
+    __m128 Temp = _mm_mul_ps(_mm_mul_ps(Value, Rsqrt), Rsqrt);
+    Rsqrt = _mm_mul_ps(_mm_mul_ps(Half, Rsqrt), _mm_sub_ps(Three, Temp));
+
+    r32 Result = _mm_cvtss_f32(Rsqrt);
+    return(Result);
+}
+
+// TODO(chowie): Difference of two signed/unsigned http://0x80.pl/notesen/2018-03-11-sse-abs-unsigned.html
+// RESOURCE(brumme): https://bits.stephan-brumme.com/absInteger.html
+inline s32
+AbsoluteValue(s32 S32)
+{
+    s32 Shift = S32 >> 31;
+    s32 Result = (S32 ^ Shift) - Shift; // s32 Result = (Value < 0) ? -Value : Value;
     return(Result);
 }
 
@@ -48,6 +80,7 @@ AbsoluteValue(r32 R32)
 {
     __m128 SignMask = _mm_set1_ps(-0.0f); // NOTE(chowie): -0.0f = 1 << 31
     __m128 Combined = _mm_andnot_ps(SignMask, _mm_set_ss(R32));
+
     r32 Result = _mm_cvtss_f32(Combined);
     return(Result);
 }
@@ -251,7 +284,7 @@ Fma(r32 A, r32 B, r32 Add)
 // RESOURCE(pharr): https://pharr.org/matt/blog/2019/11/03/difference-of-floats
 // RESOURCE(njuffa): https://stackoverflow.com/questions/63665010/accurate-floating-point-computation-of-the-sum-and-difference-of-two-products
 // RESOURCE(njuffa): https://stackoverflow.com/questions/49191477/companion-to-hypot/58511178#58511178
-// NOTE(chowie): A * B - C * D for better accuracy; avoids catatrophic cancellation (high pricision calculations without needing to convert to r64)
+// NOTE(chowie): A * B - C * D for better accuracy; avoids catatrophic cancellation (high precision calculations without needing to convert to r64)
 // TODO(chowie): Convert this to SIMD?
 // TODO(chowie): Also use this for quadratic discriminant, 2x2 matrix etc...
 inline r32
@@ -260,6 +293,7 @@ DifferenceOfProducts(r32 A, r32 B, r32 C, r32 D)
     r32 Mult = C*D;
     r32 Error = Fma(-C, D, Mult);
     r32 Difference = Fma(A, B, -Mult);
+
     r32 Result = Difference + Error;
     return(Result);
 }
@@ -271,6 +305,7 @@ SumOfProducts(r32 A, r32 B, r32 C, r32 D)
     r32 Mult = C*D;
     r32 Error = Fma(C, -D, Mult);
     r32 Difference = Fma(A, B, Mult);
+
     r32 Result = Difference - Error;
     return(Result);
 }
@@ -285,6 +320,7 @@ Lerp(r32 A, r32 t, r32 B)
 {
     __m128 LerpT = _mm_set_ss(t);
     __m128 LerpA = _mm_set_ss(A);
+
     r32 Result = _mm_cvtss_f32(_mm_fmadd_ss(LerpT, _mm_set_ss(B), _mm_fnmsub_ss(LerpT, LerpA, LerpA)));
     return(Result);
 }

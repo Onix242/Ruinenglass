@@ -29,7 +29,7 @@
 #include "ruinenglass_random.h"
 
 // NOTE(chowie): Historical linguist
-struct controlled_linguist
+struct controlled_player
 {
     v2s P; // TODO(chowie): Change to v2
 };
@@ -40,7 +40,7 @@ struct game_state
 
     audio_state AudioState;
 
-    controlled_linguist PlayerP;
+    controlled_player Player;
 
     b32x IsInitialised;
 };

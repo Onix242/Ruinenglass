@@ -83,5 +83,17 @@ RandomBetween(random_series *Series, v2s Range)
     return(Result);
 }
 
+// RESOURCE: https://github.com/apple/swift/pull/39143
+// NOTE(chowie): (0 to n) No divisions, branchless
+// TODO(chowie): Test!
+inline u32
+RandomLemireUniform(random_series *Series, u32 Bounds)
+{
+    u64 A = (u64)Bounds * RandomXorshift(Series);
+    u64 B = (u32)A + (((u64)Bounds * RandomXorshift(Series)) >> 32);
+    u32 Result = (A >> 32) + (B >> 32);
+    return(Result);
+}
+
 #define RUINENGLASS_RANDOM_H
 #endif
