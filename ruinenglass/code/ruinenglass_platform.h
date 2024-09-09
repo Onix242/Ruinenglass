@@ -8,7 +8,7 @@
    ======================================================================== */
 
 /*
-  NOTE:
+  NOTE(chowie):
 
   RUINENGLASS_INTERNAL:
   0 - Build for public release
@@ -37,6 +37,12 @@ CExternStart
 
 #if RUINENGLASS_INTERNAL
 
+typedef struct debug_read_file_result
+{
+    u32 ContentsSize;
+    void *Contents;
+} debug_read_file_result;
+
 /*
   IMPORTANT(chowie):
 
@@ -50,19 +56,9 @@ CExternStart
   TODO(chowie):
 
   Instead, write to a different file with a rolling buffer scheme. A
-  and B file on alternating runs of the game. Or use a temp file and
-  delete the old file and rename it in its place. Rename would have to
-  fail.
+  and B file on alternating runs of the game. Or a temp file, delete
+  the old file, rename it in its place. Rename would have to fail.
 */
-
-#define DEBUG_PLATFORM_FREE_FILE_MEMORY(name) void name(void *Memory)
-typedef DEBUG_PLATFORM_FREE_FILE_MEMORY(debug_platform_free_file_memory);
-
-typedef struct debug_read_file_result
-{
-    u32 ContentsSize;
-    void *Contents;
-} debug_read_file_result;
 
 #define DEBUG_PLATFORM_READ_ENTIRE_FILE(name) debug_read_file_result name(char *FileName)
 typedef DEBUG_PLATFORM_READ_ENTIRE_FILE(debug_platform_read_entire_file);
@@ -70,10 +66,36 @@ typedef DEBUG_PLATFORM_READ_ENTIRE_FILE(debug_platform_read_entire_file);
 #define DEBUG_PLATFORM_WRITE_ENTIRE_FILE(name) b32x name(char *FileName, u32 MemorySize, void *Memory)
 typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(debug_platform_write_entire_file);
 
+#define DEBUG_PLATFORM_FREE_FILE_MEMORY(name) void name(void *Memory)
+typedef DEBUG_PLATFORM_FREE_FILE_MEMORY(debug_platform_free_file_memory);
+
 #endif
 
+#define PLATFORM_ALLOCATE_MEMORY(name) void *name(umm Size)
+typedef PLATFORM_ALLOCATE_MEMORY(platform_allocate_memory);
+
+#define PLATFORM_DEALLOCATE_MEMORY(name) void name(void *Memory)
+typedef PLATFORM_DEALLOCATE_MEMORY(platform_deallocate_memory);
+
+struct platform_work_queue;
+#define PLATFORM_WORK_QUEUE_CALLBACK(name) void name(platform_work_queue *Queue, void *Data)
+typedef PLATFORM_WORK_QUEUE_CALLBACK(platform_work_queue_callback);
+
+#define PLATFORM_ADD_WORK_QUEUE_ENTRY(name) void name(platform_work_queue *Queue, platform_work_queue_callback *Callback, void *Data)
+typedef PLATFORM_ADD_WORK_QUEUE_ENTRY(platform_add_work_queue_entry);
+
+#define PLATFORM_COMPLETE_ALL_WORK_QUEUE(name) void name(platform_work_queue *Queue)
+typedef PLATFORM_COMPLETE_ALL_WORK_QUEUE(platform_complete_all_work_queue);
+
+// STUDY(chowie): Custom dispatch as if a visible V-table
 typedef struct platform_api
 {
+    platform_add_work_queue_entry *AddWorkQueueEntry;
+    platform_complete_all_work_queue *CompleteAllWorkQueue;
+    
+    platform_allocate_memory *AllocateMemory;
+    platform_deallocate_memory *DeallocateMemory;
+
 #if RUINENGLASS_INTERNAL
     debug_platform_free_file_memory *DEBUGFreeFileMemory;
     debug_platform_read_entire_file *DEBUGReadEntireFile;
@@ -94,8 +116,11 @@ typedef struct game_memory
     });
     // TODO(chowie): Flush transient store!
 
-    platform_api PlatformAPI;
+    // TODO(chowie): Use!
+    platform_work_queue *HighPriorityQueue;
+    platform_work_queue *LowPriorityQueue;
 
+    platform_api PlatformAPI;
     b32x ExecutableReloaded;
 } game_memory;
 
@@ -108,21 +133,8 @@ typedef struct game_sound_output_buffer
 {
     u32 SamplesPerSecond;
     u32 SampleCount;
-
     s16 *Samples; // IMPORTANT(chowie): Must be padded to a multiple of 4!
 } game_sound_output_buffer;
-
-#define BITMAP_BYTES_PER_PIXEL 4
-typedef struct game_offscreen_buffer
-{
-    void *Memory;
-    v2u Dim;
-    u32 Pitch;
-} game_offscreen_buffer;
-
-//
-//
-//
 
 typedef struct game_button_state
 {
@@ -182,7 +194,6 @@ enum game_input_mouse_button
     PlatformMouseButton_Count,
 };
 
-#define KeyStateBit BitSet(15)
 typedef struct game_input
 {
     // STUDY(chowie): The wall clock is passed as an input device
@@ -213,10 +224,11 @@ GetController(game_input *Input, u32 ControllerIndex)
 }
 
 //
-// NOTE(chowie): Exported function
+// NOTE(chowie): Exported Functions
 //
 
-#define GAME_UPDATE_AND_RENDER(name) void name(game_memory *Memory, game_input *Input, game_offscreen_buffer *Buffer)
+struct game_render_commands;
+#define GAME_UPDATE_AND_RENDER(name) void name(game_memory *Memory, game_input *Input, game_render_commands *RenderCommands)
 typedef GAME_UPDATE_AND_RENDER(game_update_and_render);
 
 #define GAME_GET_SOUND_SAMPLES(name) void name(game_memory *Memory, game_sound_output_buffer *SoundBuffer)
@@ -258,6 +270,9 @@ CExternEnd
   STUDY(chowie): OS like handles, sockets, file streams needs a way to
   talk to you. Either indexes into tables or pointers into kernel
   memory.
+
+  IMPORTANT(chowie): On function naming, make NOT create (latter is
+  for functions I didn't write), Win32 and DEBUG prefix.
 */
 
 #define RUINENGLASS_PLATFORM_H

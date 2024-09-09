@@ -45,18 +45,18 @@ SquareRoot(r32 R32)
     return(Result);
 }
 
+// RESOURCE(martins): https://handmade.network/forums/t/6940-understanding_basic_simd#21153
 // RESOURCE(cbloom): http://cbloomrants.blogspot.com/2010/11/11-20-10-function-approximation-by_20.html
 // NOTE(chowie): 1/sqrt(x), replaces normalising vectors
-// RESOURCE(martins): https://handmade.network/forums/t/6940-understanding_basic_simd#21153
-// NOTE(chowie): Newton-Raphson method
 inline r32
 ReciprocalSquareRoot(r32 R32)
 {
     __m128 Half = _mm_set1_ps(0.5f);
     __m128 Three = _mm_set1_ps(3.0f);
     __m128 Value = _mm_set_ss(R32);
-
     __m128 Rsqrt = _mm_rsqrt_ss(Value);
+
+    // NOTE(chowie): Newton's
     __m128 Temp = _mm_mul_ps(_mm_mul_ps(Value, Rsqrt), Rsqrt);
     Rsqrt = _mm_mul_ps(_mm_mul_ps(Half, Rsqrt), _mm_sub_ps(Three, Temp));
 
@@ -70,7 +70,7 @@ inline s32
 AbsoluteValue(s32 S32)
 {
     s32 Shift = S32 >> 31;
-    s32 Result = (S32 ^ Shift) - Shift; // s32 Result = (Value < 0) ? -Value : Value;
+    s32 Result = (S32 ^ Shift) - Shift; // NOTE(chowie) s32 Result = (Value < 0) ? -Value : Value;
     return(Result);
 }
 
@@ -91,7 +91,7 @@ RotateLeft(u32 Value, s32 Amount)
 #if COMPILER_MSVC
     u32 Result = _rotl(Value, Amount);
 #else
-    // TODO(chowie): Actually port to other compiler platforms
+    // TODO(chowie): Port to other compiler platforms
     Amount &= 31;
     u32 Result = ((Value << Amount) | (Value >> (32 - Amount)));
 #endif
@@ -105,7 +105,7 @@ RotateRight(u32 Value, s32 Amount)
 #if COMPILER_MSVC
     u32 Result = _rotr(Value, Amount);
 #else
-    // TODO(chowie): Actually port to other compiler platforms
+    // TODO(chowie): Port to other compiler platforms
     Amount &= 31;
     u32 Result = ((Value >> Amount) | (Value << (32 - Amount)));
 #endif
@@ -222,7 +222,7 @@ struct bit_scan_result
     u32 Index;
 };
 inline bit_scan_result
-FindLeastSignificantSetBit(u32 Value)
+FindLeastSignificantBit(u32 Value) // NOTE(chowie): ctz
 {
     bit_scan_result Result = {};
 
@@ -246,7 +246,7 @@ FindLeastSignificantSetBit(u32 Value)
 }
 
 inline bit_scan_result
-FindMostSignificantSetBit(u32 Value)
+FindMostSignificantBit(u32 Value) // NOTE(chowie): clz
 {
     bit_scan_result Result = {};
 
@@ -325,7 +325,9 @@ Lerp(r32 A, r32 t, r32 B)
     return(Result);
 }
 
-// TODO(chowie): iPow? RESOURCE(chowie): https://gist.github.com/orlp/3551590
+// RESOURCE(orlp): https://stackoverflow.com/questions/101439/the-most-efficient-way-to-implement-an-integer-based-power-function-powint-int
+// RESOURCE(orlp): https://gist.github.com/orlp/3551590
+// TODO(chowie): iPow?
 
 //
 // TODO(chowie): Convert all of these to platform-efficent versions and

@@ -717,6 +717,8 @@ main(void)
         // NOTE(chowie): At runtime
         //
 
+        // STUDY(chowie): This is awfully similar to HmH Day 279 0h49m27s, in PackEntityIntoChunk() vs PackEntityIntoWorld()
+        // TODO(chowie): Rename this to packed / unpack -> change accordingly
         u32 EntityPair = MapEntityPairToIndex(EntityType_Wall, EntityType_Wall);
         entity_pair_index_result TestPair = GetEntityPairFromIndex(&Entity, EntityPair);
         char *Test = PushString(&TextArena, d7sam_concat("Testing Unpacking Pairs: ")(TestPair.Row)(", ")(TestPair.Col)("\n"));

@@ -75,10 +75,13 @@ typedef int_least32_t b32x;
 // would hold both a segment and an offset.
 // typedef size_t memory_index;
 typedef intptr_t smm;
-typedef uintptr_t umm;
+typedef uintptr_t umm; // NOTE(chowie): Memory-sized uint
 
 typedef float r32;
 typedef double r64;
+
+#define U32FromPointer(Pointer) ((u32)(umm)(Pointer))
+#define PointerFromU32(type, Value) (type *)((umm)Value)
 
 #define Pi32 3.14159265359f
 #define Tau32 6.28318530717958647692f
@@ -132,7 +135,7 @@ typedef double r64;
 #define Align8(Value) ((Value + 7) & ~7)
 #define Align16(Value) ((Value + 15) & ~15)
 
-// RESOURCE(fabien): 
+// RESOURCE(fabien): https://fgiesen.wordpress.com/2016/10/26/rounding-up-to-the-nearest-int-k-mod-n/
 // NOTE(chowie): Round to nearest congrument k % Alignment
 // TODO(chowie): Can I use this for memory allocators, which address falls off alignment by specified distance.
 #define AlignPow(Value, Alignment, k) ((Value - k + (Alignment - 1)) & ~((Alignment) - 1) + k)
@@ -187,7 +190,7 @@ static_assert(sizeof(Glue(_anon_array, counter)) % sizeof(type) == 0,   \
 FIELD_ARRAY_(type, struct_definition, __COUNTER__)
 
 //
-// NOTE: Math types
+// NOTE: Math Primitives
 //
 
 // TODO(chowie): Combine v2u and v2s together?
@@ -390,6 +393,12 @@ union rect3
     r32 E[9];
 };
 
+struct m2x2
+{
+    // NOTE(chowie): ROW-MAJOR order - E[Row][Column]
+    r32 E[2][2];
+};
+
 // TODO(chowie): Debug View
 #define FILE_AND_LINE__(A, B) A "|" #B
 #define FILE_AND_LINE_(A, B) FILE_AND_LINE__(A, B)
@@ -478,28 +487,40 @@ BufferAreEqual(buffer A, buffer B)
 // NOTE(chowie): Multi-threading
 //
 
+// STUDY: InterlockedCompareExchange allows thread work to be
+// _predicated_, where you care less about the maximum performance of
+// the interlocked point. Ideally, we would partion the work into
+// large chunk to spend less time figuring out who does the work.
 #if COMPILER_MSVC
-#define CompletePreviousReadsBeforeFutureReads _ReadBarrier()
-#define CompletePreviousWritesBeforeFutureWrites _WriteBarrier()
+// NOTE(chowie): MSVC treats "sfence" as WriteBarrier
+
+// STUDY(chowie): Ensures correct timing for platforms who support
+// out-of-order writes / doesn't support strong order to writes;
+// explicitly serialises code. Guards weakly ordered above the fence.
+#define CompletePrevWritesBeforeFutureWrites _WriteBarrier()
+#define CompletePrevReadsBeforeFutureReads _ReadBarrier()
+inline u32
+AtomicIncrementU32(u32 volatile *Value)
+{
+    u32 Result = _InterlockedIncrement((long *)Value);
+    return(Result);
+}
 inline u32
 AtomicCompareExchangeU32(u32 volatile *Value, u32 New, u32 Expected)
 {
     u32 Result = _InterlockedCompareExchange((long *)Value, New, Expected);
-
     return(Result);
 }
 inline u64
 AtomicCompareExchangeU64(u64 volatile *Value, u64 New, u64 Expected)
 {
     u64 Result = _InterlockedCompareExchange64((long long *)Value, New, Expected);
-
     return(Result);
 }
 inline u64
 AtomicExchangeU64(u64 volatile *Value, u64 New)
 {
     u64 Result = _InterlockedExchange64((__int64 *)Value, New);
-
     return(Result);
 }
 // NOTE: Could be Atomicincrement, but add has more flexibility
@@ -509,7 +530,6 @@ AtomicAddU64(u64 volatile *Value, u64 Addend)
 {
     // NOTE: Returns the original value _prior_ to adding
     u64 Result = _InterlockedExchangeAdd64((__int64 *)Value, Addend);
-
     return(Result);
 }
 inline u32

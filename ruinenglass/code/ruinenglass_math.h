@@ -193,6 +193,13 @@ Clamp01MapToRange(r32 Min, r32 t, r32 Max)
     return(Result);
 }
 
+inline r32
+ClampAboveZero(r32 Value)
+{
+    r32 Result = (Value < 0) ? 0.0f : Value;
+    return(Result);
+}
+
 // NOTE(chowie): It could be rewritten as "Square(Result) * (3.0f - 2.0f*Result)"
 // RESOURCE: https://handmade.network/p/64/geometer/blog/p/3048-1_year_of_geometer_-_lessons_learnt
 inline r32
@@ -439,23 +446,95 @@ Arm2(r32 Angle)
 }
 */
 
+//
+// NOTE(chowie): Rational Trig v2 operations
+//
+
+inline v2
+operator*(m2x2 A, v2 P)
+{
+    v2 Result;
+
+    Result.x = P.x*A.E[0][0] + P.y*A.E[0][1];
+    Result.y = P.x*A.E[1][0] + P.y*A.E[1][1];
+
+    return(Result);
+}
+
 // RESOURCE(arnon): https://github.com/HardCoreCodin/Rational-Ray-Casting/blob/master/raycasting-c/src/main.c
 // TODO(chowie): Convert to using rational trig for rotations
 // TODO(chowie): Check if this is correct?
-internal void
-SetRotationVector(v2 A, r32 t)
+internal v2
+RationalV2RotationByCircleProportion(r32 t)
 {
-    // NOTE(chowie): An approximation where there's many segments, so sin can be dropped. Might leave small gaps
+    // NOTE(chowie): An approximation where there's many segments, so
+    // sin can be dropped. Might leave small gaps
     t = Square(Tau32 / t);
     // TODO(chowie): Swap to reciprocal sqrt?
-    t = SquareRoot(t) / (1.0f - SquareRoot(1.0f - t));
+//    t = SquareRoot(t) / (1.0f - SquareRoot(1.0f - t));
+    t = SquareRoot(t) / SquareRoot(1.0f - t);
 
     // NOTE(by arnon): Project a point on a unit circle from a position on a vertical line of "x = 1" towards the origin
-    float tSq = Square(t);
-    float Factor = 1 / (1 + tSq);
+    r32 tSq = Square(t);
+    r32 Factor = 1 / (1 + tSq);
 
-    A.x = (1 - tSq) * Factor;
-    A.y = (2 * t) * Factor;
+    v2 Result = {};
+    Result.x = (1 - tSq)*Factor; // NOTE(chowie): Swap back!
+    Result.y = (2*t)*Factor;
+
+    return(Result);
+}
+
+internal v2
+RationalUnitRotation(r32 t)
+{
+    // NOTE(by arnon): Project a point on a unit circle from a
+    // position on a vertical line of "x = 1" towards the origin
+    r32 tSq = Square(t);
+    r32 Factor = 1 / (1 + tSq);
+
+    v2 Result = {};
+    Result.x = (1 - tSq)*Factor; // NOTE(chowie): Swap back!
+    Result.y = (2*t)*Factor;
+
+    return(Result);
+}
+
+inline v2
+RationalDirection(v2 From, v2 To)
+{
+    v2 Result = To - From;
+    return(Result);
+}
+
+inline m2x2
+RationalV2ToM2x2Rotation(v2 P)
+{
+    m2x2 Result =
+    {
+        {{P.x, -P.y},
+         {P.y, P.x}}
+    };
+
+    return(Result);
+}
+
+inline m2x2
+RationalM2x2Rotation(r32 t)
+{
+    v2 Rot = RationalV2RotationByCircleProportion(t);
+    m2x2 Result = RationalV2ToM2x2Rotation(Rot);
+
+    return(Result);
+}
+
+inline v2
+RationalV2Rotation(v2 P, r32 t)
+{
+    m2x2 Rot = RationalM2x2Rotation(t);
+    v2 Result = Rot*P;
+
+    return(Result);
 }
 
 //
@@ -505,7 +584,13 @@ AreEqual(v3s A, v3s B)
 inline v3
 Perp(v3 A)
 {
-    v3 Result = {CopySign(A.z, A.x), CopySign(A.z, A.y), -CopySign(A.x, A.z) - CopySign(A.y, A.z)};
+    v3 Result =
+    {
+        CopySign(A.z, A.x),
+        CopySign(A.z, A.y),
+        -CopySign(A.x, A.z) - CopySign(A.y, A.z)
+    };
+
     return(Result);
 }
 
@@ -538,7 +623,7 @@ operator*(r32 A, v3 B)
 inline v3
 operator*(v3 B, r32 A)
 {
-    v3 Result = A * B;
+    v3 Result = A*B;
     return(Result);
 }
 
@@ -546,7 +631,7 @@ operator*(v3 B, r32 A)
 inline v3 &
 operator*=(v3 &B, r32 A)
 {
-    B = A * B;
+    B = A*B;
     return(B);
 }
 
@@ -647,11 +732,16 @@ inline v3
 Normalise(v3 A)
 {
     r32 LenSq = LengthSq(A);
-    v3 Result = A * ReciprocalSquareRoot(LenSq);
+    v3 Result = A*ReciprocalSquareRoot(LenSq);
     return(Result);
 }
 
-// NOTE(chowie): Normalise by 0
+// STUDY: E.g. asks if moving in this direction is roughly the same
+// direction as the head, Cos0. This will be scaled by the distance;
+// it would get higher as it gets further, but we would like the
+// opposite. 1 if directly pointed in the same direction, -1 if
+// opposite. 0 if perp.
+// NOTE(chowie): Normalise _or_ 0. Automatic epsilon check, becomes a zero vector. For Inner Product
 inline v3
 NOZ(v3 A)
 {
@@ -660,7 +750,26 @@ NOZ(v3 A)
     r32 LenSq = LengthSq(A);
     if(LenSq > Square(0.0001f))
     {
-        Result = A * ReciprocalSquareRoot(LenSq);
+        Result = A*ReciprocalSquareRoot(LenSq);
+    }
+
+    return(Result);
+}
+
+// NOTE(chowie): Normalise _or_ Unit Vector. 
+inline v3
+NOU(v3 A)
+{
+    v3 Result = {};
+
+    r32 LenSq = LengthSq(A);
+    if(LenSq > Square(0.0001f))
+    {
+        Result = A*ReciprocalSquareRoot(LenSq);
+    }
+    else
+    {
+        Result = V3(1, 1, 1);
     }
 
     return(Result);
@@ -738,13 +847,20 @@ Lerp(v3 A, r32 t, v3 B)
     return(Result);
 }
 
+struct get_basis_result
+{
+    v3 BasisB;
+    v3 BasisC;
+};
 // RESOURCE: https://box2d.org/posts/2014/02/computing-a-basis/
 // RESOURCE: https://web.archive.org/web/20190120215637/http://www.randygaul.net/2015/10/27/compute-basis-with-simd/
 // TODO(chowie): Find out if this can be a replacement for entities? If so, SIMD this?
-inline void
-GetBasis(v3 A, v3 *B, v3 *C)
+inline get_basis_result
+GetBasis(v3 A, v3 B, v3 C)
 {
-    // Suppose vector a has all equal components and is a unit vector:
+    get_basis_result Result = {};
+
+    // NOTE(): Suppose vector a has all equal components and is a unit vector:
     // a = (s, s, s)
     // Then 3*s*s = 1, s = sqrt(1/3) = 0.57735. This means that at
     // least one component of a unit vector must be greater or equal
@@ -752,15 +868,17 @@ GetBasis(v3 A, v3 *B, v3 *C)
 #define SqrtThird 0.57735f
     if(AbsoluteValue(A.x) >= SqrtThird)
     {
-        *B = V3(A.y, -A.x, 0.0f);
+        B = V3(A.y, -A.x, 0.0f);
     }
     else
     {
-        *B = V3(0.0f, A.z, -A.y);
+        B = V3(0.0f, A.z, -A.y);
      }
 
-    *B = Normalise(*B);
-    *C = Cross(A, *B);
+    Result.BasisB = Normalise(B);
+    Result.BasisC = Cross(A, B);
+
+    return(Result);
 }
 
 //
@@ -787,7 +905,7 @@ operator*(v4 B, r32 A)
 inline v4 &
 operator*=(v4 &B, r32 A)
 {
-    B = A * B;
+    B = A*B;
     return(B);
 }
 
@@ -1168,6 +1286,7 @@ inline rect2i
 UnionRects(rect2i *Rects, s32 Amount) // NOTE(chowie): Amount >= 1
 {
     rect2i Result = Rects[0];
+    Result.MaxN = V2S(-Result.MaxN.x, -Result.MaxN.y);
     for(s32 RectNum = 1;
         RectNum < Amount;
         ++RectNum)
@@ -1216,7 +1335,7 @@ GetDim(rect3 Rect)
 inline v3
 GetCenter(rect3 Rect)
 {
-    v3 Result = 0.5f*(Rect.Max + Rect.Max);
+    v3 Result = 0.5f*(Rect.Min + Rect.Max);
     return(Result);
 }
 
@@ -1378,16 +1497,25 @@ FastLog2(u32 Value)
 inline u8
 D7samNormalisedMul(u8 A, u8 B)
 {
-    return (((u16)A + 1) * B) >> 8;
+    return (((u16)A + 1)*B) >> 8;
 }
 
 //
 // NOTE(chowie): Hashing Functions
+// TODO(chowie): Better Hash Functions!
 //
 
-// TODO(chowie): Better Hash Functions!
+// RESOURCE(reed): https://www.reedbeta.com/blog/hash-functions-for-gpu-rendering/
+// NOTE(chowie): Compared to Wang Hash, slighly better performance and much better statistical quality
+inline u32
+PCGHash(u32 Input)
+{
+    u32 State = Input*747796405u + 2891336453u;
+    u32 Word = ((State >> ((State >> 28u) + 4u)) ^ State)*277803737u;
+    u32 Result = (Word >> 22u) ^ Word;
+    return(Result);
+}
 
-// RESOURCE(orlp): https://stackoverflow.com/questions/101439/the-most-efficient-way-to-implement-an-integer-based-power-function-powint-int
 // NOTE(by mauro): Using Szudnik Pairing.
 // * Seed would always be the same based on location, and collisions would only occur as you got very far away from the origin
 // * You could fit two 16-bit integers into a single 32-bit integer with no collisions.
@@ -1396,7 +1524,7 @@ inline u32
 MauroHash(v3u Value)
 {
     u32 Max = Maximum3(Value.x, Value.y, Value.z);
-    u32 Result = CUBE(Max) + (2 * Max * Value.z) + Value.z;
+    u32 Result = CUBE(Max) + (2*Max*Value.z) + Value.z;
     if(Max == Value.z)
     {
         Result += SQUARE(Maximum(Value.x, Value.y));
@@ -1417,12 +1545,12 @@ MauroHash(v3u Value)
 inline s32
 MauroHash(v3s Value)
 {
-    s32 NegX = (Value.x >= 0) ? (2 * Value.x) : (-2 * Value.x - 1);
-    s32 NegY = (Value.y >= 0) ? (2 * Value.y) : (-2 * Value.y - 1);
-    s32 NegZ = (Value.z >= 0) ? (2 * Value.z) : (-2 * Value.z - 1);
+    s32 NegX = (Value.x >= 0) ? (2 * Value.x) : (-2*Value.x - 1);
+    s32 NegY = (Value.y >= 0) ? (2 * Value.y) : (-2*Value.y - 1);
+    s32 NegZ = (Value.z >= 0) ? (2 * Value.z) : (-2*Value.z - 1);
 
     s32 Max = Maximum3(NegX, NegY, NegZ);
-    s32 Result = CUBE(Max) + (2 * Max * NegZ) + NegZ;
+    s32 Result = CUBE(Max) + (2*Max*NegZ) + NegZ;
     if(Max == NegZ)
     {
         Result += SQUARE(Maximum(NegX, NegY));
@@ -1447,19 +1575,17 @@ MauroHash(v3s Value)
 inline u32
 MullerHash(v3u Value)
 {
-    u32 Result = (Value.x * 92837111) ^ (Value.y * 689287499) ^ (Value.z * 283923481);
+    u32 Result = (Value.x*92837111) ^ (Value.y*689287499) ^ (Value.z*283923481);
     return(Result);
 }
 
-/*
 inline s32
 MullerHash(v3s Value)
 {
-    s32 Result = (Value.x * 92837111) ^ (Value.y * 689287499) ^ (Value.z * 283923481);
+    s32 Result = (Value.x*92837111) ^ (Value.y*689287499) ^ (Value.z*283923481);
     Result = AbsoluteValue(Result);
     return(Result);
 }
-*/
 
 //
 // NOTE(chowie): Compression
@@ -1484,11 +1610,11 @@ CRC32(void *Data, umm Size)
     return(~Result);
 }
 
+// TODO(chowie): Try to use this for tile/world storage? (Must be in u32)
 //
 // RESOURCE(fabian): https://fgiesen.wordpress.com/2009/12/13/decoding-morton-codes/
 //
 
-// TODO(chowie): Try to use this for tile/world storage? (Must be in u32)
 // NOTE(by fabian): "Insert" a 0 bit after each of the 16 low bits of x
 inline u32
 Part1By1(u32 Value)

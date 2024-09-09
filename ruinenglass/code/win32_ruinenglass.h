@@ -41,22 +41,27 @@ struct win32_sound_output
     // TODO(chowie): Should RunningSampleIndex be in bytes?
 };
 
+//
+// NOTE: Live-loop
+//
+
 // RESOURCE(gilman & nimbok): https://hero.handmade.network/forums/code-discussion/t/1990-memory_mapping_.hmi_files_and_interpreting_msdn
 
-// STUDY(from nimbok): "When using memory-mapped files, operates in memory
+// STUDY(nimbok): "When using memory-mapped files, operates in memory
 // isn't immediately reflected in file itself. Windows does not write
 // into files until it swaps mapped memory out of RAM (physical mem).
 // This could be in pieces or in aggregate; Same idea as swapping data
 // between RAM and paging memory to make room in RAM, instead of
 // paging the file, it uses your mapped file on disk."
 
-// STUDY(from nimbok): "Windows guarantees coherency among views of the same
-// file. However, the views doesn't necessarily match the data in the
-// file itself in a given moment."
+// STUDY(nimbok): "Windows guarantees coherency among views of the
+// same file. However, the views doesn't necessarily match the data in
+// the file itself in a given moment."
 
-// NOTE(chowie): Never use MAX_PATH for user-facing code, we would get
-// a truncated file path if it was larger than it was passed in!
+// IMPORTANT(chowie): Never use MAX_PATH for user-facing code. We
+// would get a truncated filepath if it was larger than was passed in!
 #define WIN32_STATE_FILE_NAME_COUNT MAX_PATH
+#define REPLAY_BUFFER_RESIZE_BYTES Kilobytes(4)
 struct win32_replay_buffer
 {
     HANDLE MappedFile;
@@ -77,7 +82,7 @@ struct win32_state
     void *GameMemoryBlock;
 
     win32_replay_buffer *CurrentBuffer;
-    win32_replay_buffer SaveBuffer; // TODO(chowie): Remove?
+    win32_replay_buffer SaveBuffer; // TODO(chowie): Remove? But I think you must have a second copy. Change to pointer?
 
     u32 InputRecordingIndex;
     u32 InputPlayingIndex;
@@ -86,12 +91,26 @@ struct win32_state
     char EXEFileName[WIN32_STATE_FILE_NAME_COUNT];
     char *OnePastLastEXEFileNameSlash;
 };
+internal win32_replay_buffer *
+Win32GetReplayBuffer(win32_state *State)
+{
+    win32_replay_buffer *Result = &State->SaveBuffer;
+    return(Result);
+}
+
+//
+// NOTE: Hot Reloading
+//
 
 // RESOURCE(casey): https://guide.handmadehero.org/code/day575/
 // TODO(chowie): Make a renderer, with it hot-reloadable?
 #define WIN32_LOADED_CODE_ENTRY_POINT(name) b32x name(HMODULE Module, void *FunctionTable)
 typedef WIN32_LOADED_CODE_ENTRY_POINT(win32_loaded_code_entry_point);
 
+// RESOURCE(lacton): https://hero.handmade.network/forums/code-discussion/t/2686-function_pointer_assignment_trick
+// RESOURCE(kerrisk): https://man7.org/linux/man-pages/man3/dlopen.3.html
+// NOTE(chowie): A big advantage is assigning to a struct or
+// an array of function pointers, since you can use a loop.
 // STUDY(chowie): This was how the function started as
 // *(void **)(&XInputGetState) = GetProcAddress(XInputLibrary, "XInputGetState");
 struct win32_loaded_code
@@ -152,6 +171,40 @@ global char *Win32SoundFunctionTableNames[] =
 {
     "CoInitializeEx",
     "CoCreateInstance",
+};
+
+//
+// NOTE: Multi-threading
+//
+
+struct platform_work_queue_entry
+{
+    platform_work_queue_callback *Callback;
+    void *Data;
+};
+
+// STUDY(chowie): Queues are necessary as thread time-to-process might
+// vary drastically for each operation.
+// STUDY(HmH Ray): Volatile prevents register / stack cache in a
+// visible for multiple threads value that is changing on one thread
+// at a time. For accumulators!
+// NOTE(HmH 124): Semaphore is a countable weight, a number the OS
+// tracks incremented or decremented.
+struct platform_work_queue
+{
+    platform_work_queue_entry Entries[256];
+
+    HANDLE SemaphoreHandle;
+
+    u32 volatile CompletionGoal;
+    u32 volatile CompletionCount;
+    u32 volatile NextEntryToWrite;
+    u32 volatile NextEntryToRead;
+};
+
+struct win32_thread_startup
+{
+    platform_work_queue *Queue;
 };
 
 //

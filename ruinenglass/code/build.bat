@@ -8,8 +8,7 @@ set CommonDebugFlags=    -FC -Z7 -Zo -Fm
 set CommonCompilerFlags= -MTd -nologo %CommonWarningFlags% %CommonOptimiseFlags% %CommonDefinesFlags% %CommonDebugFlags%
 REM IMPORTANT: -MTd -> MT for release mode
 
-REM TODO(chowie): Remove dwmapi.lib after OpenGL!
-set CommonLibsFlags=      user32.lib gdi32.lib winmm.lib dwmapi.lib
+set CommonLibsFlags=      user32.lib gdi32.lib winmm.lib opengl32.lib
 set CommonLinkerShared=  -link -CETCOMPAT -incremental:no -opt:ref
 set CommonLinkerFlags=    %CommonLinkerShared% %CommonLibsFlags%
 

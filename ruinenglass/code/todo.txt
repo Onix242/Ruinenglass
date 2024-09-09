@@ -17,7 +17,7 @@
     = 3D Rendering
     = [Brehensam's] shapes: line drawing, circle
     = Hardware Acceleration (OpenGL)
-    = Vsync/Sleep
+    = OpenGL Vsync/Sleep
 
   - Sorting?
 
@@ -42,7 +42,6 @@
 
   - Entity
     = [Ryan Fleury's] Flag Storage
-    = Xor-shift PRNG with [PracticeRecipes]
     = Collision Detection
       > CCD, SAT or similar
 

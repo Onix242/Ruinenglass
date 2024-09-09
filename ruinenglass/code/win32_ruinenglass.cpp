@@ -20,21 +20,27 @@
 #include <xinput.h>
 #include <mmdeviceapi.h>
 #include <audioclient.h>
-#include <dwmapi.h> // TODO(chowie): Remove this once there's opengl/vblank support!
+#include <gl/gl.h>
 
 #include "win32_ruinenglass.h"
 
-global platform_api Platform;
-
 // TODO(chowie): These are global for now!
+global platform_api Platform; // TODO(chowie): Remove? For moving code between renderer and win32
 global b32x GlobalRunning;
 global b32x GlobalPause;
 global b32x GlobalShowCursor;
 global win32_offscreen_buffer GlobalBackbuffer;
+
 global IAudioClient *GlobalSoundClient;
 global IAudioRenderClient *GlobalSoundRenderClient;
 global WINDOWPLACEMENT GlobalWindowPosition = {sizeof(GlobalWindowPosition)};
-global u64 GlobalPerfCountFrequency; // TODO(chowie): Time with this
+global u64 GlobalPerfCountFrequency; // TODO(chowie): Time with this?
+
+global GLuint OpenGLDefaultInternalTextureFormat;
+
+#include "ruinenglass_renderer.cpp"
+#include "ruinenglass_renderer_opengl.cpp"
+#include "win32_ruinenglass_renderer_opengl.cpp"
 
 // NOTE(chowie): This is the only round trip allowed atm.
 // STUDY(chowie): Alternatively, Allocating/reserve and Read memory
@@ -44,7 +50,6 @@ global u64 GlobalPerfCountFrequency; // TODO(chowie): Time with this
 // type. Writing to a queue to be processed async.
 // TODO(chowie): Memory mapped files for performance (on the backing
 // store) reads/writes?
-
 #if RUINENGLASS_INTERNAL
 
 DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGPlatformFreeFileMemory)
@@ -140,6 +145,21 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
 
 #endif
 
+PLATFORM_ALLOCATE_MEMORY(Win32AllocateMemory)
+{
+    void *Result = VirtualAlloc(0, Size, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+    return(Result);
+}
+
+PLATFORM_DEALLOCATE_MEMORY(Win32DeallocateMemory)
+{
+    if(Memory)
+    {
+        VirtualFree(Memory, 0, MEM_RELEASE);
+    }
+}
+
+// TODO(chowie): Fix this with OpenGL!
 internal void
 Win32PreventDPIScaling(void)
 {
@@ -276,10 +296,6 @@ Win32LoadXInput(void)
 
     if(XInputLibrary)
     {
-        // RESOURCE(lacton): https://hero.handmade.network/forums/code-discussion/t/2686-function_pointer_assignment_trick
-        // RESOURCE(kerrisk): https://man7.org/linux/man-pages/man3/dlopen.3.html
-        // NOTE(chowie): A big advantage is assigning to a struct or
-        // an array of function pointers, since you can use a loop.
         *(void **)(&XInputGetState) = GetProcAddress(XInputLibrary, "XInputGetState");
         *(void **)(&XInputSetState) = GetProcAddress(XInputLibrary, "XInputSetState");
         // STUDY(chowie): Compare "XInputGetState = (x_input_get_state *)GetProcAddress(XInputLibrary, "XInputGetState");"
@@ -293,6 +309,8 @@ Win32LoadXInput(void)
     }
 }
 
+// RESOURCE: https://kodi.wiki/view/Windows_audio_APIs
+// STUDY(chowie): WASAPI is COM! Stepping over the func looks though a jump table
 internal void
 Win32LoadWASAPI(win32_loaded_sound_code *Loaded)
 {
@@ -320,10 +338,9 @@ Win32LoadWASAPI(win32_loaded_sound_code *Loaded)
 // that flushes on framedrop? I hear audio cracking - need threads!
 // RESOURCE(nickav): https://hero.handmade.network/forums/code-discussion/t/8433-correct_implementation_of_wasapi
 // RESOURCE(nickav): https://gist.github.com/nickav/8be2ded8a8363d5993b2f4e5aa601bd3
-// NOTE(chowie): Thank you Martins for providing introductory code!
+
 // RESOURCE(martins): https://gist.github.com/mmozeiko/38c64bb65855d783645c
-// STUDY(chowie): WASAPI is COM! Stepping over the func looks though a jump table
-// RESOURCE: https://kodi.wiki/view/Windows_audio_APIs
+// NOTE(chowie): Thank you Martins for providing introductory code!
 internal void
 Win32InitWASAPI(win32_sound_function_table Table, s32 SamplesPerSecond, s32 BufferSizeInSamples)
 {
@@ -383,7 +400,7 @@ Win32InitWASAPI(win32_sound_function_table Table, s32 SamplesPerSecond, s32 Buff
         Assert(!"Error");
     }
 
-    // NOTE(martins): Check if we got what we requested (better would to pass this value back as real buffer size)
+    // STUDY(martins): Check if we got what we requested (better would to pass this value back as real buffer size)
     Assert(BufferSizeInSamples <= (s32)SoundFrameCount);
 }
 
@@ -406,6 +423,126 @@ Win32FillSoundBuffer(win32_sound_output *SoundOutput, u32 SamplesToWrite,
         }
 
         GlobalSoundRenderClient->ReleaseBuffer((UINT32)SamplesToWrite, 0);
+    }
+}
+
+internal b32x
+Win32ProcessNextWorkQueueEntry(platform_work_queue *Queue)
+{
+    b32x WeShouldSleep = false;
+
+    // NOTE(chowie): Circular FIFO queue
+    u32 OriginalNextEntryToRead = Queue->NextEntryToRead;
+    u32 NewNextEntryToRead = (OriginalNextEntryToRead + 1) % ArrayCount(Queue->Entries);
+
+    // NOTE(chowie): Work to do
+    if(OriginalNextEntryToRead != Queue->NextEntryToWrite)
+    {
+        // RESOURCE(cohen): https://hero.handmade.network/forums/code-discussion/t/3640-question_on___possible_problem_with_multithreading_queue
+        // NOTE(chowie): Prevents worker thread pickup on newer entry,
+        // discarding oldest.
+        platform_work_queue_entry Entry = Queue->Entries[OriginalNextEntryToRead];
+        u32 IncIndex = AtomicCompareExchangeU32(&Queue->NextEntryToRead, NewNextEntryToRead, OriginalNextEntryToRead);
+        if(IncIndex == OriginalNextEntryToRead)
+        {
+            Entry.Callback(Queue, Entry.Data);
+            AtomicIncrementU32(&Queue->CompletionCount);
+        }
+    }
+    else
+    {
+        WeShouldSleep = true;
+    }
+
+    return(WeShouldSleep);
+}
+
+DWORD WINAPI
+ThreadProc(LPVOID lpParameter)
+{
+    win32_thread_startup *Startup = (win32_thread_startup *)lpParameter;
+    platform_work_queue *Queue = Startup->Queue;
+
+    // STUDY(chowie): Busy-wait loop
+    // TODO(chowie): Could extend loop to other queues when necessary?
+    for(;;)
+    {
+        if(Win32ProcessNextWorkQueueEntry(Queue))
+        {
+            // NOTE(HmH 124): Announces suspension of thread to OS;
+            // says "if semaphore > 0". Decrement semaphore count by 1
+            // (on wakeup necessary threads to process data, not on
+            // entry). Semaphore count flickers fast, sticks close to
+            // 0 most of the time for threads to increment.
+            // STUDY(chowie): Wait in this case, asks how many threads
+            // are open, regardless of threadcount.
+            WaitForSingleObjectEx(Queue->SemaphoreHandle, INFINITE, FALSE);
+        }
+    }
+}
+
+// TODO(chowie): For MPMC, switch to using InterlockCompareExchange on
+// EntryCount eventually so any thread can add?
+internal
+PLATFORM_ADD_WORK_QUEUE_ENTRY(Win32AddWorkQueueEntry)
+{
+    // NOTE(chowie): Circular FIFO queue
+    u32 NewNextEntryToWrite = (Queue->NextEntryToWrite + 1) % ArrayCount(Queue->Entries);
+    // NOTE(chowie): Circular queue hasn't wrapped before writing
+    Assert(NewNextEntryToWrite != Queue->NextEntryToRead);
+
+    platform_work_queue_entry *Entry = Queue->Entries + Queue->NextEntryToWrite;
+    Entry->Callback = Callback;
+    Entry->Data = Data;
+    ++Queue->CompletionGoal;
+
+    CompletePrevWritesBeforeFutureWrites;
+
+    Queue->NextEntryToWrite = NewNextEntryToWrite;
+
+    // NOTE(chowie): Increment semaphore count by 1, return previous
+    // one. Releases threads waiting on semaphore to continue working.
+    ReleaseSemaphore(Queue->SemaphoreHandle, 1, 0);
+}
+
+internal
+PLATFORM_COMPLETE_ALL_WORK_QUEUE(Win32CompleteAllWorkQueue)
+{
+    // STUDY(chowie): Example of a spinlock
+    while(Queue->CompletionGoal != Queue->CompletionCount)
+    {
+        Win32ProcessNextWorkQueueEntry(Queue);
+    }
+
+    // TODO(chowie): Temp to reset queue when all is done
+    Queue->CompletionGoal = 0;
+    Queue->CompletionCount = 0;
+}
+
+internal void
+Win32MakeWorkQueue(platform_work_queue *Queue, u32 ThreadCount, win32_thread_startup *Startups)
+{
+    Queue->CompletionGoal = 0;
+    Queue->CompletionCount = 0;
+    Queue->NextEntryToWrite = 0;
+    Queue->NextEntryToRead = 0;
+
+    u32 InitialCount = 0;
+    Queue->SemaphoreHandle =
+        CreateSemaphoreExA(0, InitialCount, ThreadCount,
+                           0, 0, SEMAPHORE_ALL_ACCESS);
+
+    for(u32 ThreadIndex = 0;
+        ThreadIndex < ThreadCount;
+        ++ThreadIndex)
+    {
+        win32_thread_startup *Startup = Startups + ThreadIndex;
+        Startups->Queue = Queue;
+
+        DWORD ThreadID;
+        HANDLE ThreadHandle = CreateThread(0, 0, ThreadProc,
+                                           Startup, 0, &ThreadID);
+        CloseHandle(ThreadHandle);
     }
 }
 
@@ -484,12 +621,10 @@ Win32GetWindowDim(HWND Window)
     return(Result);
 }
 
+#define BITMAP_BYTES_PER_PIXEL 4
 internal void
 Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, v2u WindowDim)
 {
-    // TODO(chowie): Bulletproof this.
-    // Free first, free after, then free first if that fails?
-
     // NOTE(chowie): Allocating new memory everything for a new buffer
     // is not ideal.
     // Either allocate before creating the a new DIB section, free old
@@ -501,6 +636,8 @@ Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, v2u WindowDim)
     // from the second one since it was occupying too much memory.
 
 #if 0
+    // TODO(chowie): Bulletproof this.
+    // Free first, free after, then free first if that fails?
     // TODO(chowie): This is technically only called once now! REMOVE!
     if(Buffer->Memory)
     {
@@ -532,26 +669,19 @@ Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, v2u WindowDim)
       Pitch/Stride = Value to added to a pointer on the first row to
       move it to the next row; byte offset between rows.
     */
-
     Buffer->Pitch = Align16(Buffer->Dim.Width*BITMAP_BYTES_PER_PIXEL);
     u32 BitmapMemorySize = (Buffer->Pitch*Buffer->Dim.Height);
     Buffer->Memory = VirtualAlloc(0, BitmapMemorySize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
 }
 
 internal void
-Win32DisplayBufferInWindow(win32_offscreen_buffer *Buffer, HDC DeviceContext,
+Win32DisplayBufferInWindow(game_render_commands *RenderCommands, HDC WindowDC,
                            v2u WindowDim)
 {
-    // TODO(chowie): Aspect ratio correction
-    // TODO(chowie): Stretch modes?
-    // STUDY(chowie): Palettised colours idea for texture compression?
-    // STUDY(chowie): Backbuffer and window should be the same size for now
-    StretchDIBits(DeviceContext,
-                  0, 0, WindowDim.Width, WindowDim.Height,
-                  0, 0, Buffer->Dim.Width, Buffer->Dim.Height,
-                  Buffer->Memory,
-                  &Buffer->Info,
-                  DIB_RGB_COLORS, SRCCOPY);
+    // TODO(chowie): Aspect ratio correction? Stretch modes?
+    // TODO(chowie): Fix OpenGL resizing
+    OpenGLRenderCommands(RenderCommands, WindowDim);
+    SwapBuffers(WindowDC);
 }
 
 // NOTE(chowie): This follows Raymond Chen's prescription for fullscreen toggling
@@ -594,19 +724,11 @@ Win32GetInputFileLocation(win32_state *State, u32 SlotIndex,
     Win32BuildEXEPathFileName(State, "loop_edit.hmi", DestCount, Dest);
 }
 
-internal win32_replay_buffer *
-Win32GetReplayBuffer(win32_state *State)
-{
-    win32_replay_buffer *Result = &State->SaveBuffer;
-    return(Result);
-}
-
-// TODO(chowie): Can intead just loop over the permanent storage as
+// TODO(chowie): Can instead just loop over the permanent storage as
 // the transient storage will reconstruct itself!
 // TODO(chowie): This could live on layer above the platform?
 // TODO(chowie): Strobing memory-mapped file?
-// TODO(chowie): Can I better alleviate the stalling?
-#define REPLAY_BUFFER_RESIZE_BYTES Kilobytes(4)
+// TODO(chowie): Alleviate the stalling for large input reads?
 internal void
 Win32BeginInputRecording(win32_state *State, u32 Index)
 {
@@ -654,44 +776,33 @@ Win32EndInputRecording(win32_state *State)
     State->CurrentBuffer = 0;
 }
 
+inline b32x
+Win32RecordingInputIsFull(win32_state *State, u32 BytesToWrite)
+{
+    b32x Result = ((State->CurrentRecordSize + BytesToWrite) >= State->CurrentBuffer->FileSize); // STUDY: Try to always succeed in recording
+    return(Result);
+}
+
+// STUDY(chowie): This is awfully similar to HmH Day 279 0h46m00s, in PackEntity()
 internal void
 Win32RecordInput(win32_state *State, game_input *NewInput)
 {
     if(State->CurrentBuffer)
     {
         u32 BytesToWrite = sizeof(*NewInput);
-        if((State->CurrentRecordSize + BytesToWrite) >= State->CurrentBuffer->FileSize)
+        if(Win32RecordingInputIsFull(State, BytesToWrite))
         {
             State->CurrentBuffer->FileSize += REPLAY_BUFFER_RESIZE_BYTES;
             Assert(State->CurrentBuffer->FileSize >= (State->CurrentRecordSize + BytesToWrite));
 
-#if 0
-            void *OldMemory = State->CurrentBuffer->Memory;
-
-            LARGE_INTEGER Size;
-            Size.QuadPart = State->CurrentBuffer->FileSize;
-            State->CurrentBuffer->MemoryMap = CreateFileMappingA(State->CurrentBuffer->MappedFile, 0, PAGE_READWRITE,
-                                                                 Size.HighPart, Size.LowPart, 0);
-            Assert(State->CurrentBuffer->MemoryMap != 0);
-
-            State->CurrentBuffer->Memory = MapViewOfFile(State->CurrentBuffer->MemoryMap, FILE_MAP_ALL_ACCESS,
-                                                         0, 0, State->CurrentBuffer->FileSize);
-            Assert(State->CurrentBuffer->Memory);
-
-            BOOL TestUnmap = UnmapViewOfFile(OldMemory);
-            Assert(TestUnmap);
-
-#else
             // RESOURCE(raymond chen): https://devblogs.microsoft.com/oldnewthing/20031007-00/?p=42263
             // NOTE(chowie): Raymond Chen's shared memory technique below.
             void *OldMemory = State->CurrentBuffer->MemoryBlock;
-            BOOL TestUnmap = UnmapViewOfFile(OldMemory);
-            Assert(TestUnmap);
+            UnmapViewOfFile(OldMemory);
 
-            // NOTE(chowie): This is not really necessary, and goes
-            // counter to what MSDN says, but we'll do it anyway!
-            BOOL TestClose = CloseHandle(State->CurrentBuffer->MemoryMap);
-            Assert(TestClose);
+            // NOTE(chowie): This is not necessary, and goes counter
+            // to what MSDN says, but we'll do it anyway!
+            CloseHandle(State->CurrentBuffer->MemoryMap);
 
             LARGE_INTEGER MaxSize;
             MaxSize.QuadPart = State->CurrentBuffer->FileSize;
@@ -702,12 +813,12 @@ Win32RecordInput(win32_state *State, game_input *NewInput)
             State->CurrentBuffer->MemoryBlock = MapViewOfFile(State->CurrentBuffer->MemoryMap, FILE_MAP_ALL_ACCESS,
                                                               0, 0, State->CurrentBuffer->FileSize);
             Assert(State->CurrentBuffer->MemoryBlock);
-#endif
         }
 
+        Assert(!Win32RecordingInputIsFull(State, BytesToWrite))
         void *WriteP = (void *)((u8 *)State->CurrentBuffer->MemoryBlock + State->CurrentRecordSize);
         CopyMemory(WriteP, (void *)NewInput, BytesToWrite);
-        State->CurrentRecordSize += BytesToWrite;
+        State->CurrentRecordSize += BytesToWrite; // STUDY(chowie): Like pushing onto an arena
     }
 }
 
@@ -738,13 +849,20 @@ Win32EndInputPlayback(win32_state *State)
     State->CurrentBuffer = 0;
 }
 
+inline b32x
+Win32PlaybackInputIsFull(win32_state *State)
+{
+    b32x Result = (State->CurrentRecordSize >= State->CurrentBuffer->WrittenSize);
+    return(Result);
+}
+
 internal void
 Win32PlaybackInput(win32_state *State, game_input *NewInput)
 {
     if(State->CurrentBuffer)
     {
         u32 BytesToRead = sizeof(*NewInput);
-        if(State->CurrentRecordSize >= State->CurrentBuffer->WrittenSize)
+        if(Win32PlaybackInputIsFull(State))
         {
             // NOTE(chowie): We've hit the end of the stream, restart.
             u32 Index = State->InputPlayingIndex;
@@ -753,6 +871,7 @@ Win32PlaybackInput(win32_state *State, game_input *NewInput)
         }
 
         // NOTE(chowie): There's still input.
+        Assert(!Win32PlaybackInputIsFull(State));
         void *ReadP = (void *)((u8 *)State->CurrentBuffer->MemoryBlock + State->CurrentRecordSize);
         CopyMemory((void *)NewInput, ReadP, BytesToRead);
         State->CurrentRecordSize += BytesToRead;
@@ -840,6 +959,7 @@ Win32ProcessPendingMessages(win32_state *State, game_controller_input *KeyboardC
 #define KeyMessageWasDownBit BitSet(30)
 #define KeyMessageWasUpBit BitSet(31)
 #define AltKeyWasDownBit BitSet(29)
+#define KeyStateBit BitSet(15)
                 b32x WasDown = ((Message.lParam & KeyMessageWasDownBit) != 0);
                 b32x IsDown = ((Message.lParam & KeyMessageWasUpBit) == 0);
                 b32x AltKeyWasDown = (Message.lParam & AltKeyWasDownBit);
@@ -947,6 +1067,7 @@ Win32ProcessPendingMessages(win32_state *State, game_controller_input *KeyboardC
                                 }
                             }
                         } break;
+
 #if RUINENGLASS_INTERNAL
                         case 'P':
                         {
@@ -1013,6 +1134,7 @@ Win32MainWindowCallback(HWND   Window,
     LRESULT Result = 0;
     switch(Message)
     {
+#if RUINENGLASS_INTERNAL
         case WM_SIZE:
         {
             OutputDebugStringA("WM_SIZE\n");
@@ -1022,11 +1144,11 @@ Win32MainWindowCallback(HWND   Window,
         {
             OutputDebugStringA("WM_ACTIVATEAPP\n");
         } break;
+#endif
 
         case WM_CLOSE:
         {
-            // TODO(chowie): Handle with an 'Are you sure?' message to
-            // the user?
+            // TODO(chowie): Handle with an 'Are you sure?' message to user?
             GlobalRunning = false;
             OutputDebugStringA("WM_CLOSE\n");
         } break;
@@ -1061,12 +1183,16 @@ Win32MainWindowCallback(HWND   Window,
             }
         } break;
 
+        // RESOURCE(martins): https://hero.handmade.network/forums/code-discussion/t/1911-opengl_swapping_buffers_only_after_the_window_resizes
+        // RESOURCE(martins): https://hero.handmade.network/forums/code-discussion/t/6995-day_472_-_resizing_the_opengl_window
+        // TODO(chowie): Avoid paint, use OpenGL to blit/resize -> call ValidateRect(WND, 0)
         case WM_PAINT:
         {
+            // NOTE(chowie): Must be included for window redraw
             PAINTSTRUCT Paint;
-            HDC DeviceContext = BeginPaint(Window, &Paint);
-            v2u WindowDim = Win32GetWindowDim(Window);
-            Win32DisplayBufferInWindow(&GlobalBackbuffer, DeviceContext, WindowDim);
+            HDC WindowDC = BeginPaint(Window, &Paint);
+//            v2u WindowDim = Win32GetWindowDim(Window);
+//            Win32DisplayBufferInWindow(&RenderCommands, WindowDC, WindowDim);
             EndPaint(Window, &Paint);
         } break;
 
@@ -1111,7 +1237,7 @@ WinMain(HINSTANCE Instance,
     // NOTE(chowie): Fixed-sized backbuffer
     Win32ResizeDIBSection(&GlobalBackbuffer, V2U(1280, 720));
 
-    WindowClass.style = CS_HREDRAW|CS_VREDRAW; // NOTE(chowie): Repaint the whole window if resizing window.
+    WindowClass.style = CS_HREDRAW|CS_VREDRAW|CS_OWNDC; // NOTE(chowie): Repaint the whole window if resizing window.
     WindowClass.lpfnWndProc = Win32MainWindowCallback;
     WindowClass.hInstance = Instance;
     WindowClass.hCursor = LoadCursor(0, IDC_ARROW);
@@ -1143,6 +1269,28 @@ WinMain(HINSTANCE Instance,
                             0, 0, Instance, 0);
         if(Window)
         {
+            // TODO(chowie): Weird GetMonitorInfo in fullscreen toggle
+            // depends on DPI aware. Still doesn't scale correctly.
+            // ToggleFullscreen(Window);
+            HDC OpenGLWindowDC = GetDC(Window);
+            b32x EnableVsync = true;
+            HGLRC OpenGLRC = Win32InitOpenGL(OpenGLWindowDC, EnableVsync);
+            // NOTE(chowie): ReleaseDC(Window, GlobalDC); Would be set
+            // after the creation of the LowPriorityQueue. However,
+            // there's a chance that the DC gets released before
+            // creating the context. Thus, passing CS_OWNDC is better!
+
+            // TODO(chowie): Enable when there's work to do!
+#if 0
+            win32_thread_startup HighPriorityStartups[6];
+            platform_work_queue HighPriorityQueue = {};
+            Win32MakeWorkQueue(&HighPriorityQueue, ArrayCount(HighPriorityStartups), HighPriorityStartups);
+
+            win32_thread_startup LowPriorityStartups[2] = {};
+            platform_work_queue LowPriorityQueue = {};
+            Win32MakeWorkQueue(&LowPriorityQueue, ArrayCount(LowPriorityStartups), LowPriorityStartups);
+#endif
+
             // STUDY(chowie): Audio latency is determined not by the
             // size of the buffer, but by how far ahead of the
             // PlayCursor you write. The optimal amount of latency is
@@ -1189,6 +1337,16 @@ WinMain(HINSTANCE Instance,
             GameMemory.PlatformAPI.DEBUGReadEntireFile = DEBUGPlatformReadEntireFile;
             GameMemory.PlatformAPI.DEBUGWriteEntireFile = DEBUGPlatformWriteEntireFile;
 #endif
+            GameMemory.PlatformAPI.AllocateMemory = Win32AllocateMemory;
+            GameMemory.PlatformAPI.DeallocateMemory = Win32DeallocateMemory;
+
+//            GameMemory.HighPriorityQueue = &HighPriorityQueue;
+//            GameMemory.LowPriorityQueue = &LowPriorityQueue;
+
+            GameMemory.PlatformAPI.AddWorkQueueEntry = Win32AddWorkQueueEntry;
+            GameMemory.PlatformAPI.CompleteAllWorkQueue = Win32CompleteAllWorkQueue;
+
+            Platform = GameMemory.PlatformAPI;
 
             memory_arena *PermanentArena = &GameMemory.Permanent;
             PermanentArena->Size = Megabytes(64);
@@ -1199,7 +1357,9 @@ WinMain(HINSTANCE Instance,
             memory_arena *SamplesArena = &GameMemory.Samples;
             SamplesArena->Size = (umm)SoundOutput.SecondaryBufferSize; // TODO(chowie): Roll "Samples + Audio" & Offset initial samples
 
-            Platform = GameMemory.PlatformAPI; // NOTE: Moving code back and forth between the renderer, can still be called via platform!
+            // TODO(chowie): Decide on proper push buffer size
+            u32 PushBufferSize = Megabytes(64);
+            void *PushBuffer = Win32AllocateMemory(PushBufferSize);
 
             // TODO(chowie): Handle memory footprints with system metrics!
             // STUDY(chowie): Memory pooling = hard bounds at runtime
@@ -1273,6 +1433,7 @@ WinMain(HINSTANCE Instance,
                     {
                         Win32UnloadCode(&GameCode);
                         Win32LoadCode(&GameCode);
+
                         // NOTE(chowie): Leaves unlocked in between
                         // two lines. Because DLL is not being
                         // reloaded again. Locked while used.
@@ -1453,7 +1614,7 @@ WinMain(HINSTANCE Instance,
                             }
                             else
                             {
-                                // NOTE(chowie): The controller is unavailable
+                                // NOTE(chowie): Controller is unavailable
                                 NewController->IsConnected = false;
                                 XBoxControllerPresent[ControllerIndex] = false;
                             }
@@ -1464,10 +1625,9 @@ WinMain(HINSTANCE Instance,
                     // NOTE(chowie): Game Update
                     //
 
-                    game_offscreen_buffer Buffer = {};
-                    Buffer.Memory = GlobalBackbuffer.Memory;
-                    Buffer.Dim = GlobalBackbuffer.Dim;
-                    Buffer.Pitch = GlobalBackbuffer.Pitch;
+                    game_render_commands RenderCommands =
+                        RenderCommandStruct(GlobalBackbuffer.Dim,
+                                            PushBufferSize, PushBuffer);
 
                     if(!GlobalPause)
                     {
@@ -1478,17 +1638,17 @@ WinMain(HINSTANCE Instance,
 
                         if(Win32State.InputPlayingIndex)
                         {
-                            // NOTE(chowie): Overwrite what new input
+                            // NOTE(chowie): Overwrites what new input
                             // was from the stream of previous inputs.
                             Win32PlaybackInput(&Win32State, NewInput);
                         }
 
                         // IMPORTANT(chowie): Without this check the
-                        // lock file would fail, you would sleep on
+                        // lock file would fail. You would sleep on
                         // executable reload, or use a stub!
                         if(Game.UpdateAndRender)
                         {
-                            Game.UpdateAndRender(&GameMemory, NewInput, &Buffer);
+                            Game.UpdateAndRender(&GameMemory, NewInput, &RenderCommands);
                         }
                     }
 
@@ -1548,18 +1708,15 @@ WinMain(HINSTANCE Instance,
                         // engine has been initially loaded.
                     }
 
-                    // TODO(chowie): Replace this with opengl/vblank eventually!
-                    DwmFlush();
-
                     //
                     // NOTE(chowie): Frame Display
                     //
 
-                    HDC DeviceContext = GetDC(Window);
+                    HDC WindowDC = GetDC(Window);
                     v2u WindowDim = Win32GetWindowDim(Window);
-                    Win32DisplayBufferInWindow(&GlobalBackbuffer, DeviceContext,
+                    Win32DisplayBufferInWindow(&RenderCommands, WindowDC,
                                                WindowDim);
-                    ReleaseDC(Window, DeviceContext);
+                    ReleaseDC(Window, WindowDC);
 
                     u64 EndCycleCount = Win32ReadCPUTimer(RdtscpSupported);
 
@@ -1599,7 +1756,6 @@ WinMain(HINSTANCE Instance,
     {
         OutputDebugStringA("Failed to create window\n");
     }
-
     // STUDY(chowie): RAII isn't best for performance, things are best
     // when 'Acquired and Released in Aggregate'; Part of a group,
     // handled together in waves. On exit, Windows bulk cleans

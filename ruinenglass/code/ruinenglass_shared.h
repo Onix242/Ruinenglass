@@ -10,17 +10,98 @@
 #include "ruinenglass_intrinsics.h"
 #include "ruinenglass_math.h"
 
-// NOTE(chowie): Don't need to do zero struct, can use "*NewKey = {};"
-#define ZeroStruct(Instance) ZeroSize(sizeof(Instance), &(Instance))
-#define ZeroArray(Count, Pointer) ZeroSize((Count)*sizeof((Pointer)[0]), Pointer)
-inline void
-ZeroSize(umm Size, void *Ptr)
+inline b32x
+IsEndOfLine(char C)
 {
-    u8 *Byte = (u8 *)Ptr;
-    while(Size--)
+    b32x Result = ((C == '\n') ||
+                   (C == '\r'));
+
+    return(Result);
+}
+
+inline b32x
+IsWhitespace(char C)
+{
+    b32x Result = ((C == ' ') ||
+                   (C == '\t') ||
+                   (C == '\v') ||
+                   (C == '\f') ||
+                   IsEndOfLine(C));
+
+    return(Result);
+}
+
+inline b32x
+StringsAreEqual(char *A, char *B)
+{
+    // NOTE: To pass in null pointers!
+    b32x Result = (A == B);
+
+    if(A && B)
     {
-        *Byte++ = 0;
+        // NOTE: Could do (*A++ == *B++) instead
+        while(*A && *B && (*A == *B))
+        {
+            ++A;
+            ++B;
+        }
+        // NOTE: Could do ((*A == *B) && (*A == 0)) instead
+        Result = ((*A == 0) && (*B == 0));
     }
+
+    return(Result);
+}
+
+inline b32x
+StringsAreEqual(umm ALength, char *A, char *B)
+{
+    b32x Result = false;
+    if(B)
+    {
+        char *At = B;
+        for(umm Index = 0;
+            Index < ALength;
+            ++Index, ++At)
+        {
+            if((*At == 0) ||
+               (A[Index] != *At))
+            {
+                return(false);
+            }
+        }
+
+        Result = (*At == 0);
+    }
+    else
+    {
+        Result = (ALength == 0);
+    }
+
+    return(Result);
+}
+
+inline b32x
+StringsAreEqual(umm ALength, char *A, umm BLength, char *B)
+{
+    // NOTE: To pass in null pointers!
+    b32x Result = (ALength == BLength);
+
+    if(Result)
+    {
+        Result = true;
+        for(u32 Index = 0;
+            Index < ALength;
+            ++Index)
+        {
+            if(A[Index] != B[Index])
+            {
+                Result = false;
+                break;
+            }
+        }
+    }
+
+    return(Result);
 }
 
 internal void
@@ -94,25 +175,23 @@ NumDigitsLog10(u32 Value)
     return(Result);
 }
 
+/* NOTE(chowie): Sample string usage
+   char *name = "slim shady";
+   int   line = 1337;
+   float temp = -98.567f;
+   //OutputDebugStringA(d7sam_concat(line)(" attention!\n"));
+   //OutputDebugStringA(d7sam_concat(" attention!")(line)("\n"));
+
+   // attention, slim shady! there's an error in line 1337 : the error code is 666 and the temperature is -98.6 degrees
+   OutputDebugStringA(d7sam_concat("attention, ")(name)("! there's an error in line ")(line)(" : the error code is ")(666)(" and the temperature is ")(temp, 1)(" degrees\n"));
+*/
+
 #define CONCAT_BUFFER_SIZE 256
 #define Base10 10
 global r32 Bases[] = { 1, 10, 100, 1000, 10000, 100000, 1000000 };
-
-#if 0
-// NOTE(chowie): String test
-char *name = "slim shady";
-int   line = 1337;
-float temp = -98.567f;
-//OutputDebugStringA(d7sam_concat(line)(" attention!\n"));
-OutputDebugStringA(d7sam_concat(" attention!")(line)("\n"));
-
-// attention, slim shady! there's an error in line 1337 : the error code is 666 and the temperature is -98.6 degrees
-//OutputDebugStringA(d7sam_concat("attention, ")(name)("! there's an error in line ")(line)(" : the error code is ")(666)(" and the temperature is ")(temp, 1)(" degrees\n"));
-#endif
-
+// RESOURCE: https://gist.github.com/d7samurai/1d778693ba33bbd2b9d709b209cc0aba
 // TODO(chowie): Convert to using arenas!
 // TODO(chowie): This hideous functions is really convenient! Probably only use this for debugging only!
-// RESOURCE: https://gist.github.com/d7samurai/1d778693ba33bbd2b9d709b209cc0aba
 struct d7sam_concat
 {
     d7sam_concat(char* Source) { operator()(Source); }
