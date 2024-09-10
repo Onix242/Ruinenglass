@@ -31,16 +31,16 @@
 // NOTE(chowie): Historical linguist
 struct controlled_player
 {
-    v2s P; // TODO(chowie): Change to v2
+    v2 dP;
 };
 
 struct game_state
 {
-    v2 Offset;
+    v2 Offset; // TODO(chowie): Remove!
 
     audio_state AudioState;
 
-    controlled_player Player;
+    controlled_player ControlledPlayer[sizeof(game_input::Controllers)];
 
     b32x IsInitialised;
 };

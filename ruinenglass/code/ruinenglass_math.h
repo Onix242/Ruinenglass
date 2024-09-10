@@ -1000,7 +1000,7 @@ Lerp(v4 A, r32 t, v4 B)
 // NOTE(chowie): Rect2
 //
 
-// NOTE(chowie): Only to initialise unions
+// NOTE(chowie): Only use to initialise unions
 inline rect2
 InvertedInfinityRect2(void)
 {

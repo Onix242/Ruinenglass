@@ -107,28 +107,28 @@ PushRect(render_group *RenderGroup,
 
 inline void
 PushRect(render_group *RenderGroup,
-         rect2 Rect, v3 Offset, v4 Colour = V4(1, 1, 1, 1))
+         v3 Offset, rect2 Rect, v4 Colour = V4(1, 1, 1, 1))
 {
     PushRect(RenderGroup, Offset + V3(GetCenter(Rect), 0), GetDim(Rect), Colour);
 }
 
 inline void
 PushRectOutline(render_group *RenderGroup,
-                v3 Offset, v2 Dim, v4 Colour = V4(1, 1, 1, 1), r32 Borderthickness = 0.1f)
+                v3 Offset, v2 Dim, v4 Colour = V4(1, 1, 1, 1), r32 BorderThickness = 0.1f)
 {
     // NOTE(chowie): Top and bottom
-    PushRect(RenderGroup, Offset - V3(0, 0.5f*Dim.y, 0), V2(Dim.x - Borderthickness - 0.01f, Borderthickness), Colour);
-    PushRect(RenderGroup, Offset + V3(0, 0.5f*Dim.y, 0), V2(Dim.x - Borderthickness - 0.01f, Borderthickness), Colour);
+    PushRect(RenderGroup, Offset - V3(0, 0.5f*Dim.y, 0), V2(Dim.x - BorderThickness - 0.01f, BorderThickness), Colour);
+    PushRect(RenderGroup, Offset + V3(0, 0.5f*Dim.y, 0), V2(Dim.x - BorderThickness - 0.01f, BorderThickness), Colour);
 
     // NOTE(chowie): Left and right
-    PushRect(RenderGroup, Offset - V3(0.5f*Dim.x, 0, 0), V2(Borderthickness, Dim.y + Borderthickness), Colour);
-    PushRect(RenderGroup, Offset + V3(0.5f*Dim.x, 0, 0), V2(Borderthickness, Dim.y + Borderthickness), Colour);
+    PushRect(RenderGroup, Offset - V3(0.5f*Dim.x, 0, 0), V2(BorderThickness, Dim.y + BorderThickness), Colour);
+    PushRect(RenderGroup, Offset + V3(0.5f*Dim.x, 0, 0), V2(BorderThickness, Dim.y + BorderThickness), Colour);
 }
 
 inline void
 PushRectOutline(render_group *RenderGroup,
-                rect2 Rect, v4 Colour = V4(1, 1, 1, 1), r32 Borderthickness = 0.1f)
+                rect2 Rect, v4 Colour = V4(1, 1, 1, 1), r32 BorderThickness = 0.1f)
 {
-    PushRectOutline(RenderGroup, V3(GetCenter(Rect), 0), GetDim(Rect), Colour, Borderthickness);
+    PushRectOutline(RenderGroup, V3(GetCenter(Rect), 0), GetDim(Rect), Colour, BorderThickness);
 }
 

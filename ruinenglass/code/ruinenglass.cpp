@@ -19,8 +19,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     {
         GameState->Offset = {};
 
-        GameState->Player.P = {100, 100};
-
         // TODO(chowie): Initialise Audio State when there's proper
         // sound! Do I have to rearrange "audio -> game" to prevent
         // audio clipping at the beginning?
@@ -34,45 +32,105 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     render_group *RenderGroup = &RenderGroup_;
 
     //
-    //
+    // NOTE: World Init & Generation
     //
 
     PushClear(RenderGroup, V4(0.25f, 0.25f, 0.25f, 0.0f));
 
-    PushRect(RenderGroup, V3(100, 100, 0), V2(100, 100), V4(1.0f, 0.5f, 0.5f, 1));
+//    PushRect(RenderGroup, V3(100, 100, 0), V2(100, 100), V4(1.0f, 0.5f, 0.5f, 1));
+//    PushCircle(RenderGroup, V3(500, 500, 0), 50.0f, 0.5f, V4(0.5f, 1.0f, 0.5f, 1));
 
-    PushCircle(RenderGroup, V3(500, 500, 0), 50.0f, 0.5f, V4(0.5f, 1.0f, 0.5f, 1));
+#define TilesPerHeight 8
+#define TilesPerWidth 16
+
+    // NOTE(chowie): Y is up rendered
+    u32 TileMap[TilesPerHeight][TilesPerWidth] =
+        {
+            {1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 1},
+            {1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 1},
+            {1, 0, 0, 1,  0, 0, 0, 0,  0, 0, 0, 0,  1, 0, 0, 1},
+
+            {1, 0, 0, 1,  0, 0, 0, 0,  0, 0, 0, 0,  1, 0, 0, 1},
+            {1, 0, 0, 1,  0, 0, 0, 0,  0, 0, 0, 0,  1, 0, 0, 1},
+            {1, 1, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 1, 1},
+
+            {1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 1},
+            {1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 1},
+        };
+
+    v3 Offset = V3(0, 0, 0);
+    v2 TileDim = V2(75.0f, 75.0f);
+
+    // TODO(chowie): Colour linear to srgb conversion!
+    for(u32 Row = 0;
+        Row < TilesPerHeight;
+        ++Row)
+    {
+        for(u32 Column = 0;
+            Column < TilesPerWidth;
+            ++Column)
+        {
+            u32 TileID = TileMap[Row][Column];
+
+            v4 BaseColour = V4(0.1f, 0.1f, 0.1f, 1);
+            if(TileID == 1)
+            {
+                BaseColour = V4(0.5f, 0.7f, 0.5f, 1);
+            }
+
+            v2 Min = V2((r32)Column*TileDim.Width, (r32)Row*TileDim.Height);
+            v2 Max = V2(Min.x + TileDim.Width, Min.y + TileDim.Height);
+
+            rect2 FullTileDim = RectMinMax(Min, Max);
+            PushRect(RenderGroup, Offset, FullTileDim, BaseColour);
+        }
+    }
+
+    //
+    // NOTE: Play World
+    //
 
     for(u32 ControllerIndex = 0;
         ControllerIndex < ArrayCount(Input->Controllers);
         ++ControllerIndex)
     {
         game_controller_input *Controller = &Input->Controllers[ControllerIndex];
+        controlled_player *ConPlayer = GameState->ControlledPlayer + ControllerIndex;
+
         if(Controller->IsAnalog)
         {
-            GameState->Offset.x += 4.0f*(Controller->StickAverage.x);
+            ConPlayer->dP += Controller->StickAverage;
         }
         else
         {
-            if(Controller->MoveLeft.EndedDown)
+            ZeroStruct(*ConPlayer); // NOTE(chowie): Pixels/Second
+            if(IsDown(Controller->MoveUp))
             {
-                --GameState->Offset.x;
+                ++ConPlayer->dP.y;
             }
-
-            if(Controller->MoveRight.EndedDown)
+            if(IsDown(Controller->MoveDown))
             {
-                ++GameState->Offset.x;
+                --ConPlayer->dP.y;
             }
-        }
+            if(IsDown(Controller->MoveLeft))
+            {
+                --ConPlayer->dP.x;
+            }
+            if(IsDown(Controller->MoveRight))
+            {
+                ++ConPlayer->dP.x;
+            }
+            ConPlayer->dP.x *= 64.0f;
+            ConPlayer->dP.y *= 64.0f;
 
-        if(Controller->ActionDown.EndedDown)
-        {
-            --GameState->Offset.y;
+            // TODO(chowie): Normalise diagonal movement!
+            GameState->Offset += Input->dtForFrame*ConPlayer->dP;
         }
-
-        GameState->Player.P.x += (s32)(4.0f*(Controller->StickAverage.x));
-        GameState->Player.P.y += (s32)(4.0f*(Controller->StickAverage.y));
     }
+
+    v4 HeroColour = V4(0.5f, 0.2f, 0.5f, 1);
+    v2 PlayerDim = V2(0.75f*TileDim.Width, TileDim.Height);
+    PushRect(RenderGroup, V3(GameState->Offset, 0), PlayerDim, HeroColour);
 }
 
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)
