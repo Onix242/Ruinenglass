@@ -100,53 +100,99 @@ OpenGLRect(v3 MinP, v3 MaxP, v4 Colour, v2 MinUV = V2(0, 0), v2 MaxUV = V2(1, 1)
     glEnd();
 }
 
+// RESOURCE: https://stackoverflow.com/questions/1569939/rendering-different-triangle-types-and-triangle-fans-using-vertex-buffer-objects
+// TODO(chowie): Change GL_TRIANGLE_FAN to glDrawArrays
 // RESOURCE: https://stackoverflow.com/questions/8762826/texture-mapping-a-circle-made-using-gl-polygon
-// TODO(chowie): Proper texturing of circles? Should the MinUV really be 0.5f?
-// TODO(chowie): Convert to rational trig!
+// TODO(chowie): Proper texturing of circles? Should the MinUV really
+// be 0.5f? GlTexCoord?
 // RESOURCE(blatnik): https://blog.bearcats.nl/seamlessly-subdivide-circle/
+// STUDY(chowie): Error-based circles (hard to understand correlation
+// of smoothness vs tris. E.g. Bevelling, usually error-based. But
+// resolution can be enforced for any radius) or TriCount circles
+// (same problem but more tris aware, smoothness is still difficult,
+// I'd rather not comment "Smaller values = smoother & more tris", it
+// should be more obvious/transparent than errors by _px_ threshold &
+// to get the tricount more easily in API).
+inline void
+OpenGLCircle(v3 CentreP, r32 Radius, u32 TriCount,
+             v4 Colour, v2 MinUV = V2(0, 0), v2 MaxUV = V2(1, 1))
+{
+    // IMPORTANT(chowie): Rational trig here allows to calculate
+    // rotations outside of loop. With a v2 and matrix mult cost.
+    v2 OrientationP = V2(0, Radius);
+    m2x2 Rot = RationalM2x2Rotation((r32)TriCount);
+
+    // NOTE(chowie): Fan vector version default is clockwise.
+    // Anticlockwise +cos +sin <=> (0, -1), Clockwise +cos -sin <=> (0, 1)
+    glBegin(GL_TRIANGLE_FAN);
+    glColor4fv(Colour.E);
+//    glTexCoord2f(MinUV.x, MinUV.y);
+    glVertex2f(CentreP.x, CentreP.y);
+
+    for(u32 TriangleIndex = 0;
+        TriangleIndex <= TriCount; // NOTE(chowie): Change to < TriCount if using the Sin version
+        ++TriangleIndex)
+    {
+        glVertex2f(CentreP.x + OrientationP.x, CentreP.y + OrientationP.y);
+        // NOTE(chowie): Orientation after glVertex, starts drawing from top
+        OrientationP = Rot*OrientationP;
+    }
+//    glTexCoord2f(MaxUV.x, MaxUV.y);
+    glEnd();
+}
+
+/*
 inline void
 OpenGLCircle(v3 CentreP, r32 Radius, r32 Error,
              v4 Colour, v2 MinUV = V2(0.5f, 0.5f), v2 MaxUV = V2(1, 1))
 {
-#if 1
-    r64 theta = acos(1 - Error / Radius);
+#if 0
+    r32 theta = (r32)acos(1 - Error / Radius);
     int n = (int)ceil(fmax(Pi32 / theta, 3));
 
     glBegin(GL_TRIANGLE_FAN);
 
     glColor4fv(Colour.E);
-//    glTexCoord2f(MinUV.x, MinUV.y);
-    glVertex2d(CentreP.x, CentreP.y);
+    glVertex2f(CentreP.x, CentreP.y);
 
     for(int i = 0;
         i <= n;
         ++i)
     {
-        r64 sx = CentreP.x + Radius * cos(Tau32 * i / n);
-        r64 sy = CentreP.y + Radius * sin(Tau32 * i / n);
-//    glTexCoord2f(MaxUV.x, MaxUV.y);
-        glVertex2d(sx, sy);
+        r32 sx = CentreP.x + Radius * Cos(Tau32 * i / n);
+        r32 sy = CentreP.y + Radius * Sin(Tau32 * i / n);
+        glVertex2f(sx, sy);
     }
     glEnd();
 #else
-    v2 CircumferenceP = V2(CentreP.x, CentreP.y + Radius);
-    v2 OrientationP = CircumferenceP - CentreP.xy;
-    u32 NumTriangles = 7;
+    // IMPORTANT(chowie): Rational trig here allows to calculate
+    // rotations outside of loop. With a matrix multiplication cost.
+    v2 OrientationP = V2(0, Radius);
+    r32 theta = (r32)acos(1 - Error / Radius);
+    u32 NumTriangles = (u32)ceil(fmax(Pi32 / theta, 3));
 
+    m2x2 Rot = RationalM2x2Rotation((r32)NumTriangles);
+
+    // TODO(chowie): Can we reduce the overdraw?
+    // NOTE(chowie): Fan vector version default is clockwise.
+    // Anticlockwise +cos +sin <=> (0, -1), Clockwise +cos -sin <=> (0, 1)
     glBegin(GL_TRIANGLE_FAN);
     glColor4fv(Colour.E);
+//    glTexCoord2f(MinUV.x, MinUV.y);
     glVertex2d(CentreP.x, CentreP.y);
     for(u32 TriangleIndex = 0;
         TriangleIndex <= NumTriangles;
         ++TriangleIndex)
     {
         glVertex2d(CentreP.x + OrientationP.x, CentreP.y + OrientationP.y);
-        OrientationP = RationalV2Rotation(OrientationP, (r32)NumTriangles);
+        // NOTE(chowie): After glVertex, starts drawing from top
+        OrientationP = Rot*OrientationP;
     }
-//    glVertex2d(CentreP.x + OrientationP.x, CentreP.y + OrientationP.y);
+//    glTexCoord2f(MaxUV.x, MaxUV.y);
     glEnd();
 #endif
 }
+*/
 
 inline void
 OpenGLSetScreenSpace(v2u Dim)
@@ -223,7 +269,7 @@ OpenGLRenderCommands(game_render_commands *Commands, v2u WindowDim)
                 render_entry_circle *Entry = (render_entry_circle *)Data;
 
                 glDisable(GL_TEXTURE_2D);
-                OpenGLCircle(Entry->P, Entry->Radius, Entry->Error, Entry->Colour);
+                OpenGLCircle(Entry->P, Entry->Radius, Entry->Tris, Entry->Colour);
                 glEnable(GL_TEXTURE_2D);
             } break;
 

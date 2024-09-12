@@ -38,13 +38,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     PushClear(RenderGroup, V4(0.25f, 0.25f, 0.25f, 0.0f));
 
 //    PushRect(RenderGroup, V3(100, 100, 0), V2(100, 100), V4(1.0f, 0.5f, 0.5f, 1));
-//    PushCircle(RenderGroup, V3(500, 500, 0), 50.0f, 0.5f, V4(0.5f, 1.0f, 0.5f, 1));
+    PushCircle(RenderGroup, V3(600, 600, 0), 50.0f, 24, V4(0.5f, 1.0f, 0.5f, 0.5f));
 
-#define TilesPerHeight 8
-#define TilesPerWidth 16
+#define TilesPerHeight 4
+#define TilesPerWidth 8
 
     // NOTE(chowie): Y is up rendered
-    u32 TileMap[TilesPerHeight][TilesPerWidth] =
+    u32 TileMap[2*TilesPerHeight][2*TilesPerWidth] =
         {
             {1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 1},
             {1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 1},
@@ -55,34 +55,61 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             {1, 1, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 1, 1},
 
             {1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 1},
-            {1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 1},
+            {1, 0, 0, 0,  1, 1, 1, 1,  1, 1, 1, 1,  0, 0, 0, 1},
         };
 
-    v3 Offset = V3(0, 0, 0);
+    // TODO(chowie): Express this as a ratio, clamp01?
     v2 TileDim = V2(75.0f, 75.0f);
+    v3 Offset = V3(0, 0, 0);
 
     // TODO(chowie): Colour linear to srgb conversion!
     for(u32 Row = 0;
-        Row < TilesPerHeight;
+        Row < 2*TilesPerHeight;
         ++Row)
     {
         for(u32 Column = 0;
-            Column < TilesPerWidth;
+            Column < 2*TilesPerWidth;
             ++Column)
         {
             u32 TileID = TileMap[Row][Column];
 
-            v4 BaseColour = V4(0.1f, 0.1f, 0.1f, 1);
+            v4 BaseColour = {};
+#if 0
             if(TileID == 1)
             {
                 BaseColour = V4(0.5f, 0.7f, 0.5f, 1);
+            }
+#endif
+
+            if(Odd(Row) && Odd(Column))
+            {
+                // NOTE(chowie): N Edges = Violet
+                TileDim = V2(75.0f, 20.0f);
+                BaseColour = V4(0.3f, 0.3f, 0.7f, 1);
+            }
+            else if(!Odd(Row) && Odd(Column))
+            {
+                // NOTE(chowie): Tiles = Green
+                TileDim = V2(75.0f, 75.0f);
+                BaseColour = V4(0.5f, 0.7f, 0.5f, 1);
+            }
+            else if(Odd(Row) && !Odd(Column))
+            {
+                // NOTE(chowie): Corner = Pastel
+                TileDim = V2(20.0f, 20.0f);
+                BaseColour = V4(0.7f, 0.3f, 0.3f, 1);
+            }
+            else
+            {
+                // NOTE(chowie): W Edges = Grey
+                TileDim = V2(20.0f, 75.0f);
+                BaseColour = V4(0.1f, 0.1f, 0.1f, 1);
             }
 
             v2 Min = V2((r32)Column*TileDim.Width, (r32)Row*TileDim.Height);
             v2 Max = V2(Min.x + TileDim.Width, Min.y + TileDim.Height);
 
-            rect2 FullTileDim = RectMinMax(Min, Max);
-            PushRect(RenderGroup, Offset, FullTileDim, BaseColour);
+            PushRect(RenderGroup, Offset, RectMinMax(Min, Max), BaseColour);
         }
     }
 
@@ -128,6 +155,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         }
     }
 
+    TileDim = V2(75.0f, 75.0f);
     v4 HeroColour = V4(0.5f, 0.2f, 0.5f, 1);
     v2 PlayerDim = V2(0.75f*TileDim.Width, TileDim.Height);
     PushRect(RenderGroup, V3(GameState->Offset, 0), PlayerDim, HeroColour);

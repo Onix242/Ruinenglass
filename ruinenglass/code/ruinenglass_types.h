@@ -393,10 +393,19 @@ union rect3
     r32 E[9];
 };
 
-struct m2x2
+// RESOURCE: Mat mult - https://gist.github.com/rygorous/4172889
+union m2x2
 {
+    // NOTE(chowie): Optimisation to use with v2 Inner, only works
+    // because of ROW-MAJOR order (doesn't work with COLUMN-MAJOR)
+    struct
+    {
+        v2 RowA;
+        v2 RowB;
+    };
     // NOTE(chowie): ROW-MAJOR order - E[Row][Column]
     r32 E[2][2];
+    // TODO(chowie): I could add SIMD like this, r32 E[9]; with E[2][2]; in struct?
 };
 
 // TODO(chowie): Debug View

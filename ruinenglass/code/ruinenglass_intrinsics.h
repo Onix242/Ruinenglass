@@ -175,6 +175,7 @@ MartinsFloor(r32 R32)
 internal r32
 MartinsFloorPositive(r32 R32)
 {
+    Assert(SignOf(R32) == 1.0f);
     r32 Result = _mm_cvtss_f32(_mm_cvtepi32_ps(_mm_cvttps_epi32(_mm_set_ss(R32))));
     return(Result);
 }
@@ -196,8 +197,14 @@ FloorR32ToS32(r32 R32)
 inline u32
 FloorR32ToU32(r32 R32)
 {
-    Assert(SignOf(R32) == 1.0f);
     u32 Result = (u32)MartinsFloorPositive(R32);
+    return(Result);
+}
+
+inline r32
+Ceil(r32 R32)
+{
+    r32 Result = _mm_cvtss_f32(_mm_ceil_ss(_mm_setzero_ps(), _mm_set_ss(R32)));
     return(Result);
 }
 
@@ -298,7 +305,7 @@ DifferenceOfProducts(r32 A, r32 B, r32 C, r32 D)
     return(Result);
 }
 
-// NOTE(chowie): A * B + C * D
+// NOTE(chowie): A*B + C*D
 inline r32
 SumOfProducts(r32 A, r32 B, r32 C, r32 D)
 {

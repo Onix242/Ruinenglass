@@ -29,7 +29,7 @@ struct render_entry_circle
     v4 Colour;
     v3 P;
     r32 Radius;
-    r32 Error; // NOTE(chowie): Smaller values = smoother & more tris
+    u32 Tris;
 };
 
 struct render_entry_rect

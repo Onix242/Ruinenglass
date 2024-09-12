@@ -76,16 +76,17 @@ PushClear(render_group *RenderGroup, v4 Colour)
     }
 }
 
+// TODO(chowie): Clamp tricount (> 7 to some arbitrary maximum)?
 inline void
 PushCircle(render_group *RenderGroup,
-           v3 Offset, r32 Radius, r32 Error = 0.5f, v4 Colour = V4(1, 1, 1, 1))
+           v3 Offset, r32 Radius, u32 TriCount, v4 Colour = V4(1, 1, 1, 1))
 {
     render_entry_circle *Circle = PushRenderElement(RenderGroup, render_entry_circle);
     if(Circle)
     {
         Circle->P = Offset;
         Circle->Radius = Radius;
-        Circle->Error = Error;
+        Circle->Tris = TriCount;
         Circle->Colour = Colour;
     }
 }

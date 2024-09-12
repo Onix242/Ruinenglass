@@ -335,7 +335,7 @@ operator*(v2 B, r32 A)
 inline v2 &
 operator*=(v2 &B, r32 A)
 {
-    B = A * B;
+    B = A*B;
     return(B);
 }
 
@@ -453,49 +453,92 @@ Arm2(r32 Angle)
 inline v2
 operator*(m2x2 A, v2 P)
 {
-    v2 Result;
+    v2 Result =
+    {
+        Inner(A.RowA, P), // A.E[0][0]*P.x + A.E[0][1]*P.y;
+        Inner(A.RowB, P), // A.E[1][0]*P.x + A.E[1][1]*P.y;
+    };
 
-    Result.x = P.x*A.E[0][0] + P.y*A.E[0][1];
-    Result.y = P.x*A.E[1][0] + P.y*A.E[1][1];
+    return(Result);
+}
+
+inline m2x2
+V2ToM2x2Rotation(v2 P)
+{
+    m2x2 Result =
+    {
+        {{P.x, -P.y},
+         {P.y, P.x}}
+    };
 
     return(Result);
 }
 
 // RESOURCE(arnon): https://github.com/HardCoreCodin/Rational-Ray-Casting/blob/master/raycasting-c/src/main.c
-// TODO(chowie): Convert to using rational trig for rotations
-// TODO(chowie): Check if this is correct?
 internal v2
-RationalV2RotationByCircleProportion(r32 t)
+NormalisedRotationByGradient(r32 m)
 {
-    // NOTE(chowie): An approximation where there's many segments, so
-    // sin can be dropped. Might leave small gaps
-    t = Square(Tau32 / t);
-    // TODO(chowie): Swap to reciprocal sqrt?
-//    t = SquareRoot(t) / (1.0f - SquareRoot(1.0f - t));
-    t = SquareRoot(t) / SquareRoot(1.0f - t);
-
-    // NOTE(by arnon): Project a point on a unit circle from a position on a vertical line of "x = 1" towards the origin
-    r32 tSq = Square(t);
-    r32 Factor = 1 / (1 + tSq);
+    // NOTE(by arnon): Project a point on a unit circle from a
+    // position on a vertical line of "x = 1" towards the origin
+    r32 mSq = Square(m);
+    r32 Factor = 1.0f / (1.0f + mSq);
 
     v2 Result = {};
-    Result.x = (1 - tSq)*Factor; // NOTE(chowie): Swap back!
-    Result.y = (2*t)*Factor;
+    Result.x = (1.0f - mSq)*Factor;
+    Result.y = (2.0f*m)*Factor;
 
     return(Result);
 }
 
+// RESOURCE(gradient error): https://www.desmos.com/calculator/viio698tbt
+// NOTE(chowie): If you wish to add any correction?
 internal v2
-RationalUnitRotation(r32 t)
+NormalisedRotationByCircleSector(r32 n)
 {
+    // NOTE(chowie): Better accuracy / less overdraw as n increases for approximation case.
+    Assert(n >= 7.0f);
+
+    // TODO(chowie): Can we further reduce the overdraw without Sin?
+    v2 Result = {};
+    Result.y = Tau32 / n; // NOTE(chowie): Change to "Sin(Tau32 / n)" for better accuracy
+    Result.x = SquareRoot(1.0f - Square(Result.y));
+
+    return(Result);
+}
+
+/*
+internal v2
+NormalisedRotationByCircleSector(r32 n)
+{
+    // IMPORTANT(chowie): An approximation where there's many
+    // segments, so sin can be dropped. Might leave small gaps.
+    r32 s3 = (Tau32 / n);
+    //r32 s3 = (Sin(Tau32 / n)); // NOTE(chowie): Change to this for more accuracy
+
+    // NOTE(chowie): Cross Law
+    r32 Gradient = s3 / (1.0f - SquareRoot(1.0f - Square(s3)));
+    //r32 Gradient = SquareRoot(s3 / (2 - SquareRoot(4*(1 - s3)) - s3));
+
     // NOTE(by arnon): Project a point on a unit circle from a
     // position on a vertical line of "x = 1" towards the origin
-    r32 tSq = Square(t);
-    r32 Factor = 1 / (1 + tSq);
+    // RESOURCE(NJ Wildberger): Rational Param of Circle - https://www.youtube.com/watch?v=Ui8OvmzDn7o
+    r32 mSq = Square(Gradient);
+    r32 Factor = 1.0f / (1.0f + mSq);
 
     v2 Result = {};
-    Result.x = (1 - tSq)*Factor; // NOTE(chowie): Swap back!
-    Result.y = (2*t)*Factor;
+    Result.x = (mSq - 1.0f)*Factor; // NOTE(chowie): Flipped to +tive since gradient is > 1 for angles less than 45 deg
+    Result.y = (2.0f*Gradient)*Factor;
+
+    return(Result);
+}
+*/
+
+// TODO(chowie): Better name?
+inline m2x2
+RationalM2x2Rotation(r32 n)
+{
+    v2 Rot = NormalisedRotationByCircleSector(n);
+    m2x2 Result = V2ToM2x2Rotation(Rot);
 
     return(Result);
 }
@@ -507,27 +550,7 @@ RationalDirection(v2 From, v2 To)
     return(Result);
 }
 
-inline m2x2
-RationalV2ToM2x2Rotation(v2 P)
-{
-    m2x2 Result =
-    {
-        {{P.x, -P.y},
-         {P.y, P.x}}
-    };
-
-    return(Result);
-}
-
-inline m2x2
-RationalM2x2Rotation(r32 t)
-{
-    v2 Rot = RationalV2RotationByCircleProportion(t);
-    m2x2 Result = RationalV2ToM2x2Rotation(Rot);
-
-    return(Result);
-}
-
+/*
 inline v2
 RationalV2Rotation(v2 P, r32 t)
 {
@@ -536,6 +559,7 @@ RationalV2Rotation(v2 P, r32 t)
 
     return(Result);
 }
+*/
 
 //
 // NOTE(chowie): v3u / v3s operations
@@ -693,17 +717,14 @@ Inner(v3 A, v3 B)
     return(Result);
 }
 
-// A.y*B.z - A.z*B.y,
-// A.z*B.x - A.x*B.z,
-// A.x*B.y - A.y*B.x,
 inline v3
 Cross(v3 A, v3 B)
 {
     v3 Result =
     {
-        DifferenceOfProducts(A.y, B.z, A.z, B.y),
-        DifferenceOfProducts(A.z, B.x, A.x, B.z),
-        DifferenceOfProducts(A.x, B.y, A.y, B.x),
+        DifferenceOfProducts(A.y, B.z, A.z, B.y), // A.y*B.z - A.z*B.y,
+        DifferenceOfProducts(A.z, B.x, A.x, B.z), // A.z*B.x - A.x*B.z,
+        DifferenceOfProducts(A.x, B.y, A.y, B.x), // A.x*B.y - A.y*B.x,
     };
 
     return(Result);
@@ -756,20 +777,16 @@ NOZ(v3 A)
     return(Result);
 }
 
-// NOTE(chowie): Normalise _or_ Unit Vector. 
+// NOTE(chowie): Normalise _or_ Unit Vector.
 inline v3
 NOU(v3 A)
 {
-    v3 Result = {};
+    v3 Result = V3(1, 1, 1);
 
     r32 LenSq = LengthSq(A);
     if(LenSq > Square(0.0001f))
     {
         Result = A*ReciprocalSquareRoot(LenSq);
-    }
-    else
-    {
-        Result = V3(1, 1, 1);
     }
 
     return(Result);
