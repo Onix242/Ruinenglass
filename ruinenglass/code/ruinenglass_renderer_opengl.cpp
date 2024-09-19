@@ -120,7 +120,7 @@ OpenGLCircle(v3 CentreP, r32 Radius, u32 TriCount,
     // IMPORTANT(chowie): Rational trig here allows to calculate
     // rotations outside of loop. With a v2 and matrix mult cost.
     v2 OrientationP = V2(0, Radius);
-    m2x2 Rot = RationalM2x2Rotation((r32)TriCount);
+    m2x2 Rot = M2x2RotationByTris((r32)TriCount);
 
     // NOTE(chowie): Fan vector version default is clockwise.
     // Anticlockwise +cos +sin <=> (0, -1), Clockwise +cos -sin <=> (0, 1)
@@ -130,7 +130,7 @@ OpenGLCircle(v3 CentreP, r32 Radius, u32 TriCount,
     glVertex2f(CentreP.x, CentreP.y);
 
     for(u32 TriangleIndex = 0;
-        TriangleIndex <= TriCount; // NOTE(chowie): Change to < TriCount if using the Sin version
+        TriangleIndex <= TriCount;
         ++TriangleIndex)
     {
         glVertex2f(CentreP.x + OrientationP.x, CentreP.y + OrientationP.y);

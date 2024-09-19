@@ -45,5 +45,8 @@ struct game_state
     b32x IsInitialised;
 };
 
+// STUDY(chowie): Accessors Get/Set allows for bounds-checking for an
+// array-like format (passed in however you like).
+
 #define RUINENGLASS_H
 #endif

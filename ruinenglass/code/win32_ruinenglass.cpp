@@ -1103,6 +1103,11 @@ Win32ProcessPendingMessages(win32_state *State, game_controller_input *KeyboardC
                                         Win32EndInputPlayback(State);
                                     }
                                 }
+                                else if(ShiftKeyWasDown)
+                                {
+                                    // NOTE(chowie): Replay previous recording (independent of recording)
+                                    Win32BeginInputRecording(State, 1);
+                                }
                             }
                         } break;
 #endif

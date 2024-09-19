@@ -10,14 +10,27 @@
 #include "ruinenglass_renderer.cpp"
 #include "ruinenglass_audio.cpp"
 
+struct world_chunk
+{
+    v3s Chunk;
+    v3 Offset_;
+};
+
+struct world
+{
+    memory_arena Arena;
+
+    world_chunk Chunk;
+};
+
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
     Assert(sizeof(game_state) <= Memory->Permanent.Size);
-    game_state *GameState = (game_state *)Memory->Permanent.Base; // STUDY: Cold-cast
+    game_state *GameState = (game_state *)Memory->Permanent.Base; // STUDY(chowie): Cold-cast
 
     if(!GameState->IsInitialised)
     {
-        GameState->Offset = {};
+        GameState->Offset = V2(500.0f, 500.0f);
 
         // TODO(chowie): Initialise Audio State when there's proper
         // sound! Do I have to rearrange "audio -> game" to prevent
@@ -43,6 +56,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 #define TilesPerHeight 4
 #define TilesPerWidth 8
 
+    /*
     // NOTE(chowie): Y is up rendered
     u32 TileMap[2*TilesPerHeight][2*TilesPerWidth] =
         {
@@ -57,10 +71,18 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             {1, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 0,  0, 0, 0, 1},
             {1, 0, 0, 0,  1, 1, 1, 1,  1, 1, 1, 1,  0, 0, 0, 1},
         };
+    */
 
     // TODO(chowie): Express this as a ratio, clamp01?
-    v2 TileDim = V2(75.0f, 75.0f);
     v3 Offset = V3(0, 0, 0);
+
+    v2 CornerDim = V2(20.0f, 20.0f);
+    v2 TileDim = V2(60.0f, 75.0f);
+    v2 SEdgeDim = V2(TileDim.x, CornerDim.y);
+    v2 WEdgeDim = V2(CornerDim.x, TileDim.y);
+
+    // RESOURCE: On Naming - https://en.wikipedia.org/wiki/List_of_Euclidean_uniform_tilings
+    v2 TesselationDim = TileDim + CornerDim;
 
     // TODO(chowie): Colour linear to srgb conversion!
     for(u32 Row = 0;
@@ -71,43 +93,60 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             Column < 2*TilesPerWidth;
             ++Column)
         {
-            u32 TileID = TileMap[Row][Column];
-
             v4 BaseColour = {};
-#if 0
-            if(TileID == 1)
-            {
-                BaseColour = V4(0.5f, 0.7f, 0.5f, 1);
-            }
-#endif
-
             if(Odd(Row) && Odd(Column))
             {
-                // NOTE(chowie): N Edges = Violet
-                TileDim = V2(75.0f, 20.0f);
+                // NOTE(chowie): Tile = Violet
                 BaseColour = V4(0.3f, 0.3f, 0.7f, 1);
-            }
-            else if(!Odd(Row) && Odd(Column))
-            {
-                // NOTE(chowie): Tiles = Green
-                TileDim = V2(75.0f, 75.0f);
-                BaseColour = V4(0.5f, 0.7f, 0.5f, 1);
             }
             else if(Odd(Row) && !Odd(Column))
             {
-                // NOTE(chowie): Corner = Pastel
-                TileDim = V2(20.0f, 20.0f);
+                // NOTE(chowie): W Edge = Green
+                BaseColour = V4(0.5f, 0.7f, 0.5f, 1);
+            }
+            else if(!Odd(Row) && Odd(Column))
+            {
+                // NOTE(chowie): S Edge = Pastel
                 BaseColour = V4(0.7f, 0.3f, 0.3f, 1);
             }
             else
             {
-                // NOTE(chowie): W Edges = Grey
-                TileDim = V2(20.0f, 75.0f);
+                // NOTE(chowie): Corner = Grey
                 BaseColour = V4(0.1f, 0.1f, 0.1f, 1);
             }
 
-            v2 Min = V2((r32)Column*TileDim.Width, (r32)Row*TileDim.Height);
-            v2 Max = V2(Min.x + TileDim.Width, Min.y + TileDim.Height);
+            // TODO(chowie): Tesselate for n sized group tiles
+            v2 Min;
+            Min.x = ((Column - 1*Odd(Column)) / 2)*TesselationDim.x + CornerDim.x*Odd(Column);
+            Min.y = ((Row - 1*Odd(Row)) / 2)*TesselationDim.y + CornerDim.y*Odd(Row);
+
+            v2 Max;
+            Max.x = Min.x + CornerDim.x*!Odd(Column) + SEdgeDim.x*Odd(Column);
+            Max.y = Min.y + CornerDim.y*!Odd(Row) + WEdgeDim.y*Odd(Row);
+
+            /*
+            if(!Odd(Row))
+            {
+                Min.y = (Row / 2)*TesselationDim.y;
+                Max.y = Min.y + CornerDim.y;
+            }
+            else
+            {
+                Min.y = ((Row - 1) / 2)*TesselationDim.y + CornerDim.y;
+                Max.y = Min.y + WEdgeDim.y;
+            }
+
+            if(!Odd(Column))
+            {
+                Min.x = (Column / 2)*TesselationDim.x;
+                Max.x = Min.x + CornerDim.x;
+            }
+            else
+            {
+                Min.x = ((Column - 1) / 2)*TesselationDim.x + CornerDim.x;
+                Max.x = Min.x + SEdgeDim.x;
+            }
+            */
 
             PushRect(RenderGroup, Offset, RectMinMax(Min, Max), BaseColour);
         }
@@ -147,8 +186,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             {
                 ++ConPlayer->dP.x;
             }
-            ConPlayer->dP.x *= 64.0f;
-            ConPlayer->dP.y *= 64.0f;
+            ConPlayer->dP *= 64.0f;
 
             // TODO(chowie): Normalise diagonal movement!
             GameState->Offset += Input->dtForFrame*ConPlayer->dP;

@@ -496,11 +496,11 @@ internal v2
 NormalisedRotationByCircleSector(r32 n)
 {
     // NOTE(chowie): Better accuracy / less overdraw as n increases for approximation case.
-    Assert(n >= 7.0f);
+    // Assert(n >= 7.0f);
 
     // TODO(chowie): Can we further reduce the overdraw without Sin?
     v2 Result = {};
-    Result.y = Tau32 / n; // NOTE(chowie): Change to "Sin(Tau32 / n)" for better accuracy
+    Result.y = Sin(Tau32 / n); // NOTE(chowie): Change to "Sin(Tau32 / n)" for better accuracy
     Result.x = SquareRoot(1.0f - Square(Result.y));
 
     return(Result);
@@ -533,9 +533,8 @@ NormalisedRotationByCircleSector(r32 n)
 }
 */
 
-// TODO(chowie): Better name?
 inline m2x2
-RationalM2x2Rotation(r32 n)
+M2x2RotationByTris(r32 n)
 {
     v2 Rot = NormalisedRotationByCircleSector(n);
     m2x2 Result = V2ToM2x2Rotation(Rot);

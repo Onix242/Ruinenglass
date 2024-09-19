@@ -91,6 +91,17 @@ PushCircle(render_group *RenderGroup,
     }
 }
 
+/*
+inline void
+PushCircle(render_group *RenderGroup,
+           v3 Offset, r32 Radius, r32 Error, v4 Colour = V4(1, 1, 1, 1))
+{
+    r32 Theta = (r32)acos(1 - Error / Radius);
+    r32 Tris = Ceil(Pi32 / Theta);
+    PushCircle(RenderGroup, Offset, Radius, Tris, Colour);
+}
+*/
+
 // TODO(chowie): Distinguish between UI blockout rect and textured quads?
 inline void
 PushRect(render_group *RenderGroup,
