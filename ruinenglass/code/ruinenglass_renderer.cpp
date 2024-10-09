@@ -76,7 +76,14 @@ PushClear(render_group *RenderGroup, v4 Colour)
     }
 }
 
-// TODO(chowie): Clamp tricount (> 7 to some arbitrary maximum)?
+// STUDY(chowie): 1) Error-based circles vs 2) tricount circles.
+// 1) Hard to understand correlation of smoothness vs tris. E.g.
+// Bevelling, usually error-based. But same resolution can be enforced
+// for any radius.
+// 2) Same problem but more tris aware. Smoothness is still difficult,
+// I'd rather not comment "Smaller values = smoother & more tris", it
+// should be more obvious/transparent than errors by _px_ threshold &
+// to get the tricount more easily in API).
 inline void
 PushCircle(render_group *RenderGroup,
            v3 Offset, r32 Radius, u32 TriCount, v4 Colour = V4(1, 1, 1, 1))

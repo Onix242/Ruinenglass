@@ -400,7 +400,7 @@ Win32InitWASAPI(win32_sound_function_table Table, s32 SamplesPerSecond, s32 Buff
         Assert(!"Error");
     }
 
-    // STUDY(martins): Check if we got what we requested (better would to pass this value back as real buffer size)
+    // STUDY(by martins): Check if we got what we requested (better would to pass this value back as real buffer size)
     Assert(BufferSizeInSamples <= (s32)SoundFrameCount);
 }
 
@@ -776,6 +776,7 @@ Win32EndInputRecording(win32_state *State)
     State->CurrentBuffer = 0;
 }
 
+// STUDY(chowie): This is awfully similar to HmH Day 279 0h46m00s, in PackEntity()
 inline b32x
 Win32RecordingInputIsFull(win32_state *State, u32 BytesToWrite)
 {
@@ -783,7 +784,6 @@ Win32RecordingInputIsFull(win32_state *State, u32 BytesToWrite)
     return(Result);
 }
 
-// STUDY(chowie): This is awfully similar to HmH Day 279 0h46m00s, in PackEntity()
 internal void
 Win32RecordInput(win32_state *State, game_input *NewInput)
 {

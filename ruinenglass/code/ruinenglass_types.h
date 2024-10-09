@@ -83,6 +83,7 @@ typedef double r64;
 #define U32FromPointer(Pointer) ((u32)(umm)(Pointer))
 #define PointerFromU32(type, Value) (type *)((umm)Value)
 
+#define Euler32 2.718281828459045f
 #define Pi32 3.14159265359f
 #define Tau32 6.28318530717958647692f
 #define GoldenRatio64 1.61803398874989484820458683436563f
@@ -156,13 +157,10 @@ SafeTruncateU64(u64 Value)
     return(Result);
 }
 
+#define BitSet(Bit) (1 << (Bit))
 // RESOURCE: https://github.com/gingerBill/gb/blob/master/gb.h
 // TODO(chowie): How do I utilise this?
-#define BitSet(Bit) (1 << (Bit))
-#define MaskSet(Var, Set, Mask) do {            \
-        if(Set) (Var) |= (Mask);                \
-        else    (Var) &= ~(Mask);               \
-} while(0)
+#define MaskSet(Var, Set, Mask) if(Set) (Var) |= (Mask); else (Var) &= ~(Mask);
 
 // RESOURCE: https://handmade.network/p/64/geometer/blog/p/3048-1_year_of_geometer_-_lessons_learnt
 // TODO(chowie): Try this out? See how I like this?
@@ -220,8 +218,7 @@ union v2s
     s32 E[2];
 };
 
-// NOTE(chowie): Vectors was uppercase, but should be lowercase to
-// accomodate shader languages!
+// STUDY(chowie): Vectors was uppercase, but now lowercase for shader languages!
 union v2
 {
     struct
@@ -405,7 +402,21 @@ union m2x2
     };
     // NOTE(chowie): ROW-MAJOR order - E[Row][Column]
     r32 E[2][2];
-    // TODO(chowie): I could add SIMD like this, r32 E[9]; with E[2][2]; in struct?
+    // TODO(chowie): I could add SIMD like this, r32 E[4]; with E[2][2]; in struct?
+};
+
+struct m3x3
+{
+    // NOTE(chowie): ROW-MAJOR order - E[Row][Column]
+    r32 E[3][3];
+};
+
+// RESOURCE(pervognsen): https://gist.github.com/pervognsen/983649888fa7c9075ae64e37c20f0ab3
+// TODO(chowie): IMPORTANT(chowie): m4x4 Transpose
+struct m4x4
+{
+    // NOTE(chowie): ROW-MAJOR order - E[Row][Column]
+    r32 E[4][4];
 };
 
 // TODO(chowie): Debug View

@@ -68,6 +68,7 @@ OpenGLInit(b32x ModernContext, b32x FramebufferSupportsSRGB)
     }
 }
 
+// TODO(chowie): Triangle Strip? Turn OpenGL circle too
 // NOTE(chowie): Extra parameters to account for 1-pixel apron
 inline void
 OpenGLRect(v3 MinP, v3 MaxP, v4 Colour, v2 MinUV = V2(0, 0), v2 MaxUV = V2(1, 1))
@@ -100,25 +101,25 @@ OpenGLRect(v3 MinP, v3 MaxP, v4 Colour, v2 MinUV = V2(0, 0), v2 MaxUV = V2(1, 1)
     glEnd();
 }
 
+// RESOURCE(inigo quilez): Eerily similar - https://iquilezles.org/articles/sincos/
+// RESOURCE(SiegeLord): Eerily similar - https://siegelord.net/circle_draw
+// RESOURCE(ratchetfreak): https://hero.handmade.network/forums/code-discussion/t/1018-2d_rotation_help
+// TODO(chowie): General rotation for other shapes other than circles
 // RESOURCE: https://stackoverflow.com/questions/1569939/rendering-different-triangle-types-and-triangle-fans-using-vertex-buffer-objects
 // TODO(chowie): Change GL_TRIANGLE_FAN to glDrawArrays
 // RESOURCE: https://stackoverflow.com/questions/8762826/texture-mapping-a-circle-made-using-gl-polygon
 // TODO(chowie): Proper texturing of circles? Should the MinUV really
 // be 0.5f? GlTexCoord?
 // RESOURCE(blatnik): https://blog.bearcats.nl/seamlessly-subdivide-circle/
-// STUDY(chowie): Error-based circles (hard to understand correlation
-// of smoothness vs tris. E.g. Bevelling, usually error-based. But
-// resolution can be enforced for any radius) or TriCount circles
-// (same problem but more tris aware, smoothness is still difficult,
-// I'd rather not comment "Smaller values = smoother & more tris", it
-// should be more obvious/transparent than errors by _px_ threshold &
-// to get the tricount more easily in API).
+// IMPORTANT(chowie): Best explanation by ohAitch. To "triangulate a
+// circle" is roughly "get some fractional powers of -1", doing the
+// fraction once (outside the loop) and then raising _it_ to succesive
+// integer powers. One sin and one cos per/vertex -> one sin per circle,
+// with a v2 orientation and rotation matrix mult cost.
 inline void
 OpenGLCircle(v3 CentreP, r32 Radius, u32 TriCount,
              v4 Colour, v2 MinUV = V2(0, 0), v2 MaxUV = V2(1, 1))
 {
-    // IMPORTANT(chowie): Rational trig here allows to calculate
-    // rotations outside of loop. With a v2 and matrix mult cost.
     v2 OrientationP = V2(0, Radius);
     m2x2 Rot = M2x2RotationByTris((r32)TriCount);
 
@@ -146,7 +147,6 @@ inline void
 OpenGLCircle(v3 CentreP, r32 Radius, r32 Error,
              v4 Colour, v2 MinUV = V2(0.5f, 0.5f), v2 MaxUV = V2(1, 1))
 {
-#if 0
     r32 theta = (r32)acos(1 - Error / Radius);
     int n = (int)ceil(fmax(Pi32 / theta, 3));
 
@@ -164,33 +164,6 @@ OpenGLCircle(v3 CentreP, r32 Radius, r32 Error,
         glVertex2f(sx, sy);
     }
     glEnd();
-#else
-    // IMPORTANT(chowie): Rational trig here allows to calculate
-    // rotations outside of loop. With a matrix multiplication cost.
-    v2 OrientationP = V2(0, Radius);
-    r32 theta = (r32)acos(1 - Error / Radius);
-    u32 NumTriangles = (u32)ceil(fmax(Pi32 / theta, 3));
-
-    m2x2 Rot = RationalM2x2Rotation((r32)NumTriangles);
-
-    // TODO(chowie): Can we reduce the overdraw?
-    // NOTE(chowie): Fan vector version default is clockwise.
-    // Anticlockwise +cos +sin <=> (0, -1), Clockwise +cos -sin <=> (0, 1)
-    glBegin(GL_TRIANGLE_FAN);
-    glColor4fv(Colour.E);
-//    glTexCoord2f(MinUV.x, MinUV.y);
-    glVertex2d(CentreP.x, CentreP.y);
-    for(u32 TriangleIndex = 0;
-        TriangleIndex <= NumTriangles;
-        ++TriangleIndex)
-    {
-        glVertex2d(CentreP.x + OrientationP.x, CentreP.y + OrientationP.y);
-        // NOTE(chowie): After glVertex, starts drawing from top
-        OrientationP = Rot*OrientationP;
-    }
-//    glTexCoord2f(MaxUV.x, MaxUV.y);
-    glEnd();
-#endif
 }
 */
 

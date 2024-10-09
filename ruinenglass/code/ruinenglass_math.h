@@ -7,6 +7,9 @@
    $Notice: $
    ======================================================================== */
 
+#define SQUARE(a) ((a)*(a))
+#define CUBE(a) ((a)*(a)*(a))
+
 inline v2u
 V2U(u32 X, u32 Y)
 {
@@ -137,7 +140,6 @@ SafeRatio1(r32 Numerator, r32 Divisor)
 inline r32
 Square(r32 A)
 {
-#define SQUARE(A) ((A)*(A))
     r32 Result = SQUARE(A);
     return(Result);
 }
@@ -145,7 +147,6 @@ Square(r32 A)
 inline r32
 Cube(r32 A)
 {
-#define CUBE(A) ((A)*(A)*(A))
     r32 Result = CUBE(A);
     return(Result);
 }
@@ -200,6 +201,21 @@ ClampAboveZero(r32 Value)
     return(Result);
 }
 
+// RESOURCE(longtran): https://handmade.network/forums/t/8776-best_way_to_generate_lerp_function
+// RESOURCE(fabian): https://fgiesen.wordpress.com/2012/08/15/linear-interpolation-past-present-and-future/
+// NOTE(chowie): Can be also represented as "A + T*(B - A)",
+// or "(1.0f - t)*A + t*B"
+// r32 Result = Fma(t, B - A, A);
+inline r32
+Lerp(r32 A, r32 t, r32 B)
+{
+    __m128 LerpT = _mm_set_ss(t);
+    __m128 LerpA = _mm_set_ss(A);
+
+    r32 Result = _mm_cvtss_f32(_mm_fmadd_ss(LerpT, _mm_set_ss(B), _mm_fnmsub_ss(LerpT, LerpA, LerpA)));
+    return(Result);
+}
+
 // NOTE(chowie): It could be rewritten as "Square(Result) * (3.0f - 2.0f*Result)"
 // RESOURCE: https://handmade.network/p/64/geometer/blog/p/3048-1_year_of_geometer_-_lessons_learnt
 inline r32
@@ -209,6 +225,8 @@ SmoothStep(r32 t)
     return(Result);
 }
 
+// RESOURCE(inigo quilez): https://iquilezles.org/articles/smoothstepintegral/
+// NOTE(chowie): Also called EaseInOut
 // RESOURCE: https://realtimecollisiondetection.net/blog/?p=95
 // RESOURCE: https://www.fundza.com/rman_shaders/smoothstep/
 // TODO(chowie): Test smooth-step and pulse for alpha tests?
@@ -241,6 +259,9 @@ TrianglePulse(v2 A, r32 t, v2 B)
     r32 Result = Clamp01(Fma(A.x, t, B.x)) - Clamp01(Fma(A.y, t, B.y));
     return(Result);
 }
+
+// RESOURCE(inigo quilez): https://iquilezles.org/articles/functions/
+// TODO(chowie): Implement these remapping functions! Can be used for animations too
 
 //
 // NOTE(chowie): v2u / v2s operations
@@ -288,6 +309,34 @@ Hadamard(v2s A, v2s B)
     return(Result);
 }
 
+inline v2u
+operator*(u32 A, v2u B)
+{
+    v2u Result = {A*B.x, A*B.y};
+    return(Result);
+}
+
+inline v2u
+operator-(v2u A, v2u B)
+{
+    v2u Result = {A.x - B.x, A.y - B.y};
+    return(Result);
+}
+
+inline v2u &
+operator+=(v2u &A, v2u B)
+{
+    A = A + B;
+    return(A);
+}
+
+inline v2u
+Hadamard(v2u A, v2u B)
+{
+    v2u Result = {A.x*B.x, A.y*B.y};
+    return(Result);
+}
+
 inline b32x
 AreEqual(v2s A, v2s B)
 {
@@ -331,11 +380,47 @@ operator*(v2 B, r32 A)
     return(Result);
 }
 
+// NOTE(chowie): This is hadamard
+inline v2
+operator*(v2 A, v2 B)
+{
+    v2 Result = {A.x*B.x, A.y*B.y};
+    return(Result);
+}
+
 // NOTE(chowie): Calls operator*
 inline v2 &
 operator*=(v2 &B, r32 A)
 {
     B = A*B;
+    return(B);
+}
+
+inline v2
+operator/(v2 B, r32 A)
+{
+    v2 Result = (1.0f*A)*B;
+    return(Result);
+}
+
+inline v2
+operator/(r32 B, v2 A)
+{
+    v2 Result = {B / A.x, B / A.y};
+    return(Result);
+}
+
+inline v2
+operator/(v2 A, v2 B)
+{
+    v2 Result = {A.x/B.x, A.y/B.y};
+    return(Result);
+}
+
+inline v2 &
+operator/=(v2 &B, r32 A)
+{
+    B = B / A;
     return(B);
 }
 
@@ -412,12 +497,27 @@ LengthSq(v2 A)
     return(Result);
 }
 
-// STUDY(chowie): Sqroot is undefined negative numbers. LengthSq
+// STUDY(chowie): Sqrt is undefined negative numbers. LengthSq
 // cannot produce a negative number, i.e Negative*Negative is positive
+// NOTE(chowie): Also called "norm"
 inline r32
 Length(v2 A)
 {
     r32 Result = SquareRoot(LengthSq(A));
+    return(Result);
+}
+
+inline v2
+NOZ(v2 A)
+{
+    v2 Result = {};
+
+    r32 LenSq = LengthSq(A);
+    if(LenSq > Square(0.0001f))
+    {
+        Result = A*ReciprocalSquareRoot(LenSq);
+    }
+
     return(Result);
 }
 
@@ -435,16 +535,13 @@ Lerp(v2 A, r32 t, v2 B)
     return(Result);
 }
 
-/* TODO(chowie): Remove this!
-// NOTE(chowie): For radial
-inline v2
-Arm2(r32 Angle)
-{
-    v2 Result = {Cos(Angle), Sin(Angle)};
+// RESOURCE(HmH): On Differential Geometry (gradient, divergence and
+// curl) & Geometric Algebra (Dot and Cross) being old school
+// https://guide.handmadehero.org/code/day376/#2703
 
-    return(Result);
-}
-*/
+// RESOURCE(stijn oomes): https://stijnoomes.com/laws-of-rational-trigonometry/
+// RESOURCE(alexander bogomolny): https://www.cut-the-knot.org/pythagoras/RationalTrig/CutTheKnot.shtml
+// RESOURCE: https://news.ycombinator.com/item?id=34299550
 
 //
 // NOTE(chowie): Rational Trig v2 operations
@@ -474,6 +571,26 @@ V2ToM2x2Rotation(v2 P)
     return(Result);
 }
 
+// RESOURCE(gradient error): https://www.desmos.com/calculator/viio698tbt
+// NOTE(chowie): If you wish to add any correction?
+// TODO(chowie): Pass in an angle? Tau32 or Pi32 for semi-circle, but
+// needs to pass in another angle to state where to start from. Do I
+// want to average the triangle count too to not look super detailed
+// when rescaling?
+internal v2
+NormalisedRotationByCircleSector(r32 n)
+{
+    // NOTE(chowie): Better accuracy / less overdraw as n increases for approximation case.
+    // Assert(n >= 7.0f);
+
+    // TODO(chowie): Can we further reduce the overdraw without Sin?
+    v2 Result = {};
+    Result.y = Sin(Tau32 / n); // NOTE(chowie): "Sin(Tau32 / n)" for better accuracy
+    Result.x = SquareRoot(1.0f - Square(Result.y));
+
+    return(Result);
+}
+
 // RESOURCE(arnon): https://github.com/HardCoreCodin/Rational-Ray-Casting/blob/master/raycasting-c/src/main.c
 internal v2
 NormalisedRotationByGradient(r32 m)
@@ -486,22 +603,6 @@ NormalisedRotationByGradient(r32 m)
     v2 Result = {};
     Result.x = (1.0f - mSq)*Factor;
     Result.y = (2.0f*m)*Factor;
-
-    return(Result);
-}
-
-// RESOURCE(gradient error): https://www.desmos.com/calculator/viio698tbt
-// NOTE(chowie): If you wish to add any correction?
-internal v2
-NormalisedRotationByCircleSector(r32 n)
-{
-    // NOTE(chowie): Better accuracy / less overdraw as n increases for approximation case.
-    // Assert(n >= 7.0f);
-
-    // TODO(chowie): Can we further reduce the overdraw without Sin?
-    v2 Result = {};
-    Result.y = Sin(Tau32 / n); // NOTE(chowie): Change to "Sin(Tau32 / n)" for better accuracy
-    Result.x = SquareRoot(1.0f - Square(Result.y));
 
     return(Result);
 }
@@ -533,6 +634,7 @@ NormalisedRotationByCircleSector(r32 n)
 }
 */
 
+// TODO(chowie): Use for a radial menu?
 inline m2x2
 M2x2RotationByTris(r32 n)
 {
@@ -542,23 +644,19 @@ M2x2RotationByTris(r32 n)
     return(Result);
 }
 
+// RESOURCE(inigo iquillez): https://iquilezles.org/articles/noacos/
+// TODO(chowie): Aligning one vector to another -> to rotate one thing around another
+inline m3x3
+M3x3RotationByAlign(v3 Source, v3 Dest)
+{
+}
+
 inline v2
 RationalDirection(v2 From, v2 To)
 {
     v2 Result = To - From;
     return(Result);
 }
-
-/*
-inline v2
-RationalV2Rotation(v2 P, r32 t)
-{
-    m2x2 Rot = RationalM2x2Rotation(t);
-    v2 Result = Rot*P;
-
-    return(Result);
-}
-*/
 
 //
 // NOTE(chowie): v3u / v3s operations
@@ -584,6 +682,14 @@ inline v3s
 operator+(v3s A, v3s B)
 {
     v3s Result = {A.x + B.x, A.y + B.y, A.z + B.z};
+    return(Result);
+}
+
+// NOTE(chowie): This is hadamard
+inline v3s
+operator*(v3s A, v3s B)
+{
+    v3s Result = {A.x*B.x, A.y*B.y, A.z*B.z};
     return(Result);
 }
 
@@ -650,11 +756,47 @@ operator*(v3 B, r32 A)
     return(Result);
 }
 
+// NOTE(chowie): This is hadamard
+inline v3
+operator*(v3 A, v3 B)
+{
+    v3 Result = {A.x*B.x, A.y*B.y, A.z*B.z};
+    return(Result);
+}
+
 // NOTE(chowie): Calls operator*
 inline v3 &
 operator*=(v3 &B, r32 A)
 {
     B = A*B;
+    return(B);
+}
+
+inline v3
+operator/(v3 B, r32 A)
+{
+    v3 Result = (1.0f*A)*B;
+    return(Result);
+}
+
+inline v3
+operator/(r32 B, v3 A)
+{
+    v3 Result = {B / A.x, B / A.y, B / A.z};
+    return(Result);
+}
+
+inline v3
+operator/(v3 A, v3 B)
+{
+    v3 Result = {A.x/B.x, A.y/B.y, A.z/B.z};
+    return(Result);
+}
+
+inline v3 &
+operator/=(v3 &B, r32 A)
+{
+    B = B / A;
     return(B);
 }
 
@@ -736,9 +878,9 @@ LengthSq(v3 A)
     return(Result);
 }
 
-// TODO(chowie): Am I able to remove this now that I have ReciprocalSquareRoot?
 // STUDY(chowie): Sqrt is undefined negative numbers. LengthSq
 // cannot produce a negative number, i.e Negative*Negative is positive
+// NOTE(chowie): Also called "norm"
 inline r32
 Length(v3 A)
 {
@@ -777,13 +919,14 @@ NOZ(v3 A)
 }
 
 // NOTE(chowie): Normalise _or_ Unit Vector.
+// TODO(chowie): Piecewise multiplication/hadamard for scaling?
 inline v3
 NOU(v3 A)
 {
     v3 Result = V3(1, 1, 1);
 
     r32 LenSq = LengthSq(A);
-    if(LenSq > Square(0.0001f))
+    if(AbsoluteValue(LenSq - 1.0f) > Square(0.0001f))
     {
         Result = A*ReciprocalSquareRoot(LenSq);
     }
@@ -838,7 +981,7 @@ IsParallel(v3 A, v3 B, r32 Epsilon)
 inline v3
 Floor(v3 Value)
 {
-    v3 Result = {MartinsFloor(Value.x), MartinsFloor(Value.y), MartinsFloor(Value.z)};
+    v3 Result = {Floor(Value.x), Floor(Value.y), Floor(Value.z)};
     return(Result);
 }
 
@@ -894,6 +1037,35 @@ GetBasis(v3 A, v3 B, v3 C)
     Result.BasisB = Normalise(B);
     Result.BasisC = Cross(A, B);
 
+    return(Result);
+}
+
+// RESOURCE(inigo quilez): https://iquilezles.org/articles/dontflip/
+// TODO(chowie): Use for collision sliding on walls and collision bounces
+inline v3
+Reflect(v3 A, v3 B)
+{
+    r32 Coeff = Inner(A, B);
+    v3 Result = (Coeff > 0.0f) ? A : (A - 2.0f*B*Coeff);
+    return(Result);
+}
+
+// NOTE(chowie): Snaps to the half-plane
+inline v3
+Clip(v3 A, v3 B)
+{
+    r32 Coeff = Inner(A, B);
+    v3 Result = (Coeff > 0.0f) ? A :
+        ((A - B*Coeff)*ReciprocalSquareRoot(1.0f - Square(Coeff) / Inner(A, A)));
+    return(Result);
+}
+
+// NOTE(chowie): Doesn't preserve length, must normalise after clipping
+inline v3
+ClipNoLength(v3 A, v3 B)
+{
+    r32 Coeff = Inner(A, B);
+    v3 Result = (Coeff > 0.0f) ? A : (A - B*Coeff);
     return(Result);
 }
 
@@ -1522,7 +1694,7 @@ D7samNormalisedMul(u8 A, u8 B)
 //
 
 // RESOURCE(reed): https://www.reedbeta.com/blog/hash-functions-for-gpu-rendering/
-// NOTE(chowie): Compared to Wang Hash, slighly better performance and much better statistical quality
+// NOTE(chowie): Compared to Wang Hash, slightly better performance and much better statistical quality
 inline u32
 PCGHash(u32 Input)
 {

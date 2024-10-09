@@ -1,27 +1,28 @@
   ------
-
+  DOCKET
   * tags difficulty
-  ARCHITECTURE EXPLORATION
 
-  - Hot-reloading and live-loop editing
-    = Fetch handle to the executable
+  ----------------8<-------------[ architecture exploration ]------------------
 
   - Memory
-    = Simple Arenas -> Later [Mr.4th dimensions']
+    = Enable Simple Arenas -> Later [Mr.4th dimensions']
 
-  - Static Strings
+  - Static Custom Strings
     = [Mr.4th dimensions'] Utf-8 handling, replace all stdio's printf-alikes
+    = [Emacs'] Gap Buffer for simple text input
+    = Defining the concept of a paragraph?
 
   - Rendering
-    = Blit bitmap
+    = Blit bitmap fonts as mirrored textures
+    = Martin's monospace font shader
     = 3D Rendering
-    = [Brehensam's] shapes: line drawing, circle
-    = Hardware Acceleration (OpenGL)
-    = OpenGL Vsync/Sleep
+    = Matrix Camera (Orthographic and Perspective transition)
+    = [Brehensam's] shapes primatives: diagonal line drawing
+    = Splines
 
   - Sorting?
 
-  - Multi-Threading
+  - Enable Multi-Threading
 
   - Debug Code
     = [Computer Enhance's] Simple Profiler set as a base
@@ -37,20 +38,59 @@
 
   - World
     = [Red Blob Games'] Grid
-    = Fabian's Morton's Code For Tile Storage? Must be u32, not s32!
+    = [Fabian's] Morton's Code For Tile Storage? Must be u32, not s32!
     = Sim Regions
+
+  RESOURCE: https://www.gridsagegames.com/blog/2015/07/roguelike-development-rexpaint/
+  * Picross Growable Structure Editor
+    = Hybrid Editor for 3D modelling, animation, level editor
+    = Priority-based non-linear growth for hollow rectangular structures
+    = Explore priority-based for other things occulsion, colours etc.
+    = Symmetry line-like bounding box movable base point
+      > Animation stretching as copy
+      > Scrubbable timeline
+      > Onion skinning
+      > Animation preview window
+    = Parity "masking" for non-linear grid
+    = Changable tesselation parity of grid (see Hammer level editor)
+    = Perspective + Orthographic switchable camera views
+    = 90deg snap rotation of ASCII walls e.g. wall > window cover during rain
+    = 'Ctrl-c' and 'Ctrl-v' for objects, glyphs etc.
+    = Undo for all ops
+    = Can I do something better than layers?
+    = Paintable ASCII textures on greybox via right-click-to-copy glyphs
+    = Searchable ASCII textures
+    = In-editor custom glyph importer
+      > Rearrange glyphs in glyph window
+      > Glyph mirroring?
+      > Find and Replace glyph
+    = Brush type textures with MS spray paint-like (e.g. 5x5 default) with random placement (glyphs + colour)
+    = Selecting colour schemes with image-wide swaps + colour picker (+ colour shifting?)
+    = Editing transtion between bounding box that groups voxels and individual
+    * What if the bounding box is larger than the chunk/sim region?
+    = Saved copies with tags, view as a sidebar list (see REXPaint)
+      > Copies viewable in a 3D room
+      > Favourites list for copies in a radial menu
+      > Box Object naming tag
+      > [Nintendo's] level editor searchable comments/tags placed in-world
+    = Movable menus + UI Tear Mode
+    = User specified draggable UI snapping e.g. Colours and defining custom waypoints
+    * To what extent an undo is available?
+    * Tablet pressure for colour?
+
+  - Particle Systems
+    = Rain serving as compass directions
 
   - Entity
     = [Ryan Fleury's] Flag Storage
-    = Collision Detection
+    = Brains
+    = Collision Detection (only for player controllers)
       > CCD, SAT or similar
 
   - Asset Loading System
     = Bitmaps,
     = StbTrueType Text,
     = Audio?
-
-  - Particle Systems
 
   - Metagame / Save Game?
     = How do you enter a "save slot"?
@@ -60,39 +100,78 @@
 
   - Rudimentary World Gen (no quality, just "what sorts of things" we do)
 
-  - AI?
+  * AI
+    = Coop A* Pathfinding
+    = Include time as a 4d grid visualisation graph
 
-  * Animation
+  * Procedural Animation
+    = How do "eels" slide and bend (at corners) along walls?
 
   - Raw Input / Multimonitor / Multiple keyboards types
     = GetKeyboardLayout
     = ClipCursor for multimonitor support
     = Wtf is QueryCancelAutoplay?
 
-  ------
+  - Colour linear to srgb conversion. OkLab support?
 
-  PRODUCTION / GAME
-  - World Generation
+  ----------------8<-------------[ production / game ]------------------
+
+  - Procedural World Generation?
+    = Biomes
+    = Growing ivy around non-growable structure
 
   - Entity System (will come off concurrent with GAME - scalability)
 
-  - Interactive Text (Strings)
-    = [Emacs'] Gap Buffer for simple text input
+  * Surfaces peeling off in the wind (like a stack of papers)
+    = Walls > Particle brains (sim region stored)
+    = Vector/flow fields for dynamic wind patterns
+    = Procedural animations maybe with a simple bone and inverse kinematics?
+
+  - Interactive Text and Eels
     = Surfaces in the world hold text that can move
     = Keyword dictionary? Highlighting keywords
-    = Defining the concept of a paragraph?
 
-  ------
+  - Talking System
+    = Mindmap discovery view
+    = Interactable 3-letter commands
+
+  - Key rebinding from game layer
+
+  - Graph Visualisations https://datavizcatalogue.com/blog/ternary-graphs-triangular-plots/?
+
+  ----------------8<-------------[ advice ]------------------
 
   RESOURCE: https://hero.handmade.network/forums/code-discussion/t/7125-help_with_day_017_-_win32processkeyboardmessages_being_called_twice%252C_throwing_off_assert_check.#21900
-  If you're trying to learn, you should try to figure out the problem instead of trying to move on. Solving bugs is a huge part of programming and a skill that is important and will benefit you more than moving on faster (in my opinion).
+  If you're trying to learn, you should try to figure out the problem
+  instead of trying to move on. Solving bugs is a huge part of
+  programming and a skill that is important and will benefit you more
+  than moving on faster (in my opinion).
 
   A few advice:
-  - If you can't find the solution after 2 hours, take a break. Often when you come back you'll find the solution quickly.
-  - Don't try to solve the issue by comparing the code to Casey's. Try to figure out why your code behaves differently and than verify it with the handmade hero code.
-  - Use the debugger, place a breakpoint in the Win32ProcessKeyboardMessages function and look in the call stack from where it was called. Inspect variables don't assume their values are correct.
-  - Keyboard and mouse input debugging is sometimes harder because pausing the program with the debugger will make you release the key and so no more message for that key will be received if you step. Logging messages with OutputDebugString helps a lot in those case. But be sure to also output messages for marking the frame start, the start and end of processing windows messages and other important step in you main loop. This should make it obvious in the log if something happens at an unexpected time.
-  - If you ask for help, provide your code (if possible with a simple way to compile it), not a screenshot, otherwise we won't be able to help you.
+  - If you can't find the solution after 2 hours, take a break. Often
+  when you come back you'll find the solution quickly.
+
+  - Don't try to solve the issue by comparing the code to Casey's. Try
+    to figure out why your code behaves differently and than verify it
+    with the handmade hero code.
+
+  - Use the debugger, place a breakpoint in the
+    Win32ProcessKeyboardMessages function and look in the call stack
+    from where it was called. Inspect variables don't assume their
+    values are correct.
+
+  - Keyboard and mouse input debugging is sometimes harder because
+    pausing the program with the debugger will make you release the
+    key and so no more message for that key will be received if you
+    step. Logging messages with OutputDebugString helps a lot in those
+    case. But be sure to also output messages for marking the frame
+    start, the start and end of processing windows messages and other
+    important step in you main loop. This should make it obvious in
+    the log if something happens at an unexpected time.
+
+  - If you ask for help, provide your code (if possible with a simple
+    way to compile it), not a screenshot, otherwise we won't be able
+    to help you.
 
   RESOURCE(ivanecky): https://hero.handmade.network/forums/code-discussion/t/124-thinking_about_frame_update
   Two schools of thought about Frame Updating
@@ -116,3 +195,38 @@
       > Benefit of this approach is you're handling variable-framerate
       well, cause you always know how much has game time advanced since
       last frame switch.
+
+/*
+internal void
+RenderWeirdGradient(game_offscreen_buffer *Buffer, v2 Offset)
+{
+    // STUDY(chowie): Pixels are 32-bit wide, little-endian
+    // architecture.
+    // Memory Order:   BB GG RR xx
+    // Register Order: xx RR GG BB
+
+    u8 *Row = (u8 *)Buffer->Memory;
+    for(u32 Y = 0;
+        Y < Buffer->Dim.Height;
+        ++Y)
+    {
+        u32 *Pixel = (u32 *)Row;
+        for(u32 X = 0;
+            X < Buffer->Dim.Width;
+            ++X)
+        {
+            u8 Red = 0;
+            u8 Blue = (u8)(X + Offset.x);
+            u8 Green = (u8)(Y + Offset.y);
+
+            // STUDY(chowie): Remember pointer arithmetic advances by
+            // 4-bytes, an entire u32!
+            *Pixel++ = ((Green << 16) |
+                        (Blue << 0));
+        }
+
+        Row += Buffer->Pitch;
+    }
+}
+*/
+

@@ -7,6 +7,10 @@
    $Notice: $
    ======================================================================== */
 
+// RESOURCE(inigo quilez): https://iquilezles.org/articles/sfrand/
+// STUDY(chowie): Passing in Series/Seed has benefits of
+// multithreading, compared to C-standard rand(), one for each thread
+// on the stack
 struct random_series
 {
     u32 Index;

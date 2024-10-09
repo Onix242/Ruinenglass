@@ -27,6 +27,7 @@ SignOf(r32 Value)
 }
 
 // RESOURCE(wychmaster): https://stackoverflow.com/questions/57870896/writing-a-portable-sse-avx-version-of-stdcopysign
+// RESOURCE(theowl84): Same technique using andnot to negate can be observed here - http://fastcpp.blogspot.com/2011/03/changing-sign-of-float-values-using-sse.html
 inline r32
 CopySign(r32 Sign, r32 Value)
 {
@@ -64,7 +65,17 @@ ReciprocalSquareRoot(r32 R32)
     return(Result);
 }
 
-// TODO(chowie): Difference of two signed/unsigned http://0x80.pl/notesen/2018-03-11-sse-abs-unsigned.html
+// RESOURCE(norbert): https://stackoverflow.com/questions/5508628/how-to-absolute-2-double-or-4-floats-using-sse-instruction-set-up-to-sse4
+inline r32
+AbsoluteValue(r32 R32)
+{
+    __m128 SignMask = _mm_set1_ps(-0.0f); // NOTE(chowie): -0.0f = 1 << 31
+    __m128 ExtractValue = _mm_andnot_ps(SignMask, _mm_set_ss(R32));
+
+    r32 Result = _mm_cvtss_f32(ExtractValue);
+    return(Result);
+}
+
 // RESOURCE(brumme): https://bits.stephan-brumme.com/absInteger.html
 inline s32
 AbsoluteValue(s32 S32)
@@ -74,15 +85,22 @@ AbsoluteValue(s32 S32)
     return(Result);
 }
 
-// RESOURCE(norbert): https://stackoverflow.com/questions/5508628/how-to-absolute-2-double-or-4-floats-using-sse-instruction-set-up-to-sse4
-inline r32
-AbsoluteValue(r32 R32)
+// TODO(chowie): Is this actually useful?
+// RESOURCE(wojciech mula): http://0x80.pl/notesen/2018-03-11-sse-abs-unsigned.html
+// NOTE(from mula): Maximum(A - B, 0); saturated arithmetic. Clamps to
+// zero if subtraction is negative. Calculates two saturated
+// subtracts, one for A - B and B - A; merge them with bitwise or.
+// It's safe, because one of the subtract results is zero.
+inline u32
+AbsDifferenceClampAboveZero(u32 A, u32 B)
 {
-    __m128 SignMask = _mm_set1_ps(-0.0f); // NOTE(chowie): -0.0f = 1 << 31
-    __m128 Combined = _mm_andnot_ps(SignMask, _mm_set_ss(R32));
+    __m128i NewA = _mm_set1_epi32((s32)A);
+    __m128i NewB = _mm_set1_epi32((s32)B);
+    __m128i AB = _mm_subs_epu8(NewA, NewB);
+    __m128i BA = _mm_subs_epu8(NewB, NewA);
 
-    r32 Result = _mm_cvtss_f32(Combined);
-    return(Result);
+    __m128i Result = _mm_or_si128(AB, BA);
+    return((u32)_mm_extract_epi8(Result, 0));
 }
 
 inline u32
@@ -165,7 +183,7 @@ MartinsFloor(r32 Value)
 
 // NOTE(chowie): SSE 4.1
 internal r32
-MartinsFloor(r32 R32)
+Floor(r32 R32)
 {
     r32 Result = _mm_cvtss_f32(_mm_floor_ss(_mm_setzero_ps(), _mm_set_ss(R32)));
     return(Result);
@@ -173,7 +191,7 @@ MartinsFloor(r32 R32)
 
 // NOTE(chowie): Floor for non-negative values, only [0 .. +2147483648) range.
 internal r32
-MartinsFloorPositive(r32 R32)
+FloorPositive(r32 R32)
 {
     Assert(SignOf(R32) == 1.0f);
     r32 Result = _mm_cvtss_f32(_mm_cvtepi32_ps(_mm_cvttps_epi32(_mm_set_ss(R32))));
@@ -183,21 +201,21 @@ MartinsFloorPositive(r32 R32)
 inline r32
 Fract(r32 R32)
 {
-    r32 Result = (R32 - MartinsFloor(R32));
+    r32 Result = (R32 - Floor(R32));
     return(Result);
 }
 
 inline s32
 FloorR32ToS32(r32 R32)
 {
-    s32 Result = (s32)MartinsFloor(R32);
+    s32 Result = (s32)Floor(R32);
     return(Result);
 }
 
 inline u32
 FloorR32ToU32(r32 R32)
 {
-    u32 Result = (u32)MartinsFloorPositive(R32);
+    u32 Result = (u32)FloorPositive(R32);
     return(Result);
 }
 
@@ -317,21 +335,6 @@ SumOfProducts(r32 A, r32 B, r32 C, r32 D)
     return(Result);
 }
 
-// RESOURCE(longtran): https://handmade.network/forums/t/8776-best_way_to_generate_lerp_function
-// RESOURCE(fabian): https://fgiesen.wordpress.com/2012/08/15/linear-interpolation-past-present-and-future/
-// NOTE(chowie): Can be also represented as "A + T*(B - A)",
-// or "(1.0f - t)*A + t*B"
-// r32 Result = Fma(t, B - A, A);
-inline r32
-Lerp(r32 A, r32 t, r32 B)
-{
-    __m128 LerpT = _mm_set_ss(t);
-    __m128 LerpA = _mm_set_ss(A);
-
-    r32 Result = _mm_cvtss_f32(_mm_fmadd_ss(LerpT, _mm_set_ss(B), _mm_fnmsub_ss(LerpT, LerpA, LerpA)));
-    return(Result);
-}
-
 // RESOURCE(orlp): https://stackoverflow.com/questions/101439/the-most-efficient-way-to-implement-an-integer-based-power-function-powint-int
 // RESOURCE(orlp): https://gist.github.com/orlp/3551590
 // TODO(chowie): iPow?
@@ -342,6 +345,9 @@ Lerp(r32 A, r32 t, r32 B)
 //
 
 #include <math.h>
+// RESOURCE(ganssle): https://web.archive.org/web/20030429001611/http://www.ganssle.com/approx/approx.pdf
+// RESOURCE(): https://github.com/divideconcept/FastTrigo/blob/master/fasttrigo.cpp
+// TODO(chowie): Work on approximations
 
 // RESOURCE(fabien): https://fgiesen.wordpress.com/2010/10/21/finish-your-derivations-please/
 // TODO(chowie): I don't want to be using angles, right? Hopefully I can replace everything with rational trig
@@ -360,6 +366,8 @@ Cos(r32 Angle)
     return(Result);
 }
 
+// RESOURCE(nghia ho): https://nghiaho.com/?p=997
+// TODO(chowie): Replace atan2?
 inline r32
 ATan2(r32 Y, r32 X)
 {

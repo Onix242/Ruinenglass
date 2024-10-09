@@ -8,7 +8,7 @@
    ======================================================================== */
 
 //
-// NOTE(chowie): Bitmaps was top-down, renderer is bottom-up.
+// IMPORTANT(chowie): Remember renderer is bottom-up / Y is up rendered
 //
 
 // STUDY(chowie): Compact discriminated unions
