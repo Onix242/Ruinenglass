@@ -10,6 +10,8 @@
 #include "ruinenglass_platform.h"
 #include "ruinenglass_shared.h"
 #include "ruinenglass_random.h"
+
+#include "ruinenglass_world.h"
 #include "ruinenglass_entity.h"
 #include "ruinenglass_audio.h"
 
@@ -32,24 +34,25 @@
 struct controlled_player
 {
     v2 ddP;
+    u32 EntityIndex;
 };
 
-struct world; // TODO(chowie): Remove!
-
-// TODO(chowie): Different modes? game_mode_adventure? game_mode_creative?
+// TODO(chowie): Different modes? game_mode_adventure? _creative?
 struct game_state
 {
     controlled_player ControlledPlayer[sizeof(game_input::Controllers)];
 
-    v2 Offset; // TODO(chowie): Remove!
-
     audio_state AudioState;
 
-    // TODO(chowie): Put arena in world
+    // TODO(chowie): Put arena in world?
     memory_arena WorldArena;
     world *World;
 
+    u32 EntityCount;
+    entity Entities[256];
+
     v2 dP;
+    v2 Offset; // TODO(chowie): Remove! Offset into the chunk
 
     b32x IsInitialised;
 };

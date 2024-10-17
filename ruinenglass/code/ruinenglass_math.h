@@ -9,6 +9,7 @@
 
 #define SQUARE(a) ((a)*(a))
 #define CUBE(a) ((a)*(a)*(a))
+#define Epsilon32 0.0001f
 
 inline v2u
 V2U(u32 X, u32 Y)
@@ -513,7 +514,7 @@ NOZ(v2 A)
     v2 Result = {};
 
     r32 LenSq = LengthSq(A);
-    if(LenSq > Square(0.0001f))
+    if(LenSq > Square(Epsilon32))
     {
         Result = A*ReciprocalSquareRoot(LenSq);
     }
@@ -559,6 +560,8 @@ operator*(m2x2 A, v2 P)
     return(Result);
 }
 
+// RESOURCE(ratchetfreak): https://hero.handmade.network/forums/code-discussion/t/1018-2d_rotation_help
+// TODO(chowie): General rotation for other shapes other than circles?
 inline m2x2
 V2ToM2x2Rotation(v2 P)
 {
@@ -571,21 +574,21 @@ V2ToM2x2Rotation(v2 P)
     return(Result);
 }
 
-// RESOURCE(gradient error): https://www.desmos.com/calculator/viio698tbt
-// NOTE(chowie): If you wish to add any correction?
-// TODO(chowie): Pass in an angle? Tau32 or Pi32 for semi-circle, but
-// needs to pass in another angle to state where to start from. Do I
-// want to average the triangle count too to not look super detailed
-// when rescaling?
+// TODO(chowie): Pass angle, e.g, Pi32 for semi-circle, but needs to
+// pass in another angle to state where to start from. Average the
+// triangle count too to not look super detailed when rescaling?
+// NOTE(chowie): Works best for medium-sized circles (n > 13). Better
+// accuracy / less underdraw as n increases. But if n is high enough,
+// circle overdraws.
 internal v2
-NormalisedRotationByCircleSector(r32 n)
+RotationByCircleSector(r32 n)
 {
-    // NOTE(chowie): Better accuracy / less overdraw as n increases for approximation case.
-    // Assert(n >= 7.0f);
+    // RESOURCE(john d cook): https://www.johndcook.com/blog/2010/07/27/sine-approximation-for-small-x/
+    r32 Sector = (Tau32 / n);
+    r32 Error = (Cube(Sector)/6);
 
-    // TODO(chowie): Can we further reduce the overdraw without Sin?
-    v2 Result = {};
-    Result.y = Sin(Tau32 / n); // NOTE(chowie): "Sin(Tau32 / n)" for better accuracy
+    v2 Result;
+    Result.y = Sector - Error; // NOTE(chowie): Replace with "Sin(Tau32 / n)" for better accuracy with small n
     Result.x = SquareRoot(1.0f - Square(Result.y));
 
     return(Result);
@@ -593,16 +596,26 @@ NormalisedRotationByCircleSector(r32 n)
 
 // RESOURCE(arnon): https://github.com/HardCoreCodin/Rational-Ray-Casting/blob/master/raycasting-c/src/main.c
 internal v2
-NormalisedRotationByGradient(r32 m)
+RotationByGradient(r32 m)
 {
     // NOTE(by arnon): Project a point on a unit circle from a
     // position on a vertical line of "x = 1" towards the origin
     r32 mSq = Square(m);
     r32 Factor = 1.0f / (1.0f + mSq);
 
-    v2 Result = {};
+    v2 Result;
     Result.x = (1.0f - mSq)*Factor;
     Result.y = (2.0f*m)*Factor;
+
+    return(Result);
+}
+
+// TODO(chowie): Use for a radial menu?
+inline m2x2
+M2x2RotationByTris(r32 n)
+{
+    v2 Rot = RotationByCircleSector(n);
+    m2x2 Result = V2ToM2x2Rotation(Rot);
 
     return(Result);
 }
@@ -633,16 +646,6 @@ NormalisedRotationByCircleSector(r32 n)
     return(Result);
 }
 */
-
-// TODO(chowie): Use for a radial menu?
-inline m2x2
-M2x2RotationByTris(r32 n)
-{
-    v2 Rot = NormalisedRotationByCircleSector(n);
-    m2x2 Result = V2ToM2x2Rotation(Rot);
-
-    return(Result);
-}
 
 // RESOURCE(inigo iquillez): https://iquilezles.org/articles/noacos/
 // TODO(chowie): Aligning one vector to another -> to rotate one thing around another
@@ -910,7 +913,7 @@ NOZ(v3 A)
     v3 Result = {};
 
     r32 LenSq = LengthSq(A);
-    if(LenSq > Square(0.0001f))
+    if(LenSq > Square(Epsilon32))
     {
         Result = A*ReciprocalSquareRoot(LenSq);
     }
@@ -926,7 +929,7 @@ NOU(v3 A)
     v3 Result = V3(1, 1, 1);
 
     r32 LenSq = LengthSq(A);
-    if(AbsoluteValue(LenSq - 1.0f) > Square(0.0001f))
+    if(AbsoluteValue(LenSq - 1.0f) > Square(Epsilon32))
     {
         Result = A*ReciprocalSquareRoot(LenSq);
     }
@@ -969,11 +972,9 @@ IsPerp(v3 A, v3 B, r32 Epsilon)
 inline b32x
 IsParallel(v3 A, v3 B, r32 Epsilon)
 {
-    b32x Result;
-
     A = Normalise(A);
     B = Normalise(B);
-    Result = ((1.0f - AbsoluteValue(Inner(A, B))) < Epsilon);
+    b32x Result = ((1.0f - AbsoluteValue(Inner(A, B))) < Epsilon);
 
     return(Result);
 }
@@ -1005,6 +1006,44 @@ Lerp(v3 A, r32 t, v3 B)
     v3 Result = {Lerp(A.x, t, B.x), Lerp(A.y, t, B.y), Lerp(A.z, t, B.z)};
     return(Result);
 }
+
+/*
+  RESOURCE(jblow): http://number-none.com/product/Understanding%20Slerp,%20Then%20Not%20Using%20It/
+
+                      | Commutative | Constant Velocity | Torque-Minimal |
+  Quaternion slerp    |     No!     |       Yes         |      Yes       |
+  Quaternion nlerp    |     Yes     |       No!         |      No!       |
+  Log-Quaternion lerp |     Yes     |       Yes         |      Yes       |
+*/
+
+// RESOURCE(maggio): https://keithmaggio.wordpress.com/2011/02/15/math-magician-lerp-slerp-and-nlerp/
+// STUDY(chowie): For animation
+// TODO(chowie): Apply this to rotors/quarternions?
+// TODO(chowie): V2?
+inline v3
+NLerp(v3 A, r32 t, v3 B)
+{
+    v3 Result = Normalise(Lerp(A, t, B));
+    return(Result);
+}
+
+// RESOURCE(casey): https://hero.handmade.network/forums/code-discussion/t/1089-quaternion_interpolation
+// NOTE(chowie): The reason why you wouldn't use slerp, isn't that
+// it's slow. But it cannot handle more than two quarternions.
+// RESOURCE(demofox): https://blog.demofox.org/2016/02/19/normalized-vector-interpolation-tldr/
+// TODO(chowie): No trig slerp!
+/*
+inline v3
+SLerp(v3 A, r32 t, v3 B)
+{
+    r32 Dot = Inner(A, B);
+    Dot = Clamp(-1.0f, Dot, 1.0f);
+    r32 Theta = acosf(Dot)*t;
+    v3 Relative = Normalise(B - A*Dot);
+    v3 Result = ((A*Cos(Theta)) + (Relative*Sin(Theta)));
+    return(Result);
+}
+*/
 
 struct get_basis_result
 {
@@ -1640,26 +1679,6 @@ Linear1ToSRGB255(v4 C)
     return(Result);
 }
 
-// TODO(chowie): Use this! Computing the binary logarithm is
-// equivalent to knowing the position of the highest order set
-// bit. For instance, log2(0x1) is 0 and log2(0x100) is 8.
-// RESOURCE: https://web.archive.org/web/20211023131624/https://lolengine.net/blog/2012/4/3/beyond-de-bruijn
-// RESOURCE: https://web.archive.org/web/20210724051712/https://lolengine.net/attachment/blog/2012/4/3/beyond-de-bruijn/debruijn.cpp
-// NOTE(chowie): Beyond De Bruijn: fast binary logarithm of a 10-bit number
-global s32 MagicTable[16] = 
-{
-    0, 1, 2, 8, -1, 3, 5, 9, 9, 7, 4, -1, 6, -1, -1, -1,
-};
-inline s32
-FastLog2(u32 Value)
-{
-    Value |= Value >> 1;
-    Value |= Value >> 2;
-    Value |= Value >> 4;
-    s32 Result = MagicTable[(u32)(Value * 0x5a1a1a2u) >> 28];
-    return(Result);
-}
-
 // RESOURCE(sam): https://web.archive.org/web/20211023131624/https://lolengine.net/blog/2011/12/14/understanding-motion-in-games
 // TODO(chowie): Implement Verlet equation of motions instead of Euler
 //  Accel = V3(0, 0, -9.81f);
@@ -1774,6 +1793,8 @@ MullerHash(v3s Value)
     Result = AbsoluteValue(Result);
     return(Result);
 }
+
+// TODO: String hash? - https://theartincode.stanis.me/008-djb2/
 
 //
 // NOTE(chowie): Compression

@@ -7,28 +7,34 @@
    $Notice: $
    ======================================================================== */
 
-struct move_spec
-{
-    b32x UnitMaxAccelVector;
-    r32 Speed;
-    r32 Drag;
-};
-
 enum entity_type
 {
     EntityType_Null,
 
-    EntityType_Space,
     EntityType_Player,
     EntityType_Wall,
+    EntityType_Space,
 };
 
 enum entity_flags
 {
     EntityFlag_Collides = BitSet(0),
-    EntityFlag_Moveable = BitSet(1),
-    EntityFlag_Deleted = BitSet(2),
+    EntityFlag_Deleted = BitSet(1),
+    EntityFlag_Moveable = BitSet(2), // TODO(chowie): REMOVE! Once have brains!
 //    EntityFlag_Traversable = BitSet(3), // TODO(chowie): Might be interesting for optimisation
+};
+
+struct entity;
+
+// IMPORTANT(chowie): Reserve 0 for null entity
+struct entity_id
+{
+    u32 Value;
+};
+union entity_ref
+{
+    entity *Ptr;
+    entity_id ID;
 };
 
 struct entity
@@ -43,7 +49,10 @@ struct entity
 
     entity_type Type; // TODO(chowie): Eventually replace this with brains!
     u32 Flags;
-    move_spec MoveSpec;
+
+    v2 P;
+    v2 dP;
+//    v2 ddP;
 };
 
 inline b32x

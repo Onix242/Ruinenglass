@@ -101,21 +101,18 @@ OpenGLRect(v3 MinP, v3 MaxP, v4 Colour, v2 MinUV = V2(0, 0), v2 MaxUV = V2(1, 1)
     glEnd();
 }
 
-// RESOURCE(inigo quilez): Eerily similar - https://iquilezles.org/articles/sincos/
-// RESOURCE(SiegeLord): Eerily similar - https://siegelord.net/circle_draw
-// RESOURCE(ratchetfreak): https://hero.handmade.network/forums/code-discussion/t/1018-2d_rotation_help
-// TODO(chowie): General rotation for other shapes other than circles
 // RESOURCE: https://stackoverflow.com/questions/1569939/rendering-different-triangle-types-and-triangle-fans-using-vertex-buffer-objects
 // TODO(chowie): Change GL_TRIANGLE_FAN to glDrawArrays
 // RESOURCE: https://stackoverflow.com/questions/8762826/texture-mapping-a-circle-made-using-gl-polygon
-// TODO(chowie): Proper texturing of circles? Should the MinUV really
-// be 0.5f? GlTexCoord?
+// TODO(chowie): Proper texturing of circles?
 // RESOURCE(blatnik): https://blog.bearcats.nl/seamlessly-subdivide-circle/
 // IMPORTANT(chowie): Best explanation by ohAitch. To "triangulate a
 // circle" is roughly "get some fractional powers of -1", doing the
 // fraction once (outside the loop) and then raising _it_ to succesive
-// integer powers. One sin and one cos per/vertex -> one sin per circle,
-// with a v2 orientation and rotation matrix mult cost.
+// integer powers. One sin & one cos per/vertex -> now no sin/cos per
+// circle, with a v2 orientation and rotation matrix mult cost.
+// RESOURCE(inigo quilez): Eerily similar - https://iquilezles.org/articles/sincos/
+// RESOURCE(SiegeLord): Eerily similar - https://siegelord.net/circle_draw
 inline void
 OpenGLCircle(v3 CentreP, r32 Radius, u32 TriCount,
              v4 Colour, v2 MinUV = V2(0, 0), v2 MaxUV = V2(1, 1))

@@ -7,6 +7,9 @@
    $Notice: $
    ======================================================================== */
 
+// RESOURCE(o'neill): https://www.pcg-random.org/download.html
+// TODO(chowie): Better random with PCG?
+
 // RESOURCE(inigo quilez): https://iquilezles.org/articles/sfrand/
 // STUDY(chowie): Passing in Series/Seed has benefits of
 // multithreading, compared to C-standard rand(), one for each thread
@@ -26,18 +29,22 @@ RandomSeed(u32 Value)
     return(Series);
 }
 
-// TODO(chowie): Better random with PCG?
 // TODO(chowie): Note how easy it is to convert to SIMD, not so much if also wanting to rotate too
+// TODO(chowie): Noise?
 // RESOURCE(wikipedia): https://en.wikipedia.org/wiki/Xorshift
 // NOTE(chowie): The state must be initialized to non-zero
+// RESOURCE(graemephi): https://graemephi.github.io/posts/some-low-discrepancy-noise-functions/
+// NOTE(chowie): Variant has better statistical quality for the
+// bottom-most 4 bits. Works for 2^16 (Similar to LCGs).
 internal u32
-RandomXorshift(random_series *Series)
+XorshiftStar32(random_series *Series)
 {
     u32 Result = Series->Index;
 
     Result ^= Result << 13;
     Result ^= Result >> 17;
     Result ^= Result << 5;
+    Result *= 0x9e02ad0d;
 
     Series->Index = Result;
 
@@ -49,17 +56,16 @@ RandomXorshift(random_series *Series)
 inline u32
 RandomBounds(random_series *Series, u32 Bounds)
 {
-    u64 A = (u64)Bounds*RandomXorshift(Series);
-    u64 B = (u32)A + (((u64)Bounds*RandomXorshift(Series)) >> 32);
+    u64 A = (u64)Bounds*XorshiftStar32(Series);
+    u64 B = (u32)A + (((u64)Bounds*XorshiftStar32(Series)) >> 32);
     u32 Result = (A >> 32) + (B >> 32);
     return(Result);
 }
-
 /*
 inline u32
 RandomChoice(random_series *Series, u32 ChoiceCount)
 {
-    u32 Result = (RandomXorshift(Series) % ChoiceCount);
+    u32 Result = (XorshiftStar32(Series) % ChoiceCount);
     return(Result);
 }
 */
@@ -70,7 +76,7 @@ RandomChoice(random_series *Series, u32 ChoiceCount)
 inline r32
 RandomUnilateral(random_series *Series)
 {
-    r32 Result = (r32)((u32)(RandomXorshift(Series) >> 1) / ((u32)(U32Max >> 1)));
+    r32 Result = (r32)((u32)(XorshiftStar32(Series) >> 1) / ((u32)(U32Max >> 1)));
     return(Result);
 }
 
@@ -95,7 +101,7 @@ RandomBetween(random_series *Series, v2s Range)
     // NOTE(chowie): We want to be one over the Max, we want to include
     // the case where 1 can produce a 0 or 1 instead of always getting
     // the min.
-    s32 Result = Range.Min + (s32)(RandomXorshift(Series) % ((Range.Max + 1) - Range.Min));
+    s32 Result = Range.Min + (s32)(XorshiftStar32(Series) % ((Range.Max + 1) - Range.Min));
     return(Result);
 }
 

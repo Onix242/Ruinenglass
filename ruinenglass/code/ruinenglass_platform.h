@@ -273,6 +273,9 @@ CExternEnd
 
   IMPORTANT(chowie): On function naming, make NOT create (latter is
   for functions I didn't write), Win32 and DEBUG prefix.
+
+  STUDY(chowie): In practice, the compiler does optimisations, can
+  pull into b32x to more easily read them linguistically.
 */
 
 #define RUINENGLASS_PLATFORM_H

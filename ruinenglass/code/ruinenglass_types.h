@@ -83,9 +83,9 @@ typedef double r64;
 #define U32FromPointer(Pointer) ((u32)(umm)(Pointer))
 #define PointerFromU32(type, Value) (type *)((umm)Value)
 
-#define Euler32 2.718281828459045f
 #define Pi32 3.14159265359f
 #define Tau32 6.28318530717958647692f
+#define Euler32 2.718281828459045f
 #define GoldenRatio64 1.61803398874989484820458683436563f
 
 #if RUINENGLASS_SLOW
@@ -127,6 +127,26 @@ typedef double r64;
 #define U8Max ((u8) - 1)
 
 #define Odd(Value) ((Value) & 1)
+
+// RESOURCE: https://web.archive.org/web/20211023131624/https://lolengine.net/blog/2012/4/3/beyond-de-bruijn
+// RESOURCE: https://web.archive.org/web/20210724051712/https://lolengine.net/attachment/blog/2012/4/3/beyond-de-bruijn/debruijn.cpp
+// NOTE(chowie): Beyond De Bruijn: fast binary logarithm of a 10-bit number
+// STUDY(chowie): Computing the binary logarithm is
+// equivalent to knowing the position of the highest order set
+// bit. For instance, log2(0x1) is 0 and log2(0x100) is 8.
+global s32 MagicTable[16] = 
+{
+    0, 1, 2, 8, -1, 3, 5, 9, 9, 7, 4, -1, 6, -1, -1, -1,
+};
+inline s32
+FastLog2(u32 Value)
+{
+    Value |= Value >> 1;
+    Value |= Value >> 2;
+    Value |= Value >> 4;
+    s32 Result = MagicTable[(u32)(Value * 0x5a1a1a2u) >> 28];
+    return(Result);
+}
 
 // TODO(chowie): Figure out where to use Align16 for code I care about
 // the most; For SIMD?
