@@ -152,6 +152,47 @@ Cube(r32 A)
     return(Result);
 }
 
+// RESOURCE(john d cook): Sin approx (0 to Pi32) - https://www.johndcook.com/blog/2024/08/31/sine-approx/
+// TODO(chowie): Blog also contains Cos approx (0 to Pi32), what are ways to use it?
+// NOTE(chowie): Parabolas 0.5f, used with lerp! Oner on caller to
+// pass -0.25f*Tau32 to 0.25f*Tau32. For rotation e.g. sword swings
+inline r32
+Sin01(r32 t)
+{
+    r32 Range = (Pi32*t);
+    // NOTE(chowie): Sin approx (0 to Pi32) originates from Aryabhata I, around 500 AD.
+    r32 Result = ((16*Range)*(Pi32 - Range)) / (5*Square(Pi32) - 4*Range*(Pi32 - Range));
+    return(Result);
+}
+
+// NOTE(chowie): As 0 -> 1, at 0.5f to be at 1.
+inline r32
+Triangle01(r32 t)
+{
+    r32 Result = 2.0f*t;
+    if(Result > 1.0f)
+    {
+        Result = 2.0f - Result;
+    }
+
+    return(Result);
+}
+
+// RESOURCE(longtran): https://handmade.network/forums/t/8776-best_way_to_generate_lerp_function
+// RESOURCE(fabian): https://fgiesen.wordpress.com/2012/08/15/linear-interpolation-past-present-and-future/
+// NOTE(chowie): Can be also represented as "A + T*(B - A)",
+// or "(1.0f - t)*A + t*B"
+// r32 Result = Fma(t, B - A, A);
+inline r32
+Lerp(r32 A, r32 t, r32 B)
+{
+    __m128 LerpT = _mm_set_ss(t);
+    __m128 LerpA = _mm_set_ss(A);
+
+    r32 Result = _mm_cvtss_f32(_mm_fmadd_ss(LerpT, _mm_set_ss(B), _mm_fnmsub_ss(LerpT, LerpA, LerpA)));
+    return(Result);
+}
+
 inline r32
 Clamp(r32 Min, r32 Value, r32 Max)
 {
@@ -199,21 +240,6 @@ inline r32
 ClampAboveZero(r32 Value)
 {
     r32 Result = (Value < 0) ? 0.0f : Value;
-    return(Result);
-}
-
-// RESOURCE(longtran): https://handmade.network/forums/t/8776-best_way_to_generate_lerp_function
-// RESOURCE(fabian): https://fgiesen.wordpress.com/2012/08/15/linear-interpolation-past-present-and-future/
-// NOTE(chowie): Can be also represented as "A + T*(B - A)",
-// or "(1.0f - t)*A + t*B"
-// r32 Result = Fma(t, B - A, A);
-inline r32
-Lerp(r32 A, r32 t, r32 B)
-{
-    __m128 LerpT = _mm_set_ss(t);
-    __m128 LerpA = _mm_set_ss(A);
-
-    r32 Result = _mm_cvtss_f32(_mm_fmadd_ss(LerpT, _mm_set_ss(B), _mm_fnmsub_ss(LerpT, LerpA, LerpA)));
     return(Result);
 }
 

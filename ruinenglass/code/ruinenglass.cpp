@@ -122,31 +122,42 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     // TODO(chowie): Once have perspective transform & camera
     // viewport, remove everything but tilesideinmeters!
 //    r32 PixelsToMeters = 1.0f / 42.0f;
-    v3 TileSideInMeters = V3(1.0f, 1.3f, 1.0f); // TODO(chowie): Change these to TotalTesselationVoxelEdge
+    v3 TileSideInMeters = V3(1.0f, 1.3f, 1.0f); // TODO(chowie): Change these to TotalTilingCubeEdge
     v3 TileSideInPixels = V3(80.0f, 95.0f, 80.0f); // TODO(chowie): REMOVE! This is more of a renderer concept, not the tiles
     v3 MetersToPixels = TileSideInPixels / TileSideInMeters; // TODO(chowie): REMOVE! This is more of a renderer concept, not the tiles
 
     v3 Offset = {};
 
-    // TODO(chowie): Is it easier to make these a m3x3 matrix?
-    // TODO(chowie): Express this as a ratio, clamp01?
-    // RESOURCE: On Naming - https://en.wikipedia.org/wiki/List_of_Euclidean_uniform_tilings
-    v2 CornerDim = MetersToPixels.xy*V2(0.3f, 0.3f); // 20.0f, 20.0f
-    v2 TileDim = MetersToPixels.xy*V2(0.8f, 1.3f); // 60.0f, 75.0f
-    v2 SEdgeDim = V2(TileDim.x, CornerDim.y);
-    v2 WEdgeDim = V2(CornerDim.x, TileDim.y);
-    v2 TesselationDim = TileDim + CornerDim;
-
     /*
-      STUDY(chowie): Anatomy of a Modular Grid
+      STUDY(chowie): Design Anatomy of a Modular Grid
       - Flowline
       - Gutter
       - Modules
       - Spatial Zone
-      TODO(chowie): JP Modular/Heirarchical UI for location development?
+      TODO(chowie): JP Modular/Heirarchical UI to view locations on a map?
     */
+
+    // TODO(chowie): Is it easier to make these a m3x3 matrix?
+    // TODO(chowie): Express this as a ratio, clamp01?
+    // RESOURCE(chowie): https://grahamshawcross.com/2023/08/02/modules-and-proportions/
+    // NOTE(chowie): Naming based on Van Der Laan's Form Banks or
+    // Morphotheeks. I'm opting to use 'modular fixing' over 'location
+    // grids' to place modules. The use of uniform / semiregular
+    // tiling feels like a modular-proportional system hybrid.
+    // RESOURCE(chowie): https://grahamshawcross.com/2012/10/12/periodic-and-non-periodic-tiling/
+    // RESOURCE(chowie): https://www.livescience.com/50027-tessellation-tiling.html
+    // RESOURCE(chowie): https://en.wikipedia.org/wiki/Honeycomb_(geometry)
+    // NOTE(chowie): 3D tiling is called honeycombs; tiling is
+    // preferred over tessellation as it's confusing in 3D graphics.
+    v2 SlabDim = MetersToPixels.xy*V2(0.8f, 1.3f);
+    v2 BlockDim = MetersToPixels.xy*V2(0.3f, 0.3f);
+    v2 BlankDim = V2(SlabDim.x, BlockDim.y);
+    v2 BarDim = V2(BlockDim.x, SlabDim.y);
+    v2 HoneycombDim = SlabDim + BlockDim;
+    // TODO(chowie): Slabs = External, Block|Blank|Bar = Partition.
+    // Also show structural grid alignment with Witness circle + line
+
     // TODO(chowie): Is it possible to make row y and column x?
-    // RESOURCE(amit): https://www.redblobgames.com/grids/edges/#corners
     u32 TilesPerHeight = 4;
     u32 TilesPerWidth = 8;
     for(u32 Row = 0;
@@ -159,58 +170,59 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         {
             // TODO(chowie): Simplify b32x with DeMorgan's Law/Truth table?
             // TODO(chowie): Encode these using triangles numbers or something?
+            // RESOURCE(amit): https://www.redblobgames.com/grids/edges/#corners
             v4 BaseColour = {};
             if(Odd(Row) && Odd(Column))
             {
-                // NOTE(chowie): Tile = Violet
-                BaseColour = V4(0.3f, 0.3f, 0.7f, 1);
-            }
-            else if(Odd(Row) && !Odd(Column))
-            {
-                // NOTE(chowie): W Edge = Green
-                BaseColour = V4(0.5f, 0.7f, 0.5f, 1);
+                // NOTE(chowie): Slab / Tile = Blue
+                BaseColour = V4(0.3f, 0.5f, 0.8f, 1);
             }
             else if(!Odd(Row) && Odd(Column))
             {
-                // NOTE(chowie): S Edge = Pastel
-                BaseColour = V4(0.7f, 0.3f, 0.3f, 1);
+                // NOTE(chowie): Blank / S Edge = White
+                BaseColour = V4(0.9f, 0.9f, 0.9f, 1);
+            }
+            else if(Odd(Row) && !Odd(Column))
+            {
+                // NOTE(chowie): Bar / W Edge = Yellow
+                BaseColour = V4(0.9f, 0.9f, 0.5f, 1);
             }
             else
             {
-                // NOTE(chowie): Corner = Grey
-                BaseColour = V4(0.1f, 0.1f, 0.1f, 1);
+                // NOTE(chowie): Block / Corner = Brown / Pastel
+                BaseColour = V4(0.6f, 0.3f, 0.3f, 1);
             }
 
             // TODO(chowie): Tesselate for n-sized group tiles?
             v2 Min;
-            Min.x = ((Column - 1*Odd(Column)) / 2)*TesselationDim.x + CornerDim.x*Odd(Column);
-            Min.y = ((Row - 1*Odd(Row)) / 2)*TesselationDim.y + CornerDim.y*Odd(Row);
+            Min.x = ((Column - 1*Odd(Column)) / 2)*HoneycombDim.x + BlockDim.x*Odd(Column);
+            Min.y = ((Row - 1*Odd(Row)) / 2)*HoneycombDim.y + BlockDim.y*Odd(Row);
 
             v2 Max;
-            Max.x = Min.x + SEdgeDim.x*Odd(Column) + CornerDim.x*!Odd(Column);
-            Max.y = Min.y + WEdgeDim.y*Odd(Row) + CornerDim.y*!Odd(Row);
+            Max.x = Min.x + BlankDim.x*Odd(Column) + BlockDim.x*!Odd(Column);
+            Max.y = Min.y + BarDim.y*Odd(Row) + BlockDim.y*!Odd(Row);
 
             /*
             if(!Odd(Row))
             {
-                Min.y = (Row / 2)*TesselationDim.y;
-                Max.y = Min.y + CornerDim.y;
+                Min.y = (Row / 2)*HoneycombDim.y;
+                Max.y = Min.y + BlockDim.y;
             }
             else
             {
-                Min.y = ((Row - 1) / 2)*TesselationDim.y + CornerDim.y;
-                Max.y = Min.y + WEdgeDim.y;
+                Min.y = ((Row - 1) / 2)*HoneycombDim.y + BlockDim.y;
+                Max.y = Min.y + BarDim.y;
             }
 
             if(!Odd(Column))
             {
-                Min.x = (Column / 2)*TesselationDim.x;
-                Max.x = Min.x + CornerDim.x;
+                Min.x = (Column / 2)*HoneycombDim.x;
+                Max.x = Min.x + BlockDim.x;
             }
             else
             {
-                Min.x = ((Column - 1) / 2)*TesselationDim.x + CornerDim.x;
-                Max.x = Min.x + SEdgeDim.x;
+                Min.x = ((Column - 1) / 2)*HoneycombDim.x + BlockDim.x;
+                Max.x = Min.x + BlankDim.x;
             }
             */
 
@@ -267,8 +279,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 // RESOURCE(HmH): https://guide.handmadehero.org/code/day211/#3368
                 // STUDY(chowie): Numerical simulation, for proper ODE would need global t
 
-                // TODO(chowie): Change from pixels/second
-                // TODO(chowie): Should it really be MaxddP > 1.0f?
                 ConPlayer->ddP = NOZ(ConPlayer->ddP);
 
                 r32 Speed = 30.0f;
@@ -302,12 +312,16 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         //
 
 #if 0
-        for(u32 ControllerIndex = 0;
-            ControllerIndex < ArrayCount(Input->Controllers);
-            ++ControllerIndex)
+        v2 ddP = {};
+        if(Entity->Type == EntityType_Player)
         {
-            controlled_player *ConPlayer = GameState->ControlledPlayer + ControllerIndex;
-            ddP = V3(ConPlayer->ddP, 0);
+            for(u32 ControllerIndex = 0;
+                ControllerIndex < ArrayCount(Input->Controllers);
+                ++ControllerIndex)
+            {
+                controlled_player *ConPlayer = GameState->ControlledPlayer + ControllerIndex;
+                ddP = ConPlayer->ddP; // V3(ConPlayer->ddP, 0);
+            }
         }
 
         if(IsSet(Entity, EntityFlag_Moveable))
@@ -322,7 +336,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
         if(Entity->Type == EntityType_Player)
         {
-            v4 HeroColour = V4(0.5f, 0.2f, 0.5f, 1);
+            v4 HeroColour = V4(0.3f, 0.2f, 0.5f, 1);
             v2 PlayerDim = MetersToPixels.xy*V2(0.8f, 1.4f);
             PushRect(RenderGroup, V3(GameState->Offset, 0), PlayerDim, HeroColour);
         }

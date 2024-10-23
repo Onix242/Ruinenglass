@@ -76,7 +76,13 @@
   the voxel itself; the smaller the voxel -> octrees.
 
   In addition to hashing, I plan to also use:
-  - Sim regions (can mimic the effect of different update frequencies)
+  - Sim regions, can mimic the effect of different update frequencies.
+    But otherwise has no relation to spatial partitioning space (just
+    so happens that people use BSP for both) - in fact you don't even
+    need to chunk the world. You need some sim policy and way to
+    convert entities into world space from sim space (with packing /
+    unpacking) nonetheless. It does have the added benefit of not
+    requiring to be world align.
   - RLE Compression + LZ4 NOTE(chowie): Doing anymore is probably
     overkill according to Kapoulkine. However, an interesting
     exploration is doing Morton encoding compression on x,y,z coords

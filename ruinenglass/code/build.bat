@@ -6,7 +6,7 @@ set CommonOptimiseFlags= -Od -Gm- -GR- -EHa- -Oi -fp:except-
 set CommonDefinesFlags=  -DRUINENGLASS_INTERNAL=1 -DRUINENGLASS_SLOW=1 -DRUINENGLASS_WIN32=1
 set CommonDebugFlags=    -FC -Z7 -Zo -Fm
 set CommonCompilerFlags= -MTd -nologo %CommonWarningFlags% %CommonOptimiseFlags% %CommonDefinesFlags% %CommonDebugFlags%
-REM IMPORTANT: -MTd -> MT for release mode
+REM IMPORTANT: -MTd -> MT and remove -Zo for release mode
 
 set CommonLibsFlags=      user32.lib gdi32.lib winmm.lib opengl32.lib
 set CommonLinkerShared=  -link -CETCOMPAT -incremental:no -opt:ref
