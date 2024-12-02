@@ -9,6 +9,7 @@
 #include "ruinenglass.h"
 #include "ruinenglass_renderer.cpp"
 #include "ruinenglass_audio.cpp"
+#include "ruinenglass_world.cpp"
 
 internal entity *
 GetEntity(game_state *GameState, u32 Index)
@@ -42,7 +43,7 @@ AddPlayer(game_state *GameState)
 {
     u32 EntityIndex = AddEntity(GameState, EntityType_Player);
     entity *Entity = GetEntity(GameState, EntityIndex);
-    AddFlags(Entity, EntityFlag_Moveable);
+    AddFlag(Entity, EntityFlag_Moveable);
     Entity->P = V2(500.0f, 500.0f); // TODO(chowie): REMOVE when have world_chunk!
 
     return(EntityIndex);
@@ -89,7 +90,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         InitialiseArena(&GameState->WorldArena,
                         Memory->Permanent.Size - sizeof(game_state),
                         Memory->Permanent.Base + sizeof(game_state));
+
+        r32 PixelsToMeters = 1.0f / 42.0f;
+        v3 WorldChunkDimInMeters = V3(PixelsToMeters*256.0f, PixelsToMeters*256.0f, PixelsToMeters*256.0f);
+
         GameState->World = PushStruct(&GameState->WorldArena, world);
+        world *World = GameState->World;
+        InitialiseWorld(World, WorldChunkDimInMeters);
 
         // STUDY(chowie): One less thing the platform layer has to do; the game would always.
         GameState->IsInitialised = true;
@@ -121,7 +128,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     // NOTE: Average human height is 1.7m
     // TODO(chowie): Once have perspective transform & camera
     // viewport, remove everything but tilesideinmeters!
-//    r32 PixelsToMeters = 1.0f / 42.0f;
     v3 TileSideInMeters = V3(1.0f, 1.3f, 1.0f); // TODO(chowie): Change these to TotalTilingCubeEdge
     v3 TileSideInPixels = V3(80.0f, 95.0f, 80.0f); // TODO(chowie): REMOVE! This is more of a renderer concept, not the tiles
     v3 MetersToPixels = TileSideInPixels / TileSideInMeters; // TODO(chowie): REMOVE! This is more of a renderer concept, not the tiles
@@ -129,33 +135,114 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     v3 Offset = {};
 
     /*
-      STUDY(chowie): Design Anatomy of a Modular Grid
-      - Flowline
-      - Gutter
-      - Modules
-      - Spatial Zone
+      RESOURCE(): https://www.livescience.com/50027-tessellation-tiling.html
+      RESOURCE(): https://en.wikipedia.org/wiki/Honeycomb_(geometry)
+      RESOURCE(shawcross): https://grahamshawcross.com/2012/10/12/periodic-and-non-periodic-tiling/
+      RESOURCE(shawcross): https://grahamshawcross.com/2023/08/02/modules-and-proportions/
+      RESOURCE(vanderlaan): https://domhansvanderlaan.nl/theory-practice/theory/the-plastic-number-series-8/
+      RESOURCE(vanderlaan): https://domhansvanderlaan.nl/theory-practice/theory/the-plastic-number-ratio/
+      (Naming based on Van Der Laan's Form Banks / Morphotheeks)
+                                       ___________________
+                                      /     /            /|
+                                     /Wet  /            / | Rain comes from the north?
+                                    /Blank/  Tile      /  |
+                                   /     /            /   |
+                                  /_____/____________/   /|
+                                 /     /            /|  / |
+      ____________________      /_____/____________/ | /  |
+      |     |            |      |     |   Dry      | |/   |
+      |Block|   Blank    |      |Block|   Blank    | /    |
+      |_____|____________|      |_____|____________|/|    |
+      |     |            |      |     |            | |    |
+      |     |            |      |     |            | |Box |
+      |     |            |      |     |            | |    |
+      |     |            |      |     |   Dry      | |    |
+      | Bar |   Slab     |      | Bar |   Slab     | |   /
+      |     |            |      |     |            | |  /
+      |     |            |      |     |            | | /
+      |     |            |      |     |            | |/
+      |     |            |      |     |            | /
+      |_____|____________|      |_____|____________|/
+       Tiling/Tesselation            Honeycomb
+
+      Blank forms are transitional forms between Block|Slab (usually Bar too)
+      Rods are derived forms; "a doubling of the authentic form".
+
+      TODO(chowie): Slab|Bar = External; Block|Blank|Bar = Partition.
+
+      I'm opting to use 'modular fixing' over 'location
+      grids' to place modules/slabs.
+
+         Design Anatomy of a Modular Grid
+      _______________________________________ ----o Flowline
+      |     |            |     |            |
+      |     |            |     |            | < Gutter
+      |_____|____________|_____|____________| ----o
+      |     |###############################|
+      |     |#           |     |           #|
+      |     |#           |     |           #|
+      |     |#           |     |           #|
+      |     |#  Module/  |     |           #|
+      |     |#   Slab    |     |           #|
+      |     |#           |     |           #|
+      |     |#           |     |           #|
+      |     |#           |     |           #|
+      |_____|#___________|_____|___________#|
+      |     |#           |     |           #|
+      |     |#           |     |           #|
+      |_____|#___________|_____|___________#|
+      |     |#           |     |           #|
+      |     |#           |     |           #|
+      |     |#           |     |           #|
+      |     |#           |     |           #|
+      |     |#           |     |           #|
+      |     |#           |     |           #|
+      |     |#           |     |           #|
+      |     |#           |     |           #|
+      |     |#           |     |           #|
+      |_____|###############################|
+         ^                  ^
+       Gutter           Spatial Zone
+
+      TODO(chowie): Show structural grid alignment with "Witness" lines
       TODO(chowie): JP Modular/Heirarchical UI to view locations on a map?
+
+      The use of uniform / semiregular tiling feels like a
+      modular-proportional system hybrid.
+
+      RESOURCE(vanderlaan): https://domhansvanderlaan.nl/theory-practice/theory/scale-i-inside-and-outside/
+                        Domain
+                    (Visual Field)
+      _______________________________________
+      |                                      |
+      |                                      |
+      |                                      |
+      |                                      |
+      |                 Court                |
+      |             (Walking Space)          |
+      |            _______________           |
+      |            |    Cell     |           |
+      |            | (Workspace) |           |
+      |            |     ___     |           |
+      |            |     |_|     |           |
+      |            |             |           |
+      |            |             |           |
+      |            |_____________|           |
+      |                                      |
+      |                                      |
+      |                                      |
+      |                                      |
+      |                                      |
+      |______________________________________|
     */
 
     // TODO(chowie): Is it easier to make these a m3x3 matrix?
     // TODO(chowie): Express this as a ratio, clamp01?
-    // RESOURCE(chowie): https://grahamshawcross.com/2023/08/02/modules-and-proportions/
-    // NOTE(chowie): Naming based on Van Der Laan's Form Banks or
-    // Morphotheeks. I'm opting to use 'modular fixing' over 'location
-    // grids' to place modules. The use of uniform / semiregular
-    // tiling feels like a modular-proportional system hybrid.
-    // RESOURCE(chowie): https://grahamshawcross.com/2012/10/12/periodic-and-non-periodic-tiling/
-    // RESOURCE(chowie): https://www.livescience.com/50027-tessellation-tiling.html
-    // RESOURCE(chowie): https://en.wikipedia.org/wiki/Honeycomb_(geometry)
-    // NOTE(chowie): 3D tiling is called honeycombs; tiling is
-    // preferred over tessellation as it's confusing in 3D graphics.
     v2 SlabDim = MetersToPixels.xy*V2(0.8f, 1.3f);
     v2 BlockDim = MetersToPixels.xy*V2(0.3f, 0.3f);
     v2 BlankDim = V2(SlabDim.x, BlockDim.y);
     v2 BarDim = V2(BlockDim.x, SlabDim.y);
     v2 HoneycombDim = SlabDim + BlockDim;
-    // TODO(chowie): Slabs = External, Block|Blank|Bar = Partition.
-    // Also show structural grid alignment with Witness circle + line
 
     // TODO(chowie): Is it possible to make row y and column x?
     u32 TilesPerHeight = 4;
@@ -195,8 +282,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
             // TODO(chowie): Tesselate for n-sized group tiles?
             v2 Min;
-            Min.x = ((Column - 1*Odd(Column)) / 2)*HoneycombDim.x + BlockDim.x*Odd(Column);
-            Min.y = ((Row - 1*Odd(Row)) / 2)*HoneycombDim.y + BlockDim.y*Odd(Row);
+            Min.x = (r32)((Column - 1*Odd(Column)) / 2)*HoneycombDim.x + BlockDim.x*Odd(Column);
+            Min.y = (r32)((Row - 1*Odd(Row)) / 2)*HoneycombDim.y + BlockDim.y*Odd(Row);
 
             v2 Max;
             Max.x = Min.x + BlankDim.x*Odd(Column) + BlockDim.x*!Odd(Column);
@@ -278,6 +365,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 #if 1
                 // RESOURCE(HmH): https://guide.handmadehero.org/code/day211/#3368
                 // STUDY(chowie): Numerical simulation, for proper ODE would need global t
+                // RESOURCE(): https://web.archive.org/web/20210724053826/https://lolengine.net/blog/2015/05/03/damping-with-delta-time
+                // TODO(chowie): You could dampen with lerp or pow/exp?
 
                 ConPlayer->ddP = NOZ(ConPlayer->ddP);
 
@@ -312,7 +401,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         //
 
 #if 0
-        v2 ddP = {};
+        v3 ddP = {};
         if(Entity->Type == EntityType_Player)
         {
             for(u32 ControllerIndex = 0;
@@ -320,7 +409,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                 ++ControllerIndex)
             {
                 controlled_player *ConPlayer = GameState->ControlledPlayer + ControllerIndex;
-                ddP = ConPlayer->ddP; // V3(ConPlayer->ddP, 0);
+                ddP = V3(ConPlayer->ddP, 0);
             }
         }
 

@@ -276,6 +276,9 @@ CExternEnd
 
   STUDY(chowie): In practice, the compiler does optimisations, can
   pull into b32x to more easily read them linguistically.
+
+  TODO(chowie): Look at the maximum size of the hash functions not
+  being a power of two?
 */
 
 #define RUINENGLASS_PLATFORM_H

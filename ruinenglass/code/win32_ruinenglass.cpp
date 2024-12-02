@@ -815,8 +815,8 @@ Win32RecordInput(win32_state *State, game_input *NewInput)
             Assert(State->CurrentBuffer->MemoryBlock);
         }
 
-        Assert(!Win32RecordingInputIsFull(State, BytesToWrite))
-        void *WriteP = (void *)((u8 *)State->CurrentBuffer->MemoryBlock + State->CurrentRecordSize);
+        Assert(!Win32RecordingInputIsFull(State, BytesToWrite));
+        void *WriteP = (void *)((u8 *)State->CurrentBuffer->MemoryBlock + State->CurrentRecordSize); // TODO(chowie): I don't think I need a void * cast see OpenGLRenderCommands void *Data
         CopyMemory(WriteP, (void *)NewInput, BytesToWrite);
         State->CurrentRecordSize += BytesToWrite; // STUDY(chowie): Like pushing onto an arena
     }
@@ -872,7 +872,7 @@ Win32PlaybackInput(win32_state *State, game_input *NewInput)
 
         // NOTE(chowie): There's still input.
         Assert(!Win32PlaybackInputIsFull(State));
-        void *ReadP = (void *)((u8 *)State->CurrentBuffer->MemoryBlock + State->CurrentRecordSize);
+        void *ReadP = (void *)((u8 *)State->CurrentBuffer->MemoryBlock + State->CurrentRecordSize); // TODO(chowie): I don't think I need a void * cast
         CopyMemory((void *)NewInput, ReadP, BytesToRead);
         State->CurrentRecordSize += BytesToRead;
     }
@@ -1362,8 +1362,7 @@ WinMain(HINSTANCE Instance,
             memory_arena *SamplesArena = &GameMemory.Samples;
             SamplesArena->Size = (umm)SoundOutput.SecondaryBufferSize; // TODO(chowie): Roll "Samples + Audio" & Offset initial samples
 
-            // TODO(chowie): Decide on proper push buffer size
-            u32 PushBufferSize = Megabytes(64);
+            umm PushBufferSize = Megabytes(64); // TODO(chowie): Decide on proper push buffer size
             void *PushBuffer = Win32AllocateMemory(PushBufferSize);
 
             // TODO(chowie): Handle memory footprints with system metrics!

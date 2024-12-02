@@ -1,4 +1,5 @@
 @echo off
+
 REM IMPORTANT(chowie): Only x64 is supported for now!
 REM IMPORTANT(chowie): Check if all warnings are necessary
 set CommonWarningFlags=  -diagnostics:column -WX -W4 -wd4201 -wd4100 -wd4189 -wd4505 -wd4127 -wd4477
@@ -39,6 +40,11 @@ popd
 REM
 REM Batch Notes
 REM
+
+REM STUDY(chowie): IMPORTANT(chowie): When compiling, we don't require
+REM platform calls to be inside the compilation boundary. We want to
+REM preserve this! i.e. You could decide on different platforms, we
+REM could load the Windows game code (don't like this)
 
 REM Testing on new comp
 REM For observing how long everything takes, use -d1reportTime

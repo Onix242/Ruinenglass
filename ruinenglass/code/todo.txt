@@ -4,8 +4,11 @@
 
   ----------------8<-------------[ architecture exploration ]------------------
 
+  - Math
+    = Rotors + Rational trig rotor paper + SLerp with >2 rotor
+
   - Memory
-    = Enable Simple Arenas -> Later [Mr.4th dimensions']
+    = [Mr.4th dimensions'] Arenas
 
   - Static Custom Strings
     = [Mr.4th dimensions'] Utf-8 handling, replace all stdio's printf-alikes
@@ -14,11 +17,19 @@
 
   - Rendering
     = Blit bitmap fonts as mirrored textures
-    = Martin's monospace font shader
+    = Subdivide square meshes on the fly for bending
+    = [Martins'] monospace font shader
     = 3D Rendering
     = Matrix Camera (Orthographic and Perspective transition)
+    = Non-square shapes mapping to grid e.g. circle to multiple squares on a grid?
     = [Brehensam's] shapes primatives: diagonal line drawing
     = Splines
+    = Colour linear to srgb conversion. OkLab support?
+    RESOURCE: https://youtu.be/sRL_RU7-jfc?t=123
+      > Reconstruction position by camera depth and shadow mapping /
+        bloom
+      > NOTE: Cutting down the v4 Colour / Emission vertex data isn't
+        super impactful on performance
 
   - Sorting?
 
@@ -33,7 +44,7 @@
     = Thread visualisation
 
   - Audio
-    = [Martin's] Multi-threaded audio
+    = [Martins'] Multi-threaded audio
     = Audio Mixer
 
   - World
@@ -64,6 +75,9 @@
       > Rearrange glyphs in glyph window
       > Glyph mirroring?
       > Find and Replace glyph
+    * Design UI in a single window. i.e. no splitting
+      perspective/orthographic viewport into 4, use blender's keybinds
+      to snap to axis; editing the text/glyphs on the faces
     = Brush type textures with MS spray paint-like (e.g. 5x5 default) with random placement (glyphs + colour)
     = Selecting colour schemes with image-wide swaps + colour picker (+ colour shifting?)
     = Editing transtion between bounding box that groups voxels and individual
@@ -75,11 +89,14 @@
       > [Nintendo's] level editor searchable comments/tags placed in-world
     = Movable menus + UI Tear Mode
     = User specified draggable UI snapping e.g. Colours and defining custom waypoints
-    * To what extent an undo is available?
+    = Display shortcut history as a menu at the bottom to know which hotkeys you've pressed.
+    * To what extent is an undo available?
     * Tablet pressure for colour?
 
   - Particle Systems
     = Rain serving as compass directions
+    * Mesh to particle
+    = Vector fields in grided world
 
   - Entity
     = [Ryan Fleury's] Flag Storage
@@ -112,8 +129,6 @@
     = ClipCursor for multimonitor support
     = Wtf is QueryCancelAutoplay?
 
-  - Colour linear to srgb conversion. OkLab support?
-
   ----------------8<-------------[ production / game ]------------------
 
   - Procedural World Generation?
@@ -139,7 +154,49 @@
 
   - Graph Visualisations https://datavizcatalogue.com/blog/ternary-graphs-triangular-plots/?
 
+  RESOURCE():
+  TODO(chowie): Try VSO like in Minecraft!
+  /give Onix242 diamond_block 64
+    > Verb, a command, if always requiring brackets might be the most memorable
+    > Subject is the stablest position of a sentence (to be OSV)
+
+  Inspired by Turkish vowel cube mapping.
+                                W______________T
+                                /             /|                 /|
+                               /             / |                / |
+                              /             /  |               /  |
+            open             /             /   |              /   |
+        ______________     H/_____________/Y   |             /    |
+       /             /      |             |    |             |    | 
+      /             /       |             |    |             |    |
+     /             /        |             |    |     unround |    | round
+    /             /         |             |    |             |    |
+   /_____________/          |   ~         |    |M            |    |
+        closed              |             |   /              |   /
+                            |             |  /               |  /
+                            |             | /                | /
+                           X|_____________|/V                |/
+                                 AIOU
+
+                                        back
+                             _____________
+                            |             |
+                            |             |
+                            |             |
+                            |             |
+                            |    front    |
+                            |             |
+                            |             |
+                            |             |
+                            |_____________|
+
   ----------------8<-------------[ advice ]------------------
+
+  RESOURCE(john d cook): https://www.johndcook.com/blog/2012/08/27/work-or-rest/
+  Henri Poincare workflow
+  He worked regularly from 10 to 12 in the morning and from 5 till 7
+  in the late afternoon. He found that working longer seldom achieved
+  anything
 
   RESOURCE: https://hero.handmade.network/forums/code-discussion/t/7125-help_with_day_017_-_win32processkeyboardmessages_being_called_twice%252C_throwing_off_assert_check.#21900
   If you're trying to learn, you should try to figure out the problem

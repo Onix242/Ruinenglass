@@ -55,15 +55,16 @@ struct entity
 //    v2 ddP;
 };
 
+/*
 inline b32x
-IsSet(entity *Entity, u32 Flag)
+IsEntityFlagSet(entity *Entity, u32 Flag)
 {
     b32x Result = Entity->Flags & Flag;
     return(Result);
 }
 
 inline void
-AddFlags(entity *Entity, u32 Flag)
+AddEntityFlags(entity *Entity, u32 Flag)
 {
     Entity->Flags |= Flag;
 }
@@ -71,16 +72,17 @@ AddFlags(entity *Entity, u32 Flag)
 // STUDY(chowie): Passes all other flags except that flag. Thus,
 // removing that flag.
 inline void
-ClearFlags(entity *Entity, u32 Flag)
+ClearEntityFlags(entity *Entity, u32 Flag)
 {
     Entity->Flags &= ~Flag;
 }
 
 inline void
-ToggleFlags(entity *Entity, b32x Test, u32 Flag)
+ToggleEntityFlags(entity *Entity, b32x Test, u32 Flag)
 {
-    (Test) ? AddFlags(Entity, Flag) : ClearFlags(Entity, Flag);
+    (Test) ? AddEntityFlags(Entity, Flag) : ClearEntityFlags(Entity, Flag);
 }
+*/
 
 #define RUINENGLASS_ENTITY_H
 #endif

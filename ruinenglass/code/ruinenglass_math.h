@@ -49,6 +49,20 @@ V2i(u32 X, u32 Y)
 }
 
 inline v2
+V2i(v2s A)
+{
+    v2 Result = {(r32)A.x, (r32)A.y};
+    return(Result);
+}
+
+inline v2
+V2i(v2u A)
+{
+    v2 Result = {(r32)A.x, (r32)A.y};
+    return(Result);
+}
+
+inline v2
 V2(r32 X, r32 Y)
 {
     v2 Result = {X, Y};
@@ -607,10 +621,10 @@ V2ToM2x2Rotation(v2 P)
 // accuracy / less underdraw as n increases. But if n is high enough,
 // circle overdraws.
 internal v2
-RotationByCircleSector(r32 n)
+RotationByCircleSector(r32 n, r32 Circumference)
 {
     // RESOURCE(john d cook): https://www.johndcook.com/blog/2010/07/27/sine-approximation-for-small-x/
-    r32 Sector = (Tau32 / n);
+    r32 Sector = (Circumference / n);
     r32 Error = (Cube(Sector)/6);
 
     v2 Result;
@@ -638,9 +652,9 @@ RotationByGradient(r32 m)
 
 // TODO(chowie): Use for a radial menu?
 inline m2x2
-M2x2RotationByTris(r32 n)
+M2x2RotationByTris(r32 n, r32 Circumference)
 {
-    v2 Rot = RotationByCircleSector(n);
+    v2 Rot = RotationByCircleSector(n, Circumference);
     m2x2 Result = V2ToM2x2Rotation(Rot);
 
     return(Result);
@@ -734,6 +748,15 @@ AreEqual(v3s A, v3s B)
 //
 // NOTE(chowie): v3 operations
 //
+
+// TODO(chowie): For stepping in a grid via a ray intersection test
+// NOTE(chowie): Outputs 1 +tive, -1 -tive
+inline v3
+SignOfDir(v3 A)
+{
+    v3 Result = {SignOf(A.x), SignOf(A.y), SignOf(A.z)};
+    return(Result);
+}
 
 // RESOURCE(ken whatmough): https://math.stackexchange.com/questions/137362/how-to-find-perpendicular-vector-to-another-vector/4112622#4112622
 // NOTE(by ken whatmough): Sqrt free, trig free, abs free, branchless!
@@ -1097,7 +1120,7 @@ GetBasis(v3 A, v3 B, v3 C)
     else
     {
         B = V3(0.0f, A.z, -A.y);
-     }
+    }
 
     Result.BasisB = Normalise(B);
     Result.BasisC = Cross(A, B);
@@ -1235,6 +1258,16 @@ Length(v4 A)
     return(Result);
 }
 
+// RESOURCE(owl): https://fastcpp.blogspot.com/2012/02/calculating-length-of-3d-vector-using.html
+// TODO(chowie): Convert to SSE4?
+inline v4
+Normalise(v4 A)
+{
+    r32 LenSq = LengthSq(A);
+    v4 Result = A*ReciprocalSquareRoot(LenSq);
+    return(Result);
+}
+
 inline v4
 Clamp01(v4 Value)
 {
@@ -1248,6 +1281,142 @@ Lerp(v4 A, r32 t, v4 B)
     v4 Result = {Lerp(A.x, t, B.x), Lerp(A.y, t, B.y), Lerp(A.z, t, B.z), Lerp(A.w, t, B.w)};
     return(Result);
 }
+
+//
+// NOTE(chowie): Rotors
+//
+
+inline v3
+Wedge(v3 A, v3 B)
+{
+    v3 Result =
+    {
+        DifferenceOfProducts(A.x, B.y, A.y, B.x), // A.x*B.y - A.y*B.x,
+        DifferenceOfProducts(A.x, B.z, A.z, B.x), // A.x*B.z - A.z*B.x,
+        DifferenceOfProducts(A.y, B.z, A.z, B.y), // A.y*B.z - A.z*B.y,
+    };
+
+    return(Result);
+}
+
+inline v4
+FromToRotor(v3 From, v3 To)
+{
+    v4 Result;
+    Result.s = 1.0f + Inner(To, From);
+    Result.bxyyzzx = Wedge(To, From);
+    Result = Normalise(Result);
+    return(Result);
+}
+
+inline v4
+RotorPlane(v3 Plane, r32 Angle)
+{
+    v4 Result;
+    r32 SinAngle = Sin(Angle / 2.0f);
+    Result.s = Cos(Angle / 2.0f);
+    Result.bxyyzzx = -SinAngle*Plane;
+    return(Result);
+}
+
+// NOTE(chowie): Geometric product
+inline v4
+Geo(v3 A, v3 B)
+{
+    v4 Result = {Wedge(A, B), Inner(A, B)};
+    return(Result);
+}
+
+// TODO(chowie): Is this the correct order? I'm assuming A = P, B = Q
+// TODO(chowie): Marc Ten Bosch suggests this can be optimised
+// TODO(chowie): Replace with geometric product?
+// NOTE(chowie): Rotor product
+inline v4
+operator*(v4 A, v4 B)
+{
+    v4 Result =
+        {
+            A.bxyyzzx*B.s + A.s*B.bxyyzzx + Cross(A.bxyyzzx, B.bxyyzzx), // TODO(chowie): SumOfProd?
+            A.s*B.s - Inner(A, B),
+        };
+
+    return(Result);
+}
+
+// NOTE(chowie): Calls operator*
+inline v4 &
+operator*=(v4 &B, v4 A)
+{
+    B = A*B;
+    return(B);
+}
+
+// TODO(chowie): Is this the correct order? I'm assuming A = P, B = X
+// TODO(chowie): Marc Ten Bosch suggests this can be Optimised
+inline v3
+RotateRotor(v4 A, v3 B)
+{
+    // NOTE(chowie): Q = A B
+    v3 Q =
+        {
+            A.s*B.x + B.y*A.bxy + B.z*A.byz,
+            A.s*B.y - B.x*A.bxy + B.z*A.bzx,
+            A.s*B.z - B.x*A.byz - B.y*A.bzx,
+        };
+
+    // NOTE(chowie): Trivector part of result is always zero!
+    r32 Tri = B.x*A.bzx - B.y*A.byz + B.z*A.bxy;
+
+    // NOTE(chowie): R = Q A*
+    v3 Result =
+        {
+            A.s*Q.x + Q.y*A.bxy + Q.z*A.byz + Tri*A.bzx,
+            A.s*Q.y - Q.x*A.bxy - Tri*A.byz + Q.z*A.bzx,
+            A.s*Q.z + Tri*A.bxy + Q.x*A.byz - Q.y*A.bzx,
+        };
+
+    return(Result);
+}
+
+// NOTE(chowie): Same as quarternion conjugate
+inline v4
+ReverseRotor(v4 A)
+{
+    v4 Result = {-A.bxyyzzx, A.s};
+    return(Result);
+}
+
+// NOTE(chowie): Sandwich Product
+inline v4
+RotateRotorByAnother(v4 A, v4 B)
+{
+    v4 Result = A*B*ReverseRotor(A);
+    return(Result);
+}
+
+// TODO(chowie): Marc Ten Bosch suggests this can be optimised
+inline m3x3
+RotorToMatrix(v4 A)
+{
+    m3x3 Result =
+        {
+            RotateRotor(A, V3(1, 0, 0)),
+            RotateRotor(A, V3(0, 1, 0)),
+            RotateRotor(A, V3(0, 0, 1)),
+        };
+
+    return(Result);
+}
+
+/*
+// NOTE(chowie): Slerp alternative
+inline v4
+RotorAverage(v4 A, v4 B, r32 t)
+{
+    v4 Result = A*Exp(t*Log(ReverseRotor(A)*B));
+    return(Result);
+}
+*/
 
 //
 // NOTE(chowie): Rect2
@@ -1298,14 +1467,14 @@ Intersect(rect2 A, rect2 B)
 }
 
 inline v2
-GetMinCorner(rect2 Rect)
+GetMin(rect2 Rect)
 {
     v2 Result = Rect.Min;
     return(Result);
 }
 
 inline v2
-GetMaxCorner(rect2 Rect)
+GetMax(rect2 Rect)
 {
     v2 Result = Rect.Max;
     return(Result);
@@ -1381,6 +1550,16 @@ IsInRect(rect2 Rect, v2 Test)
     return(Result);
 }
 
+inline b32x
+RectsIntersect(rect2 A, rect2 B)
+{
+    b32x Result = !((B.Max.x <= A.Min.x) ||
+                    (B.Min.x >= A.Max.x) ||
+                    (B.Max.y <= A.Min.y) ||
+                    (B.Min.y >= A.Max.y));
+    return(Result);
+}
+
 // TODO(chowie): One of the dimensions of GetBarycentric could be collapsed,
 // where there is no size, that would produce a nonsense value
 inline v2
@@ -1392,6 +1571,14 @@ GetBarycentric(rect2 A, v2 P)
         SafeRatio0(P.y - A.Min.y, A.Max.y - A.Min.y),
     };
 
+    return(Result);
+}
+
+inline r32
+GetArea(rect2 A)
+{
+    v2 Dim = GetDim(A);
+    r32 Result = Dim.x*Dim.y;
     return(Result);
 }
 
@@ -1565,14 +1752,14 @@ UnionRects(rect2i *Rects, s32 Amount) // NOTE(chowie): Amount >= 1
 //
 
 inline v3
-GetMinCorner(rect3 Rect)
+GetMin(rect3 Rect)
 {
     v3 Result = Rect.Min;
     return(Result);
 }
 
 inline v3
-GetMaxCorner(rect3 Rect)
+GetMax(rect3 Rect)
 {
     v3 Result = Rect.Max;
     return(Result);
@@ -1705,12 +1892,16 @@ Linear1ToSRGB255(v4 C)
     return(Result);
 }
 
+// RESOURCE(): https://www.flipcode.com/archives/Little_Math_Trick.shtml
+// STUDY(chowie): For loop accumulator e.g. raycasting to += rather
+// than *= using log and exponential for faster calculations
+
 // RESOURCE(sam): https://web.archive.org/web/20211023131624/https://lolengine.net/blog/2011/12/14/understanding-motion-in-games
 // TODO(chowie): Implement Verlet equation of motions instead of Euler
 //  Accel = V3(0, 0, -9.81f);
 //  v3 OldVel = Vel;
 //  Vel = Vel + Accel * dtForFrame;
-//  Pos = Pos + (OldVel + Vel) * 0.5f * dtForFrame;
+//  Pos = Pos + (OldVel + Vel) * 0.5f * dt;
 
 // TODO(chowie): Try to use this!
 // RESOURCE: https://gist.github.com/d7samurai/f98cb2aa30a6d73e62a65a376d24c6da
@@ -1812,7 +2003,7 @@ MullerHash(v3u Value)
     return(Result);
 }
 
-inline s32
+inline u32
 MullerHash(v3s Value)
 {
     s32 Result = (Value.x*92837111) ^ (Value.y*689287499) ^ (Value.z*283923481);

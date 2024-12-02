@@ -8,11 +8,14 @@
    ======================================================================== */
 
 /*
+  TODO(chowie): https://eisenwave.github.io/voxel-compression-docs/
   RESOURCE(geier): https://geidav.wordpress.com/2014/08/18/advanced-octrees-2-node-representations/
-  RESOURCE: https://www.reddit.com/r/VoxelGameDev/comments/f8wv5q/minecraft_style_worlds_best_way_to_store_voxel/
+  RESOURCE(): https://www.reddit.com/r/VoxelGameDev/comments/f8wv5q/minecraft_style_worlds_best_way_to_store_voxel/
+  RESOURCE(): https://www.reddit.com/r/VoxelGameDev/comments/15dzuus/question_about_octreesother_data_structures_for_a/
   RESOURCE(0fps): https://0fps.net/2012/01/14/an-analysis-of-minecraft-like-engines/
   RESOURCE(tom forsyth): Search "voxel"; Sparse-world storage formats -
   https://tomforsyth1000.github.io/blog.wiki.html
+  RESOURCE(): https://www.reddit.com/r/VoxelGameDev/comments/nijezf/downsides_of_using_dags_instead_of_octrees/
 
   STUDY(chowie): There's been lots of discussion about sparse-world
   voxel storage / spatial partioning, namely between octrees and
@@ -28,6 +31,7 @@
     "leaves" of the world. (While a good hash would try to avoid any
     spatial locality).
   - Easier batching of raytracing/raymarching/marching cubes for lighting
+  - Fustrum culling pairs well with  a heirarchical partition of the world
 
   Octrees has caveats that I believe is important for this engine:
   - Slow with updating the "leaves" when not within its bounds,
@@ -35,6 +39,8 @@
   - Top-most node must encompass the whole world. Bigger worlds = more
     nodes = pointer chasing. Updates best near the center of the
     world, worse for larger worlds.
+  - Often people encode identical geometry directly into these
+    trees, with a few shared attributes (Position, UV, Colours etc).
   NOTE(chowie): Technically octrees can be a "flatter", linear hash.
   Alternatively, you could do a mixed approach. A flat hashed octree
   with "bricks" (dense arrays). But I'm not considering either here.
@@ -57,7 +63,7 @@
   - Updates (see "stretching") that may be potentially larger than a
     "chunk" (chunks are typically 16^3 numbers chosen in part for
     physics update see Kapoulkine of Roblox, or 32^3 see Aflockofmeese
-    for modern hardware)
+    for modern hardware = 27-bits of chunks)
   * Non-uniform grid (basically a lot more maths)
       = To use an octree may instead require a k-D tree for updates
       = Harder for typical raytracing assumptions
@@ -90,25 +96,56 @@
     worlds, to conserve memory, you would need to test if compression
     and recompression timings outweighs accessing through Morton's
     compression using PEXT.
+    NOTE(chowie): Voxels and LOD is interesting because holes can be
+    covered up from a distance.
 */
 
-// IMPORTANT(chowie): Remember renderer is bottom-up / Y is up
-// rendered. Consider this when reading world data on disk!
+// TODO(chowie): It seems like we have store ChunkX/Y/Z with each
+// entity because even though the sim region gather doesn't need it at
+// first, and we could get by without it, entity references pull in
+// references without going through their world_chunk, thus still need
+// to know the chunk X,Y,Z.
 struct world_position
 {
-    v3s Chunk;
-    v3 Offset_; // NOTE: Offsets from chunk center
+    v3s Chunk; // NOTE(chowie): Absolute position
+    v3 Offset_; // NOTE(chowie): Relative Offsets from chunk center
 };
 
-// NOTE(chowie): Actual 3D chunks, not like Minecraft's top-to-bottom (16x16x128)
+// NOTE(chowie): Invert reference from world, but most of the
+// time you're not actively accessing say walls
+// STUDY(chowie): Could make chunks and allow multiple chunks per X,Y,Z (hash bucket)
+#define MaxEntitiesPerBlock 16
+struct world_entity_block
+{
+    u32 EntityCount; // NOTE(chowie): Fill level to max entities per block
+    u32 EntityIndex[MaxEntitiesPerBlock];
+    world_entity_block *Next;
+};
+
+// NOTE(chowie): Actual 3D chunks, not like Minecraft's top-to-bottom (16x128x16)
 struct world_chunk
 {
     v3s Chunk;
+    // STUDY(chowie): To fill and move block, this must be a pointer
+    // to tell where the last one was, or you'll have to keep a second
+    // pointer. You could instead mix this with the hash, walk and
+    // pull from hash. But that's not preferable.
+    world_entity_block FirstBlock;
+    world_chunk *NextInHash; // STUDY(chowie): External Chaining
 };
 
+// IMPORTANT(chowie): Origin is the world's center, at [0, 0, 0]
+// NOTE(chowie): Origin nice for perspective transform and relativeness
 struct world
 {
     v3 ChunkDimInMeters;
+
+    // TODO(chowie): ChunkHash are pointers if entity blocks continue
+    // to be stored en mass directly in chunk. Check for performance
+    // as a pointer? Don't want the first lookup to be a pointer.
+    // NOTE(chowie): At the moment, this must be a power of two!
+    // NOTE(chowie): External Chaining
+    world_chunk ChunkHash[HashSizePow2];
 };
 
 #define RUINENGLASS_WORLD_H

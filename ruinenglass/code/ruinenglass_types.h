@@ -91,10 +91,10 @@ typedef double r64;
 #if RUINENGLASS_SLOW
 #define Assert(Expression) if(!(Expression)) {*(volatile int *)0 = 0;}
 // TODO(chowie): Explore proper logging functions? Connect with platform_api?
-#define Log(Message) 
+#define Logging(Message) 
 #else
 #define Assert(Expression)
-#define Log(Message)
+#define Logging(Message)
 #endif
 
 // IMPORTANT(chowie): Assert in places I never expect code to run in practise.
@@ -120,13 +120,18 @@ typedef double r64;
 // NOTE(chowie): Limit macros
 #define R32Max FLT_MAX
 #define R32Min -FLT_MAX
-#define S32Max INT_MAX
-#define S32Min -INT_MAX
+#define S32Max INT32_MAX
+#define S32Min -INT32_MAX
 #define U32Max ((u32) - 1)
 #define U16Max ((u16) - 1)
 #define U8Max ((u8) - 1)
 
 #define Odd(Value) ((Value) & 1)
+
+// TODO(chowie): Pow2? When mapping, there might be (number-theoretic
+// reasons) not to be a Pow2. Out the hash function, it directly
+// truncates the bits.
+#define HashSizePow2 4096
 
 // RESOURCE: https://web.archive.org/web/20211023131624/https://lolengine.net/blog/2012/4/3/beyond-de-bruijn
 // RESOURCE: https://web.archive.org/web/20210724051712/https://lolengine.net/attachment/blog/2012/4/3/beyond-de-bruijn/debruijn.cpp
@@ -134,18 +139,60 @@ typedef double r64;
 // STUDY(chowie): Computing the binary logarithm is
 // equivalent to knowing the position of the highest order set
 // bit. For instance, log2(0x1) is 0 and log2(0x100) is 8.
+// TODO(chowie): Use for mipmapping?
 global s32 MagicTable[16] = 
 {
     0, 1, 2, 8, -1, 3, 5, 9, 9, 7, 4, -1, 6, -1, -1, -1,
 };
 inline s32
-FastLog2(u32 Value)
+Log2(u32 Value)
 {
     Value |= Value >> 1;
     Value |= Value >> 2;
     Value |= Value >> 4;
     s32 Result = MagicTable[(u32)(Value * 0x5a1a1a2u) >> 28];
     return(Result);
+}
+
+// RESOURCE(): Includes other math functions - https://github.com/romeric/fastapprox/tree/master/fastapprox/src
+// RESOURCE(): https://stackoverflow.com/questions/9411823/fast-log2float-x-implementation-c
+// TODO(chowie): r32 Log2?
+
+// RESOURCE(mineiro): https://web.archive.org/web/20150113003634/http://fastapprox.googlecode.com/svn/trunk/fastapprox/src/fastonebigheader.h
+// TODO(chowie): LGamma? Trig? Lambert? Sigmoid?
+
+// TODO(chowie): Do I need 64-bit versions?
+// RESOURCE(ankerl): http://martin.ankerl.com/2007/10/04/optimized-pow-approximation-for-java-and-c-c/
+// RESOURCE(ekmett): https://github.com/ekmett/approximate/blob/master/cbits/fast.c
+// NOTE(): These can be _quite_ inaccurate. ~20% in many cases, but being much faster (~7x) may
+// * permit more loop iterations of tuning algorithms that only need approximate powers.
+union rational_approx
+{
+    r32 f;
+    s32 x;
+};
+inline r32
+Exp(r32 Value)
+{
+    rational_approx Exp;
+    Exp.x = (s32)(12102203*Value + 1064866805);
+    return(Exp.f);
+}
+
+inline r32
+Log(r32 Value)
+{
+    rational_approx Log = { Value };
+    r32 Result = (Log.x - 1064866805)*8.262958405176314e-8f; /* 1 / 12102203.0; */
+    return(Result);
+}
+
+inline r32
+Pow(r32 A, r32 B)
+{
+    rational_approx Pow = { A };
+    Pow.x = (s32)(B*(Pow.x - 1064866805) + 1064866805);
+    return(Pow.f);
 }
 
 // TODO(chowie): Figure out where to use Align16 for code I care about
@@ -178,9 +225,13 @@ SafeTruncateU64(u64 Value)
 }
 
 #define BitSet(Bit) (1 << (Bit))
+
+#define IsFlagSet(A, Flag) (A->Flags & Flag)
+#define AddFlag(A, Flag) (A->Flags |= Flag)
+#define ClearFlag(A, Flag) (A->Flags &= ~Flag)
+#define ToggleFlag(A, Test, Flag) ((Test) ? AddFlag(A, Flag) : ClearFlag(A, Flag);)
 // RESOURCE: https://github.com/gingerBill/gb/blob/master/gb.h
-// TODO(chowie): How do I utilise this?
-#define MaskSet(Var, Set, Mask) if(Set) (Var) |= (Mask); else (Var) &= ~(Mask);
+//#define MaskSet(Var, Set, Mask) if(Set) (Var) |= (Mask); else (Var) &= ~(Mask);
 
 // RESOURCE: https://handmade.network/p/64/geometer/blog/p/3048-1_year_of_geometer_-_lessons_learnt
 // TODO(chowie): Try this out? See how I like this?
@@ -286,6 +337,10 @@ union v3
     };
     struct
     {
+        r32 bxy, byz, bzx; // NOTE(chowie): Biv3
+    };
+    struct
+    {
         r32 u, v, w;
     };
     struct
@@ -329,6 +384,19 @@ union v4
         };
 
         r32 w;
+    };
+    struct
+    {
+        union
+        {
+            v3 bxyyzzx; // NOTE(chowie): Biv3
+            struct
+            {
+                r32 bxy, byz, bzx;
+            };
+        };
+
+        r32 s; // NOTE(chowie): Scalar
     };
     struct
     {
@@ -394,6 +462,11 @@ union rect2i
     s32 E[4];
 };
 
+// RESOURCE(): https://ktstephano.github.io/rendering/stratusgfx/aabbs
+// RESOURCE(): https://ktstephano.github.io/rendering/stratusgfx/lod
+// TODO(chowie): View fustrum culling? Need to take into account how
+// much as the AABB takes up in screen space. Refer to how HmH sorting
+// passing the screen space.
 // TODO(chowie): 3D AABB collision detection?
 union rect3
 {
@@ -425,8 +498,14 @@ union m2x2
     // TODO(chowie): I could add SIMD like this, r32 E[4]; with E[2][2]; in struct?
 };
 
-struct m3x3
+union m3x3
 {
+    struct
+    {
+        v3 RowA;
+        v3 RowB;
+        v3 RowC;
+    };
     // NOTE(chowie): ROW-MAJOR order - E[Row][Column]
     r32 E[3][3];
 };

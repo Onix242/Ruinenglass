@@ -68,6 +68,9 @@ OpenGLInit(b32x ModernContext, b32x FramebufferSupportsSRGB)
     }
 }
 
+// RESOURCE(): https://ktstephano.github.io/rendering/opengl/prog_vtx_pulling
+// RESOURCE(): https://voxel.wiki/wiki/vertex-pulling/
+// TODO(chowie): Vertex pulling?
 // TODO(chowie): Triangle Strip? Turn OpenGL circle too
 // NOTE(chowie): Extra parameters to account for 1-pixel apron
 inline void
@@ -101,6 +104,30 @@ OpenGLRect(v3 MinP, v3 MaxP, v4 Colour, v2 MinUV = V2(0, 0), v2 MaxUV = V2(1, 1)
     glEnd();
 }
 
+// RESOURCE(aolo2): https://discord.com/channels/239737791225790464/1307441055641374720/1307441055641374720
+// NOTE(chowie): Quad with disc sdf vs geometry; geometry wins as they
+// blend nicely with a single stroke
+// NOTE(chowie): LOD is needed if you have the curse of infinite zoom
+// NOTE(chowie): Furthest LOD can just use a single triangle for caps
+// TODO(chowie): Bucket into logarithmic increments 3,6,12,24...-gons,
+// batch with different LOD. When you're drawing you usually use the
+// same-sized brush. If not necessary, batch line segments in one draw call.
+// TODO(chowie): For a polyline (multi-segment stroke/path), use
+// semi-circle with a rotate (or one point of look-ahead) per instance
+// as the caps to look convex. Can be used for joints at the angle
+// bisector. 1/3 save
+// lod: 0, c =    1, s =    1  ->  0.000
+// lod: 1, c =    4, s =    3  ->  0.250
+// lod: 2, c =   10, s =    7  ->  0.300
+// lod: 3, c =   22, s =   15  ->  0.318
+// lod: 4, c =   46, s =   31  ->  0.326
+// lod: 5, c =   94, s =   63  ->  0.330
+// lod: 6, c =  190, s =  127  ->  0.332
+// lod: 7, c =  382, s =  255  ->  0.332
+// lod: 8, c =  766, s =  511  ->  0.333
+// lod: 9, c = 1534, s = 1023  ->  0.333
+// In general, for (t0, e0) initial (triangle, subdividable edge) counts
+// P(n) = t0 + e0*(2^n - 1) triangle count for lod=n
 // RESOURCE: https://stackoverflow.com/questions/1569939/rendering-different-triangle-types-and-triangle-fans-using-vertex-buffer-objects
 // TODO(chowie): Change GL_TRIANGLE_FAN to glDrawArrays
 // RESOURCE: https://stackoverflow.com/questions/8762826/texture-mapping-a-circle-made-using-gl-polygon
@@ -115,12 +142,12 @@ OpenGLRect(v3 MinP, v3 MaxP, v4 Colour, v2 MinUV = V2(0, 0), v2 MaxUV = V2(1, 1)
 // RESOURCE(SiegeLord): Eerily similar - https://siegelord.net/circle_draw
 inline void
 OpenGLCircle(v3 CentreP, r32 Radius, u32 TriCount,
-             v4 Colour, v2 MinUV = V2(0, 0), v2 MaxUV = V2(1, 1))
+             v4 Colour, r32 Circumference, v2 MinUV = V2(0, 0), v2 MaxUV = V2(1, 1))
 {
     v2 OrientationP = V2(0, Radius);
-    m2x2 Rot = M2x2RotationByTris((r32)TriCount);
+    m2x2 Rot = M2x2RotationByTris((r32)TriCount, Circumference);
 
-    // NOTE(chowie): Fan vector version default is clockwise.
+    // NOTE(chowie): TriFan vector version default is clockwise.
     // Anticlockwise +cos +sin <=> (0, -1), Clockwise +cos -sin <=> (0, 1)
     glBegin(GL_TRIANGLE_FAN);
     glColor4fv(Colour.E);
@@ -131,38 +158,14 @@ OpenGLCircle(v3 CentreP, r32 Radius, u32 TriCount,
         TriangleIndex <= TriCount;
         ++TriangleIndex)
     {
-        glVertex2f(CentreP.x + OrientationP.x, CentreP.y + OrientationP.y);
+        // NOTE(chowie): Change to negative to draw clockwise
+        glVertex2f(CentreP.x - OrientationP.x, CentreP.y - OrientationP.y);
         // NOTE(chowie): Orientation after glVertex, starts drawing from top
         OrientationP = Rot*OrientationP;
     }
 //    glTexCoord2f(MaxUV.x, MaxUV.y);
     glEnd();
 }
-
-/*
-inline void
-OpenGLCircle(v3 CentreP, r32 Radius, r32 Error,
-             v4 Colour, v2 MinUV = V2(0.5f, 0.5f), v2 MaxUV = V2(1, 1))
-{
-    r32 theta = (r32)acos(1 - Error / Radius);
-    int n = (int)ceil(fmax(Pi32 / theta, 3));
-
-    glBegin(GL_TRIANGLE_FAN);
-
-    glColor4fv(Colour.E);
-    glVertex2f(CentreP.x, CentreP.y);
-
-    for(int i = 0;
-        i <= n;
-        ++i)
-    {
-        r32 sx = CentreP.x + Radius * Cos(Tau32 * i / n);
-        r32 sy = CentreP.y + Radius * Sin(Tau32 * i / n);
-        glVertex2f(sx, sy);
-    }
-    glEnd();
-}
-*/
 
 inline void
 OpenGLSetScreenSpace(v2u Dim)
@@ -186,6 +189,12 @@ OpenGLSetScreenSpace(v2u Dim)
     glLoadMatrixf(Proj);
 }
 
+// RESOURCE(): https://ktstephano.github.io/rendering/opengl/dsa
+// TODO(chowie): Replace bind/unbind with DSA? Assumes OpenGL 4.6
+// RESOURCE(): https://ktstephano.github.io/rendering/opengl/ssbos
+// TODO(chowie): Shader SSBO?
+// RESOURCE(): https://ktstephano.github.io/rendering/opengl/bindless
+// TODO(chowie): Bindless textures
 internal void
 OpenGLRenderCommands(game_render_commands *Commands, v2u WindowDim)
 {
@@ -203,44 +212,47 @@ OpenGLRenderCommands(game_render_commands *Commands, v2u WindowDim)
     OpenGLSetScreenSpace(Commands->Dim);
 
 //    u32 ClipRect = 0xFFFFFFFF; // STUDY: Set ClipRect to something that cannot be true, so we set it everytime, instead of force setting to 0
-    for(u8 *HeaderAt = Commands->PushBufferBase;
-        HeaderAt < Commands->PushBufferDataAt;
+    for(u32 BaseAddress = 0;
+        BaseAddress < Commands->PushBufferSize;
         )
     {
-        render_group_entry_header *Header = (render_group_entry_header *)HeaderAt;
-        HeaderAt += sizeof(render_group_entry_header);
-        void *Data = (u8 *)Header + sizeof(*Header);
+        render_group_entry_header *Header = (render_group_entry_header *)(Commands->PushBufferBase + BaseAddress);
+        BaseAddress += sizeof(*Header);
 
+        void *Data = (u8 *)Header + sizeof(*Header);
         switch(Header->Type)
         {
             case RenderGroupEntryType_render_entry_clear:
             {
-                HeaderAt += sizeof(render_entry_clear);
                 render_entry_clear *Entry = (render_entry_clear *)Data;
 
                 glClearColor(Entry->Colour.r, Entry->Colour.g, Entry->Colour.b, 1.0f);
                 glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+
+                BaseAddress += sizeof(render_entry_clear);
             } break;
 
             case RenderGroupEntryType_render_entry_rect:
             {
-                HeaderAt += sizeof(render_entry_rect);
                 render_entry_rect *Entry = (render_entry_rect *)Data;
 
                 // TODO(chowie): What do I do with a v3?
                 glDisable(GL_TEXTURE_2D);
                 OpenGLRect(Entry->P, Entry->P + V3(Entry->Dim, 0), Entry->Colour);
                 glEnable(GL_TEXTURE_2D);
+
+                BaseAddress += sizeof(render_entry_rect);
             } break;
 
             case RenderGroupEntryType_render_entry_circle:
             {
-                HeaderAt += sizeof(render_entry_circle);
                 render_entry_circle *Entry = (render_entry_circle *)Data;
 
                 glDisable(GL_TEXTURE_2D);
-                OpenGLCircle(Entry->P, Entry->Radius, Entry->Tris, Entry->Colour);
+                OpenGLCircle(Entry->P, Entry->Radius, Entry->Tris, Entry->Colour, Entry->Circumference);
                 glEnable(GL_TEXTURE_2D);
+
+                BaseAddress += sizeof(render_entry_circle);
             } break;
 
             InvalidDefaultCase;

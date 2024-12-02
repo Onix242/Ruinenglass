@@ -148,7 +148,6 @@ inline umm
 GetEffectiveSizeFor(memory_arena *Arena, umm SizeInit, arena_push_params Params = DefaultArenaParams())
 {
     umm Size = SizeInit;
-
     umm AlignmentOffset = GetAlignmentOffset(Arena, Params.Alignment);
     Size += AlignmentOffset;
 
