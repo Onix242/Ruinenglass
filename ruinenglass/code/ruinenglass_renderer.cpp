@@ -18,7 +18,6 @@ BeginRenderGroup(game_render_commands *Commands)
     return(Result);
 }
 
-// TODO(chowie): Push with an arena? See PushString/PushStringZ
 #define PushRenderElement(RenderGroup, type) (type *)PushRenderElement_(RenderGroup, sizeof(type), RenderGroupEntryType_##type)
 inline void *
 PushRenderElement_(render_group *RenderGroup, umm Size, render_group_entry_type Type)
@@ -27,22 +26,9 @@ PushRenderElement_(render_group *RenderGroup, umm Size, render_group_entry_type 
     void *Result = 0;
 
     Size += sizeof(render_group_entry_header);
-    if((Commands->PushBufferSize + Size) < Commands->MaxPushBufferSize)
-    {
-        render_group_entry_header *Header = (render_group_entry_header *)(Commands->PushBufferBase + Commands->PushBufferSize);
-        Header->Type = (u16)Type;
-        Result = (u8 *)Header + sizeof(*Header);
-        // NOTE(chowie): Next byte after the header is full sized.
-        // Will do arithmetic for us if we had a sized pointer,
-        // whatever the byte location of header + its size. (Header +
-        // 1) would be the alternative way to write it.
-        Commands->PushBufferSize += Size;
-    }
-    else
-    {
-        // NOTE(chowie): At this point, push buffer would overflow
-        InvalidCodePath;
-    }
+    render_group_entry_header *Header = (render_group_entry_header *)PushSize(&Commands->CommandsArena, Size, Align(0));
+    Header->Type = (u16)Type;
+    Result = (u8 *)Header + sizeof(*Header);
 
     return(Result);
 }

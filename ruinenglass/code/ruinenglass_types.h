@@ -164,7 +164,7 @@ Log2(u32 Value)
 // TODO(chowie): Do I need 64-bit versions?
 // RESOURCE(ankerl): http://martin.ankerl.com/2007/10/04/optimized-pow-approximation-for-java-and-c-c/
 // RESOURCE(ekmett): https://github.com/ekmett/approximate/blob/master/cbits/fast.c
-// NOTE(): These can be _quite_ inaccurate. ~20% in many cases, but being much faster (~7x) may
+// NOTE(from ekmett): These can be _quite_ inaccurate. ~20% in many cases, but being much faster (~7x) may
 // * permit more loop iterations of tuning algorithms that only need approximate powers.
 union rational_approx
 {
@@ -194,6 +194,112 @@ Pow(r32 A, r32 B)
     Pow.x = (s32)(B*(Pow.x - 1064866805) + 1064866805);
     return(Pow.f);
 }
+
+global u8
+PowiHighestBitSet[] =
+{
+    0, 1, 2, 2, 3, 3, 3, 3,
+    4, 4, 4, 4, 4, 4, 4, 4,
+    5, 5, 5, 5, 5, 5, 5, 5,
+    5, 5, 5, 5, 5, 5, 5, 5,
+    6, 6, 6, 6, 6, 6, 6, 6,
+    6, 6, 6, 6, 6, 6, 6, 6,
+    6, 6, 6, 6, 6, 6, 6, 6,
+    6, 6, 6, 6, 6, 6, 6, 255, // NOTE(from orlp): Anything past 63 overflows with base > 1
+    255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255,
+    255, 255, 255, 255, 255, 255, 255, 255,
+};
+// RESOURCE(orlp): https://stackoverflow.com/questions/101439/the-most-efficient-way-to-implement-an-integer-based-power-function-powint-int
+// RESOURCE(orlp): https://gist.github.com/orlp/3551590
+// IMPORTANT(chowie): Must pass in s32, s64 is to not overflow for 16^8
+inline s64
+Powi(s64 Base, u8 Exp)
+{
+    // NOTE(from orlp): Use 255 as an overflow/underflow marker
+    Assert(Exp && (PowiHighestBitSet[Exp] != 255));
+
+    s64 Result = 1;
+    switch(PowiHighestBitSet[Exp])
+    {
+        // STUDY(chowie): Cascades down
+        case 6:
+        {
+            if(Odd(Exp))
+            {
+                Result *= Base;
+            }
+            Exp >>= 1;
+            Base *= Base;
+        }
+        case 5:
+        {
+            if(Odd(Exp))
+            {
+                Result *= Base;
+            }
+            Exp >>= 1;
+            Base *= Base;
+        }
+        case 4:
+        {
+            if(Odd(Exp))
+            {
+                Result *= Base;
+            }
+            Exp >>= 1;
+            Base *= Base;
+        }
+        case 3:
+        {
+            if(Odd(Exp))
+            {
+                Result *= Base;
+            }
+            Exp >>= 1;
+            Base *= Base;
+        }
+        case 2:
+        {
+            if(Odd(Exp))
+            {
+                Result *= Base;
+            }
+            Exp >>= 1;
+            Base *= Base;
+        }
+        case 1:
+        {
+            if(Odd(Exp))
+            {
+                Result *= Base;
+            }
+        }
+    }
+
+    return(Result);
+}        
 
 // TODO(chowie): Figure out where to use Align16 for code I care about
 // the most; For SIMD?
@@ -226,10 +332,10 @@ SafeTruncateU64(u64 Value)
 
 #define BitSet(Bit) (1 << (Bit))
 
-#define IsFlagSet(A, Flag) (A->Flags & Flag)
-#define AddFlag(A, Flag) (A->Flags |= Flag)
-#define ClearFlag(A, Flag) (A->Flags &= ~Flag)
-#define ToggleFlag(A, Test, Flag) ((Test) ? AddFlag(A, Flag) : ClearFlag(A, Flag);)
+#define FlagSet(A, Flag) (A & Flag)
+#define AddFlag(A, Flag) (A |= Flag)
+#define ClearFlag(A, Flag) (A &= ~Flag)
+#define ToggleFlag(A, Test, Flag) (Test) ? AddFlag(A, Flag) : ClearFlag(A, Flag);
 // RESOURCE: https://github.com/gingerBill/gb/blob/master/gb.h
 //#define MaskSet(Var, Set, Mask) if(Set) (Var) |= (Mask); else (Var) &= ~(Mask);
 
@@ -514,6 +620,13 @@ union m3x3
 // TODO(chowie): IMPORTANT(chowie): m4x4 Transpose
 struct m4x4
 {
+    struct
+    {
+        v4 RowA;
+        v4 RowB;
+        v4 RowC;
+        v4 RowD;
+    };
     // NOTE(chowie): ROW-MAJOR order - E[Row][Column]
     r32 E[4][4];
 };

@@ -129,6 +129,12 @@
     = ClipCursor for multimonitor support
     = Wtf is QueryCancelAutoplay?
 
+  - RESOURCE(): https://www.reddit.com/r/Minecraft/comments/13v6q19/notch_couldve_made_the_view_bob_animation_less/
+    Smooth out curves - Sin(dt)^2 = double freq & halving amplitude
+
+  - RESOURCE(): https://www.reddit.com/r/minecraftsuggestions/comments/iec26k/config_file_to_whitelist_what_assets_should_be/
+    Reload few assets via a whitelist if noticable?
+
   ----------------8<-------------[ production / game ]------------------
 
   - Procedural World Generation?

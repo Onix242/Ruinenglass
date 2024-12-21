@@ -72,18 +72,10 @@ struct game_render_commands
 {
     v2u Dim;
 
-    // TODO(chowie): Put arena here!
-    // STUDY(chowie): Instead of storing the index of an array of
-    // same-size structs, store a byte index that says where the
-    // struct starts, and that handles everything. Basically the same
-    // as using pointers, only you don't need 64-bits to store, use
-    // 32- as everything is based off the same base pointer in memory.
-    umm MaxPushBufferSize;
-    u8 *PushBufferBase;
-    umm PushBufferSize;
+    memory_arena CommandsArena;
 };
 #define RenderCommandStruct(Dim, MaxPushBufferSize, PushBuffer)  \
-    {Dim, MaxPushBufferSize, (u8 *)PushBuffer, 0}
+    {Dim, {MaxPushBufferSize, (u8 *)PushBuffer, 0}}
 
 struct render_group
 {

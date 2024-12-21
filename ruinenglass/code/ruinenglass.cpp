@@ -28,10 +28,9 @@ internal u32
 AddEntity(game_state *GameState, entity_type Type)
 {
     Assert(GameState->EntityCount < ArrayCount(GameState->Entities));
-
     u32 EntityIndex = GameState->EntityCount++;
-    entity *Entity = &GameState->Entities[EntityIndex];
 
+    entity *Entity = &GameState->Entities[EntityIndex];
     ZeroStruct(*Entity);
     Entity->Type = Type;
 
@@ -43,8 +42,19 @@ AddPlayer(game_state *GameState)
 {
     u32 EntityIndex = AddEntity(GameState, EntityType_Player);
     entity *Entity = GetEntity(GameState, EntityIndex);
-    AddFlag(Entity, EntityFlag_Moveable);
+    AddFlag(Entity->Flags, EntityFlag_Collides|EntityFlag_Moveable);
     Entity->P = V2(500.0f, 500.0f); // TODO(chowie): REMOVE when have world_chunk!
+
+    return(EntityIndex);
+}
+
+internal u32
+AddWall(game_state *GameState, v3s AbsTile)
+{
+    world_pos P = ChunkPosFromTilePos(GameState->World, AbsTile);
+    u32 EntityIndex = AddEntity(GameState, EntityType_Wall);
+    entity *Entity = GetEntity(GameState, EntityIndex);
+    AddFlag(Entity->Flags, EntityFlag_Collides);
 
     return(EntityIndex);
 }
@@ -122,7 +132,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     render_group *RenderGroup = &RenderGroup_;
 
     PushClear(RenderGroup, V4(0.25f, 0.25f, 0.25f, 0.0f));
-    PushCircle(RenderGroup, V3(600, 600, 0), 50.0f, 14, V4(0.5f, 1.0f, 0.5f, 0.5f));
+
+    world *World = GameState->World;
 
     // RESOURCE: https://accuratesigns.net/the-sign-letter-height-visibility-chart/
     // NOTE: Average human height is 1.7m
@@ -132,6 +143,126 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     v3 TileSideInPixels = V3(80.0f, 95.0f, 80.0f); // TODO(chowie): REMOVE! This is more of a renderer concept, not the tiles
     v3 MetersToPixels = TileSideInPixels / TileSideInMeters; // TODO(chowie): REMOVE! This is more of a renderer concept, not the tiles
 
+    //
+    // NOTE(chowie): Play World
+    //
+
+    r32 dt = Input->dtForFrame;
+    for(u32 ControllerIndex = 0;
+        ControllerIndex < ArrayCount(Input->Controllers);
+        ++ControllerIndex)
+    {
+        game_controller_input *Controller = GetController(Input, ControllerIndex);
+        controlled_player *ConPlayer = GameState->ControlledPlayer + ControllerIndex;
+        if(ConPlayer->EntityIndex == 0)
+        {
+//            if(WasPressed(Controller->Start))
+            {
+                ZeroStruct(*ConPlayer);
+                ConPlayer->EntityIndex = AddPlayer(GameState);
+            }
+        }
+        else
+        {
+            ConPlayer->ddP = {};
+            if(Controller->IsAnalog)
+            {
+                ConPlayer->ddP += Controller->StickAverage;
+            }
+            else
+            {
+                if(IsDown(Controller->MoveUp))
+                {
+                    ++ConPlayer->ddP.y;
+                }
+                if(IsDown(Controller->MoveDown))
+                {
+                    --ConPlayer->ddP.y;
+                }
+                if(IsDown(Controller->MoveLeft))
+                {
+                    --ConPlayer->ddP.x;
+                }
+                if(IsDown(Controller->MoveRight))
+                {
+                    ++ConPlayer->ddP.x;
+                }
+
+#if 1
+                // RESOURCE(HmH): https://guide.handmadehero.org/code/day211/#3368
+                // STUDY(chowie): Numerical simulation, for proper ODE would need global t
+                // RESOURCE(): https://web.archive.org/web/20210724053826/https://lolengine.net/blog/2015/05/03/damping-with-delta-time
+                // TODO(chowie): You could dampen with lerp or pow/exp?
+
+                ConPlayer->ddP = NOZ(ConPlayer->ddP);
+
+                r32 Speed = 30.0f;
+                ConPlayer->ddP *= Speed;
+
+                r32 Drag = 8.0f;
+                ConPlayer->ddP += -Drag*GameState->dP;
+
+                // RESOURCE(HmH): https://guide.handmadehero.org/code/day043/#4686
+                // RESOURCE: Thomas and Finney calculus for more!
+                // NOTE(chowie): (1/2)at^2 + vt + p
+                GameState->Offset += MetersToPixels.xy*(0.5f*ConPlayer->ddP*Square(dt) + GameState->dP*dt);
+                GameState->dP += ConPlayer->ddP*dt;
+#endif
+            }
+        }
+    }
+
+    //
+    // NOTE(chowie): Simulate all entities
+    //
+
+    PushCircle(RenderGroup, V3(600, 600, 0), 50.0f, 5, V4(0.5f, 0.5f, 0.5f, 0.5f));
+
+    // STUDY(chowie): Straight ahead loop
+    for(u32 EntityIndex = 0;
+        EntityIndex < GameState->EntityCount;
+        ++EntityIndex)
+    {
+        entity *Entity = GameState->Entities + EntityIndex;
+
+        //
+        // NOTE: "Physics"
+        //
+
+#if 0
+        v3 ddP = {};
+        if(Entity->Type == EntityType_Player)
+        {
+            for(u32 ControllerIndex = 0;
+                ControllerIndex < ArrayCount(Input->Controllers);
+                ++ControllerIndex)
+            {
+                controlled_player *ConPlayer = GameState->ControlledPlayer + ControllerIndex;
+                ddP = V3(ConPlayer->ddP, 0);
+            }
+        }
+
+        if(FlagSet(Entity->Flags, EntityFlag_Moveable))
+        {
+            MoveEntity(Entity, dt, ddP, MetersToPixels.xy);
+        }
+#endif        
+
+        //
+        // NOTE: Rendering
+        //
+
+        if(Entity->Type == EntityType_Player)
+        {
+            v4 HeroColour = V4(0.3f, 0.2f, 0.5f, 1);
+            v2 PlayerDim = MetersToPixels.xy*V2(0.8f, 1.4f);
+            PushRect(RenderGroup, V3(GameState->Offset, 0), PlayerDim, HeroColour);
+        }
+    }
+}
+
+// TODO(chowie): Reenable this once have proper spatial partitioning!
+#if 0
     v3 Offset = {};
 
     /*
@@ -144,19 +275,19 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
       (Naming based on Van Der Laan's Form Banks / Morphotheeks)
                                        ___________________
                                       /     /            /|
-                                     /Wet  /            / | Rain comes from the north?
+                                     /Dry  /            / | Rain comes from the north or east?
                                     /Blank/  Tile      /  |
                                    /     /            /   |
                                   /_____/____________/   /|
                                  /     /            /|  / |
       ____________________      /_____/____________/ | /  |
-      |     |            |      |     |   Dry      | |/   |
+      |     |            |      |     |    Wet     | |/   |
       |Block|   Blank    |      |Block|   Blank    | /    |
       |_____|____________|      |_____|____________|/|    |
       |     |            |      |     |            | |    |
       |     |            |      |     |            | |Box |
       |     |            |      |     |            | |    |
-      |     |            |      |     |   Dry      | |    |
+      |     |            |      |     |   Wet      | |    |
       | Bar |   Slab     |      | Bar |   Slab     | |   /
       |     |            |      |     |            | |  /
       |     |            |      |     |            | | /
@@ -316,121 +447,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             PushRect(RenderGroup, Offset, RectMinMax(Min, Max), BaseColour);
         }
     }
-
-    //
-    // NOTE(chowie): Play World
-    //
-
-    r32 dt = Input->dtForFrame;
-    for(u32 ControllerIndex = 0;
-        ControllerIndex < ArrayCount(Input->Controllers);
-        ++ControllerIndex)
-    {
-        game_controller_input *Controller = GetController(Input, ControllerIndex);
-        controlled_player *ConPlayer = GameState->ControlledPlayer + ControllerIndex;
-        if(ConPlayer->EntityIndex == 0)
-        {
-//            if(WasPressed(Controller->Start))
-            {
-                ZeroStruct(*ConPlayer);
-                ConPlayer->EntityIndex = AddPlayer(GameState);
-            }
-        }
-        else
-        {
-            ConPlayer->ddP = {};
-            if(Controller->IsAnalog)
-            {
-                ConPlayer->ddP += Controller->StickAverage;
-            }
-            else
-            {
-                if(IsDown(Controller->MoveUp))
-                {
-                    ++ConPlayer->ddP.y;
-                }
-                if(IsDown(Controller->MoveDown))
-                {
-                    --ConPlayer->ddP.y;
-                }
-                if(IsDown(Controller->MoveLeft))
-                {
-                    --ConPlayer->ddP.x;
-                }
-                if(IsDown(Controller->MoveRight))
-                {
-                    ++ConPlayer->ddP.x;
-                }
-
-#if 1
-                // RESOURCE(HmH): https://guide.handmadehero.org/code/day211/#3368
-                // STUDY(chowie): Numerical simulation, for proper ODE would need global t
-                // RESOURCE(): https://web.archive.org/web/20210724053826/https://lolengine.net/blog/2015/05/03/damping-with-delta-time
-                // TODO(chowie): You could dampen with lerp or pow/exp?
-
-                ConPlayer->ddP = NOZ(ConPlayer->ddP);
-
-                r32 Speed = 30.0f;
-                ConPlayer->ddP *= Speed;
-
-                r32 Drag = 8.0f;
-                ConPlayer->ddP += -Drag*GameState->dP;
-
-                // RESOURCE(HmH): https://guide.handmadehero.org/code/day043/#4686
-                // RESOURCE: Thomas and Finney calculus for more!
-                // NOTE(chowie): (1/2)at^2 + vt + p
-                GameState->Offset += MetersToPixels.xy*(0.5f*ConPlayer->ddP*Square(dt) + GameState->dP*dt);
-                GameState->dP += ConPlayer->ddP*dt;
 #endif
-            }
-        }
-    }
-
-    //
-    // NOTE(chowie): Simulate all entities
-    //
-
-    // STUDY(chowie): Straight ahead loop
-    entity *Entity = GameState->Entities;
-    for(u32 EntityIndex = 0;
-        EntityIndex < GameState->EntityCount;
-        ++EntityIndex, ++Entity)
-    {
-        //
-        // NOTE: "Physics"
-        //
-
-#if 0
-        v3 ddP = {};
-        if(Entity->Type == EntityType_Player)
-        {
-            for(u32 ControllerIndex = 0;
-                ControllerIndex < ArrayCount(Input->Controllers);
-                ++ControllerIndex)
-            {
-                controlled_player *ConPlayer = GameState->ControlledPlayer + ControllerIndex;
-                ddP = V3(ConPlayer->ddP, 0);
-            }
-        }
-
-        if(IsSet(Entity, EntityFlag_Moveable))
-        {
-            MoveEntity(Entity, dt, ddP, MetersToPixels.xy);
-        }
-#endif        
-
-        //
-        // NOTE: Rendering
-        //
-
-        if(Entity->Type == EntityType_Player)
-        {
-            v4 HeroColour = V4(0.3f, 0.2f, 0.5f, 1);
-            v2 PlayerDim = MetersToPixels.xy*V2(0.8f, 1.4f);
-            PushRect(RenderGroup, V3(GameState->Offset, 0), PlayerDim, HeroColour);
-        }
-    }
-}
 
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)
 {

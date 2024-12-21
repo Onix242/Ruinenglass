@@ -144,8 +144,8 @@ inline void
 OpenGLCircle(v3 CentreP, r32 Radius, u32 TriCount,
              v4 Colour, r32 Circumference, v2 MinUV = V2(0, 0), v2 MaxUV = V2(1, 1))
 {
-    v2 OrientationP = V2(0, Radius);
     m2x2 Rot = M2x2RotationByTris((r32)TriCount, Circumference);
+    v2 OrientationP = V2(0, Radius);
 
     // NOTE(chowie): TriFan vector version default is clockwise.
     // Anticlockwise +cos +sin <=> (0, -1), Clockwise +cos -sin <=> (0, 1)
@@ -158,8 +158,8 @@ OpenGLCircle(v3 CentreP, r32 Radius, u32 TriCount,
         TriangleIndex <= TriCount;
         ++TriangleIndex)
     {
-        // NOTE(chowie): Change to negative to draw clockwise
-        glVertex2f(CentreP.x - OrientationP.x, CentreP.y - OrientationP.y);
+        // TODO(chowie): Clockwise instead? Why is anticlockwise imprecise? glVertex2f(CentreP.x - OrientationP.x, CentreP.y + OrientationP.y);
+        glVertex2f(CentreP.x - OrientationP.x, CentreP.y + OrientationP.y);
         // NOTE(chowie): Orientation after glVertex, starts drawing from top
         OrientationP = Rot*OrientationP;
     }
@@ -212,13 +212,12 @@ OpenGLRenderCommands(game_render_commands *Commands, v2u WindowDim)
     OpenGLSetScreenSpace(Commands->Dim);
 
 //    u32 ClipRect = 0xFFFFFFFF; // STUDY: Set ClipRect to something that cannot be true, so we set it everytime, instead of force setting to 0
-    for(u32 BaseAddress = 0;
-        BaseAddress < Commands->PushBufferSize;
+    for(umm BaseAddress = 0;
+        BaseAddress < Commands->CommandsArena.Used;
         )
     {
-        render_group_entry_header *Header = (render_group_entry_header *)(Commands->PushBufferBase + BaseAddress);
+        render_group_entry_header *Header = (render_group_entry_header *)(Commands->CommandsArena.Base + BaseAddress);
         BaseAddress += sizeof(*Header);
-
         void *Data = (u8 *)Header + sizeof(*Header);
         switch(Header->Type)
         {

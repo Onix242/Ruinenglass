@@ -43,11 +43,13 @@ struct entity
     // NOTE(chowie): Thought-out things
     //
 
+    // TODO(chowie): Eventually replace these with brains!
+
     //
     // NOTE(chowie): Everything below hasn't been worked out yet
     //
 
-    entity_type Type; // TODO(chowie): Eventually replace this with brains!
+    entity_type Type;
     u32 Flags;
 
     v2 P;
@@ -55,18 +57,19 @@ struct entity
 //    v2 ddP;
 };
 
+
 /*
 inline b32x
 IsEntityFlagSet(entity *Entity, u32 Flag)
 {
-    b32x Result = Entity->Flags & Flag;
+    b32x Result = FlagSet(Entity->Flags, Flag);
     return(Result);
 }
 
 inline void
 AddEntityFlags(entity *Entity, u32 Flag)
 {
-    Entity->Flags |= Flag;
+    AddFlag(Entity->Flags, Flag);
 }
 
 // STUDY(chowie): Passes all other flags except that flag. Thus,
@@ -74,7 +77,7 @@ AddEntityFlags(entity *Entity, u32 Flag)
 inline void
 ClearEntityFlags(entity *Entity, u32 Flag)
 {
-    Entity->Flags &= ~Flag;
+    ClearFlag(Entity->Flags, Flag);
 }
 
 inline void

@@ -335,10 +335,6 @@ SumOfProducts(r32 A, r32 B, r32 C, r32 D)
     return(Result);
 }
 
-// RESOURCE(orlp): https://stackoverflow.com/questions/101439/the-most-efficient-way-to-implement-an-integer-based-power-function-powint-int
-// RESOURCE(orlp): https://gist.github.com/orlp/3551590
-// TODO(chowie): iPow?
-
 //
 // TODO(chowie): Convert all of these to platform-efficent versions and
 // remove math.h

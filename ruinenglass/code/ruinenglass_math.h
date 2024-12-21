@@ -7,8 +7,10 @@
    $Notice: $
    ======================================================================== */
 
-#define SQUARE(a) ((a)*(a))
-#define CUBE(a) ((a)*(a)*(a))
+#define QUADRATIC(a) ((a)*(a))
+#define CUBIC(a) ((a)*(a)*(a))
+#define QUARTIC(a) ((a)*(a)*(a)*(a)) // TODO(chowie): Use?
+#define QUINTIC(a) ((a)*(a)*(a)*(a)*(a))
 #define Epsilon32 0.0001f
 
 inline v2u
@@ -59,6 +61,20 @@ inline v2
 V2i(v2u A)
 {
     v2 Result = {(r32)A.x, (r32)A.y};
+    return(Result);
+}
+
+inline v3
+V3i(v3s A)
+{
+    v3 Result = {(r32)A.x, (r32)A.y, (r32)A.z};
+    return(Result);
+}
+
+inline v3
+V3i(v3u A)
+{
+    v3 Result = {(r32)A.x, (r32)A.y, (r32)A.z};
     return(Result);
 }
 
@@ -155,14 +171,21 @@ SafeRatio1(r32 Numerator, r32 Divisor)
 inline r32
 Square(r32 A)
 {
-    r32 Result = SQUARE(A);
+    r32 Result = QUADRATIC(A);
     return(Result);
 }
 
 inline r32
 Cube(r32 A)
 {
-    r32 Result = CUBE(A);
+    r32 Result = CUBIC(A);
+    return(Result);
+}
+
+inline r32
+Quin(r32 A)
+{
+    r32 Result = QUINTIC(A);
     return(Result);
 }
 
@@ -194,9 +217,7 @@ Triangle01(r32 t)
 
 // RESOURCE(longtran): https://handmade.network/forums/t/8776-best_way_to_generate_lerp_function
 // RESOURCE(fabian): https://fgiesen.wordpress.com/2012/08/15/linear-interpolation-past-present-and-future/
-// NOTE(chowie): Can be also represented as "A + T*(B - A)",
-// or "(1.0f - t)*A + t*B"
-// r32 Result = Fma(t, B - A, A);
+// NOTE(chowie): Can be also represented as "A + T*(B - A)" or "(1.0f - t)*A + t*B"
 inline r32
 Lerp(r32 A, r32 t, r32 B)
 {
@@ -204,6 +225,25 @@ Lerp(r32 A, r32 t, r32 B)
     __m128 LerpA = _mm_set_ss(A);
 
     r32 Result = _mm_cvtss_f32(_mm_fmadd_ss(LerpT, _mm_set_ss(B), _mm_fnmsub_ss(LerpT, LerpA, LerpA)));
+    return(Result);
+}
+
+// RESOURCE(freya): https://www.gamedev.net/articles/programming/general-and-gameplay-programming/inverse-lerp-a-super-useful-yet-often-overlooked-function-r5230/
+// NOTE(chowie): Returns t based on value between A and B without
+// needing to normalise. E.g. explosion or sound based on distance,
+// hue-shifting water depth
+inline r32
+InvLerp(r32 A, r32 Value, r32 B)
+{
+    r32 Result = (Value - A)/(B - A);
+    return(Result);
+}
+
+inline r32
+LerpRemap(v2 A, r32 Value, v2 B)
+{
+    r32 t = InvLerp(A.Min, Value, A.Max);
+    r32 Result = Lerp(B.Min, t, B.Max);
     return(Result);
 }
 
@@ -405,6 +445,14 @@ Perp(v2 A)
     return(Result);
 }
 
+// RESOURCE(chowie): https://endesga.xyz/?page=vector
+inline v2
+Invert(v2 A)
+{
+    v2 Result = {-A.x, -A.y};
+    return(Result);
+}
+
 // NOTE(chowie): A single multiplier
 inline v2
 operator*(r32 A, v2 B)
@@ -518,9 +566,9 @@ Hadamard(v2 A, v2 B)
 // RESOURCE: https://hero.handmade.network/forums/code-discussion/t/7858-help_with_collision_detection_with_rotated_rectangles
 /* The dot product of two vectors has the resulting scalar tell you if
    the two vectors point are in the same general direction: if the
-   value is positive they are pointing in the same general direction
+   value is positive they are pointing in the same general direction,
    if the value is negative they are pointing in opposite general
-   direction if the value is 0 they are perpendicular.
+   direction, if the value is 0 they are perpendicular.
 */
 // A.x*B.x + A.y*B.y
 inline r32
@@ -582,7 +630,7 @@ Lerp(v2 A, r32 t, v2 B)
 
 // RESOURCE(stijn oomes): https://stijnoomes.com/laws-of-rational-trigonometry/
 // RESOURCE(alexander bogomolny): https://www.cut-the-knot.org/pythagoras/RationalTrig/CutTheKnot.shtml
-// RESOURCE: https://news.ycombinator.com/item?id=34299550
+// RESOURCE(): https://news.ycombinator.com/item?id=34299550
 
 //
 // NOTE(chowie): Rational Trig v2 operations
@@ -614,21 +662,19 @@ V2ToM2x2Rotation(v2 P)
     return(Result);
 }
 
-// TODO(chowie): Pass angle, e.g, Pi32 for semi-circle, but needs to
-// pass in another angle to state where to start from. Average the
-// triangle count too to not look super detailed when rescaling?
-// NOTE(chowie): Works best for medium-sized circles (n > 13). Better
-// accuracy / less underdraw as n increases. But if n is high enough,
-// circle overdraws.
+// TODO(chowie): Pass starting angle. Average the triangle count too
+// to not look super detailed when rescaling?
+// NOTE(chowie): Works best for (n >= 5). Better accuracy / less
+// underdraw as n increases. If n is high enough, circle overdraws.
 internal v2
 RotationByCircleSector(r32 n, r32 Circumference)
 {
     // RESOURCE(john d cook): https://www.johndcook.com/blog/2010/07/27/sine-approximation-for-small-x/
     r32 Sector = (Circumference / n);
-    r32 Error = (Cube(Sector)/6);
+    r32 Error = -(Cube(Sector)/6) + (Quin(Sector)/120);
 
     v2 Result;
-    Result.y = Sector - Error; // NOTE(chowie): Replace with "Sin(Tau32 / n)" for better accuracy with small n
+    Result.y = Sector + Error;
     Result.x = SquareRoot(1.0f - Square(Result.y));
 
     return(Result);
@@ -791,6 +837,13 @@ GeneratePerp(v3 A)
     return(Result);
 }
 */
+
+inline v3
+Invert(v3 A)
+{
+    v3 Result = {-A.x, -A.y, -A.z};
+    return(Result);
+}
 
 // NOTE(chowie): A single multiplier
 inline v3
@@ -1286,6 +1339,7 @@ Lerp(v4 A, r32 t, v4 B)
 // NOTE(chowie): Rotors
 //
 
+// NOTE(chowie): Generic abstraction of a cross product
 inline v3
 Wedge(v3 A, v3 B)
 {
@@ -1299,6 +1353,7 @@ Wedge(v3 A, v3 B)
     return(Result);
 }
 
+// NOTE(chowie): Generic abstraction of a quarternion
 inline v4
 FromToRotor(v3 From, v3 To)
 {
@@ -1408,12 +1463,38 @@ RotorToMatrix(v4 A)
     return(Result);
 }
 
+// TODO(chowie): SLERP
+// RESOURCE(): https://jacquesheunis.com/post/rotors/
+// RESOURCE(): https://marctenbosch.com/quaternions/
+// RESOURCE(): https://endesga.xyz/?page=main
+
+// STUDY(chowie): Hangle is just the scalar! NOTE(chowie): Sometimes
+// people for a FPS camera tie the Euclid angle is convenient avoiding
+// converting between quaternion and Euclid.
+
 /*
 // NOTE(chowie): Slerp alternative
 inline v4
 RotorAverage(v4 A, v4 B, r32 t)
 {
     v4 Result = A*Exp(t*Log(ReverseRotor(A)*B));
+    return(Result);
+}
+*/
+
+// RESOURCE(quilez): https://www.shadertoy.com/view/3s33zj
+// RESOURCE(weiler): https://github.com/graphitemaster/normals_revisited/
+// TODO(chowie): Check this works with rotors
+/*
+inline m3x3
+Adjugate(m4x4 A)
+{
+    m3x3 Result =
+        {
+            Cross(A.E[1].xyz, A.E[2].xyz),
+            Cross(A.E[2].xyz, A.E[0].xyz),
+            Cross(A.E[0].xyz, A.E[1].xyz),
+        };
     return(Result);
 }
 */
@@ -1585,6 +1666,22 @@ GetArea(rect2 A)
 //
 // NOTE(chowie): Rect2i
 //
+
+// NOTE: Convention is not add the final row with +1. If the max and
+// min are coincident, the rect is empty, not a 1px long rect.
+inline s32
+GetWidth(rect2i A)
+{
+    s32 Result = A.Max.x - A.Min.x;
+    return(Result);
+}
+
+inline s32
+GetHeight(rect2i A)
+{
+    s32 Result = A.Max.y - A.Min.y;
+    return(Result);
+}
 
 // TODO(chowie): Do you actually need this anymore?
 // NOTE(chowie): Only to initialise unions
@@ -1948,10 +2045,10 @@ inline u32
 MauroHash(v3u Value)
 {
     u32 Max = Maximum3(Value.x, Value.y, Value.z);
-    u32 Result = CUBE(Max) + (2*Max*Value.z) + Value.z;
+    u32 Result = CUBIC(Max) + (2*Max*Value.z) + Value.z;
     if(Max == Value.z)
     {
-        Result += SQUARE(Maximum(Value.x, Value.y));
+        Result += QUADRATIC(Maximum(Value.x, Value.y));
     }
 
     if(Value.y >= Value.x)
@@ -1974,10 +2071,10 @@ MauroHash(v3s Value)
     s32 NegZ = (Value.z >= 0) ? (2 * Value.z) : (-2*Value.z - 1);
 
     s32 Max = Maximum3(NegX, NegY, NegZ);
-    s32 Result = CUBE(Max) + (2*Max*NegZ) + NegZ;
+    s32 Result = CUBIC(Max) + (2*Max*NegZ) + NegZ;
     if(Max == NegZ)
     {
-        Result += SQUARE(Maximum(NegX, NegY));
+        Result += QUADRATIC(Maximum(NegX, NegY));
     }
 
     if(NegY >= NegX)

@@ -1629,7 +1629,7 @@ WinMain(HINSTANCE Instance,
                     // NOTE(chowie): Game Update
                     //
 
-                    game_render_commands RenderCommands =
+                    game_render_commands RenderCommands = 
                         RenderCommandStruct(GlobalBackbuffer.Dim,
                                             PushBufferSize, PushBuffer);
 

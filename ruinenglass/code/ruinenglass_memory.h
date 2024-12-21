@@ -45,9 +45,14 @@ Copy(umm Size, void *SourceInit, void *DestInit)
 // NOTE(chowie): Memory Arenas
 //
 
+// STUDY(chowie): Instead of storing the index of an array of
+// same-size structs, store a byte index that says where the struct
+// starts, and that handles everything. Basically the same as using
+// pointers, only you don't need 64-bits to store, use 32- as
+// everything is based off the same base pointer in memory.
 typedef struct memory_arena
 {
-    umm Size; // NOTE(chowie): Reserved
+    umm Size;
     u8 *Base;
     umm Used;
 
@@ -78,21 +83,6 @@ ClearArena(memory_arena *Arena)
     InitialiseArena(Arena, Arena->Size, Arena->Base);
 }
 
-inline umm
-GetAlignmentOffset(memory_arena *Arena, umm Alignment)
-{
-    umm AlignmentOffset = 0;
-
-    umm ResultPointer = (umm)Arena->Base + Arena->Used;
-    umm AlignmentMask = Alignment - 1;
-    if(ResultPointer & AlignmentMask)
-    {
-        AlignmentOffset = Alignment - (ResultPointer & AlignmentMask);
-    }
-
-    return(AlignmentOffset);
-}
-
 enum arena_push_flag
 {
     ArenaFlag_ClearToZero = BitSet(0), // STUDY(chowie): (1 << 0) = 0x1
@@ -102,7 +92,6 @@ struct arena_push_params
     u32 Flags;
     u32 Alignment;
 };
-
 inline arena_push_params
 DefaultArenaParams(void)
 {
@@ -113,6 +102,23 @@ DefaultArenaParams(void)
 }
 
 inline arena_push_params
+Align(u32 Alignment, b32x Clear = true)
+{
+    arena_push_params Params = DefaultArenaParams();
+    ToggleFlag(Params.Flags, Clear, ArenaFlag_ClearToZero);
+    Params.Alignment = Alignment;
+    return(Params);
+}
+
+// STUDY(chowie): Avoids slow startup as to not clear to zero
+inline arena_push_params
+AlignNoClear(u32 Alignment)
+{
+    arena_push_params Result = Align(Alignment, false);
+    return(Result);
+}
+
+inline arena_push_params
 NoClear(void)
 {
     arena_push_params Params = DefaultArenaParams();
@@ -120,14 +126,21 @@ NoClear(void)
     return(Params);
 }
 
-inline arena_push_params
-AlignNoClear(u32 Alignment)
+inline umm
+GetAlignmentOffset(memory_arena *Arena, umm Alignment)
 {
-    arena_push_params Params = DefaultArenaParams();
-    // STUDY(chowie): Avoids slow startup as to not clear to zero
-    Params.Flags &= ~ArenaFlag_ClearToZero;
-    Params.Alignment = Alignment;
-    return(Params);
+    umm AlignmentOffset = 0;
+    if(Alignment)
+    {
+        umm ResultPointer = (umm)Arena->Base + Arena->Used;
+        umm AlignmentMask = Alignment - 1;
+        if(ResultPointer & AlignmentMask)
+        {
+            AlignmentOffset = Alignment - (ResultPointer & AlignmentMask);
+        }
+    }
+
+    return(AlignmentOffset);
 }
 
 inline umm
@@ -137,23 +150,34 @@ GetArenaSizeRemaining(memory_arena *Arena, arena_push_params Params = DefaultAre
     return(Result);
 }
 
-#define PushStruct(Arena, type, ...) (type *)PushSize_(Arena, sizeof(type), ## __VA_ARGS__)
-#define PushArray(Arena, Count, type, ...) (type *)PushSize_(Arena, (Count)*sizeof(type), ## __VA_ARGS__)
-#define PushSize(Arena, Size, ...) PushSize_(Arena, Size, ## __VA_ARGS__)
-#define PushCopy(Arena, Size, Source, ...) Copy(Size, Source, PushSize_(Arena, Size, ## __VA_ARGS__))
-
 // STUDY(chowie): The alternative would be providing the arena's a way
 // to free memory on demand or allow deallocation to the arena.
 inline umm
 GetEffectiveSizeFor(memory_arena *Arena, umm SizeInit, arena_push_params Params = DefaultArenaParams())
 {
     umm Size = SizeInit;
-    umm AlignmentOffset = GetAlignmentOffset(Arena, Params.Alignment);
-    Size += AlignmentOffset;
+    if(Params.Alignment)
+    {
+        umm AlignmentOffset = GetAlignmentOffset(Arena, Params.Alignment);
+        Size += AlignmentOffset;
+    }
 
     return(Size);
 }
 
+// TODO(chowie): Debugging for per-frame arena
+inline b32x
+ArenaHasRoomFor(memory_arena *Arena, umm SizeInit, arena_push_params Params = DefaultArenaParams())
+{
+    umm Size = GetEffectiveSizeFor(Arena, SizeInit, Params);
+    b32x Result = ((Arena->Used + Size) <= Arena->Size);
+    return(Result);
+}
+
+#define PushStruct(Arena, type, ...) (type *)PushSize_(Arena, sizeof(type), ## __VA_ARGS__)
+#define PushArray(Arena, Count, type, ...) (type *)PushSize_(Arena, (Count)*sizeof(type), ## __VA_ARGS__)
+#define PushSize(Arena, Size, ...) PushSize_(Arena, Size, ## __VA_ARGS__)
+#define PushCopy(Arena, Size, Source, ...) Copy(Size, Source, PushSize_(Arena, Size, ## __VA_ARGS__))
 inline void *
 PushSize_(memory_arena *Arena, umm SizeInit, arena_push_params Params = DefaultArenaParams())
 {
@@ -180,15 +204,6 @@ SubArena(memory_arena *Result, memory_arena *Arena, umm Size, arena_push_params 
     Result->Base = (u8 *)PushSize_(Arena, Size, Params);
     Result->Used = 0;
     Result->TempCount = 0;
-}
-
-// TODO(chowie): Debugging for per-frame arena
-inline b32x
-ArenaHasRoomFor(memory_arena *Arena, umm SizeInit, arena_push_params Params = DefaultArenaParams())
-{
-    umm Size = GetEffectiveSizeFor(Arena, SizeInit, Params);
-    b32x Result = ((Arena->Used + Size) <= Arena->Size);
-    return(Result);
 }
 
 // NOTE(chowie): Nicety without having to call StringLength twice on a
