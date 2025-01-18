@@ -7,6 +7,14 @@
    $Notice: $
    ======================================================================== */
 
+// STUDY(chowie): RNG used to use a LUT (Lookup Table), but it's a lot
+// harder to fully SIMD. Thus, less favourable.
+
+// RESOURCE(): https://www.flipcode.com/archives/Random_Unit_Vectors.shtml
+// TODO(chowie): Lot more useful than you would think to test
+// reliability, give something a new direction, slerp between random
+// orientations
+
 // RESOURCE(o'neill): https://www.pcg-random.org/download.html
 // TODO(chowie): Better random with PCG?
 
@@ -189,6 +197,7 @@ InvertibleHash(u32 Seed, u32 Index, u32 Mask)
     return(Result);
 }
 
+// TODO(chowie): Use for Perlin noise!
 // IMPORTANT(chowie): Length must be power-of-two
 // NOTE(chowie): Mask = hashing domain < 2x size of array. Hash
 // has 50% chance to flip the MostSignificantBit (hash to value

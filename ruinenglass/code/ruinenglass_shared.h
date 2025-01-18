@@ -219,6 +219,7 @@ struct d7sam_concat
         return(*this);
     }
 
+    // TODO(chowie): Compare this vs HmH OpenGLParseNumber
     d7sam_concat &
     operator()(s32 Value)
     {

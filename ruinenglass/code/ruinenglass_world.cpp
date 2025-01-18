@@ -171,6 +171,16 @@ ChunkPosFromTilePos(world *World, v3s AbsTile, v3 AdditionalOffset = V3(0, 0, 0)
     return(Result);
 }
 
+// NOTE(chowie): Difference in tiles between the two positions (multiplied by
+// however big the tiles are). With the delta between offsets.
+inline v3
+Subtract(world *World, world_pos *A, world_pos *B)
+{
+    v3 dTile = {V3i(A->Chunk) - V3i(B->Chunk)};
+    v3 Result = Hadamard(World->ChunkDimInMeters, dTile) + (A->Offset_ - B->Offset_);
+    return(Result);
+}
+
 /*
 internal void
 AddBlockToFreeList(world *World, world_entity_block *Old)

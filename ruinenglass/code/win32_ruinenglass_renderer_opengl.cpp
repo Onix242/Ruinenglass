@@ -91,6 +91,9 @@ Win32SetPixelFormat(HDC WindowDC)
         SuggestedPixelFormatIndex = ChoosePixelFormat(WindowDC, &DesiredPixelFormat);
     }
 
+    // NOTE(chowie): Technically don't need DescribePixelFormat as
+    // SetPixelFormat doesn't need to be filled out properly. Will
+    // leave this in for completeness sake; not optional in docs.
     PIXELFORMATDESCRIPTOR SuggestedPixelFormat;
     DescribePixelFormat(WindowDC, SuggestedPixelFormatIndex,
                         sizeof(SuggestedPixelFormat), &SuggestedPixelFormat);
@@ -187,9 +190,10 @@ Win32InitOpenGL(HDC WindowDC, b32x EnableVsync)
 {
     Win32LoadWGLExtensions();
 
+    Win32SetPixelFormat(WindowDC);
+
     b32x ModernContext = true;
     HGLRC OpenGLRC = 0;
-    Win32SetPixelFormat(WindowDC);
     if(wglCreateContextAttribsARB)
     {
         // NOTE(chowie): SetPixelFormat should be here? But it won't

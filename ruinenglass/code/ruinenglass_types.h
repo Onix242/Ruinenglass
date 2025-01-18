@@ -568,6 +568,8 @@ union rect2i
     s32 E[4];
 };
 
+// RESOURCE(): https://zeux.io/2010/10/17/aabb-from-obb-with-component-wise-abs/
+// TODO(chowie): Support OBB?
 // RESOURCE(): https://ktstephano.github.io/rendering/stratusgfx/aabbs
 // RESOURCE(): https://ktstephano.github.io/rendering/stratusgfx/lod
 // TODO(chowie): View fustrum culling? Need to take into account how

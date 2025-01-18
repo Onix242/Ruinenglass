@@ -7,6 +7,9 @@
    $Notice: $
    ======================================================================== */
 
+#define GL_MAJOR_VERSION                  0x821B
+#define GL_MINOR_VERSION                  0x821C
+
 // RESOURCE: https://registry.khronos.org/OpenGL/extensions/ARB/ARB_framebuffer_sRGB.txt
 // or https://registry.khronos.org/OpenGL/extensions/EXT/EXT_framebuffer_sRGB.txt
 #define GL_FRAMEBUFFER_SRGB               0x8DB9
@@ -45,6 +48,9 @@ struct opengl_info
     b32x GL_EXT_texture_sRGB;
     b32x GL_ARB_framebuffer_sRGB;
 };
+
+// RESOURCE(): https://hero.handmade.network/forums/code-discussion/t/1011-opengl_srgb__assets
+// TODO(chowie): Remove srgb check?
 
 #define RUINENGLASS_RENDERER_OPENGL_H
 #endif

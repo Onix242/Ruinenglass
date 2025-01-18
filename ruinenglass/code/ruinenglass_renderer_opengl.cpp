@@ -45,6 +45,19 @@ OpenGLGetInfo(b32x ModernContext)
         At = End;
     }
 
+    // TODO(chowie): Ref HmH 323, only available OpenGL
+    // 3.0+. Otherwise, you'd have to parse the string
+    GLint Major = 1;
+    GLint Minor = 0;
+    glGetIntegerv(GL_MAJOR_VERSION, &Major);
+    glGetIntegerv(GL_MINOR_VERSION, &Minor);
+    if((Major > 2) || ((Major == 2) && (Minor >= 1)))
+    {
+        // NOTE(chowie): We _believe_ we have srgb textures in 2.1 and above
+        // automatically
+        Result.GL_EXT_texture_sRGB = true;
+    }
+
     return(Result);
 }
 
@@ -104,6 +117,10 @@ OpenGLRect(v3 MinP, v3 MaxP, v4 Colour, v2 MinUV = V2(0, 0), v2 MaxUV = V2(1, 1)
     glEnd();
 }
 
+// RESOURCE(): https://www.humus.name/index.php?page=Comments&ID=228&start=24
+// RESOURCE(): https://stackoverflow.com/questions/75496846/circle-triangulation
+// Useless in triangulation.
+
 // RESOURCE(aolo2): https://discord.com/channels/239737791225790464/1307441055641374720/1307441055641374720
 // NOTE(chowie): Quad with disc sdf vs geometry; geometry wins as they
 // blend nicely with a single stroke
@@ -158,7 +175,7 @@ OpenGLCircle(v3 CentreP, r32 Radius, u32 TriCount,
         TriangleIndex <= TriCount;
         ++TriangleIndex)
     {
-        // TODO(chowie): Clockwise instead? Why is anticlockwise imprecise? glVertex2f(CentreP.x - OrientationP.x, CentreP.y + OrientationP.y);
+        // TODO(chowie): Why is anticlockwise imprecise?
         glVertex2f(CentreP.x - OrientationP.x, CentreP.y + OrientationP.y);
         // NOTE(chowie): Orientation after glVertex, starts drawing from top
         OrientationP = Rot*OrientationP;

@@ -190,6 +190,7 @@ Quin(r32 A)
 }
 
 // RESOURCE(john d cook): Sin approx (0 to Pi32) - https://www.johndcook.com/blog/2024/08/31/sine-approx/
+// RESOURCE(johndcook): https://www.johndcook.com/blog/2024/09/07/aryabhata/
 // TODO(chowie): Blog also contains Cos approx (0 to Pi32), what are ways to use it?
 // NOTE(chowie): Parabolas 0.5f, used with lerp! Oner on caller to
 // pass -0.25f*Tau32 to 0.25f*Tau32. For rotation e.g. sword swings
@@ -202,6 +203,14 @@ Sin01(r32 t)
     return(Result);
 }
 
+// RESOURCE(endesga): https://www.shadertoy.com/view/M3jGWV
+// TODO(chowie): Proper write of Tau32 Sin!
+
+// RESOURCE(): https://blog.demofox.org/2014/11/04/four-ways-to-calculate-sine-without-trig/
+// TODO(chowie): Sine underscore with lerp!
+
+// RESOURCE(): https://www.desmos.com/calculator/cefigtqgbw
+// TODO(chowie): Mod to triangle wave.
 // NOTE(chowie): As 0 -> 1, at 0.5f to be at 1.
 inline r32
 Triangle01(r32 t)
@@ -318,6 +327,9 @@ SmoothStep(r32 Min, r32 t, r32 Max)
     r32 Result = SmoothStep(Clamp);
     return(Result);
 }
+
+// RESOURCE(): https://iradicator.com/fast-inverse-smoothstep/
+// TODO(chowie): Find which one matches me!
 
 inline r32
 Step(r32 t, r32 Value)
@@ -604,7 +616,7 @@ NOZ(v2 A)
     r32 LenSq = LengthSq(A);
     if(LenSq > Square(Epsilon32))
     {
-        Result = A*ReciprocalSquareRoot(LenSq);
+        Result = A*InvSquareRoot(LenSq);
     }
 
     return(Result);
@@ -648,6 +660,7 @@ operator*(m2x2 A, v2 P)
     return(Result);
 }
 
+// RESOURCE(): Identity matrix plays a role - https://blog.demofox.org/2020/02/09/a-fun-2d-rotation-matrix-derivation/
 // RESOURCE(ratchetfreak): https://hero.handmade.network/forums/code-discussion/t/1018-2d_rotation_help
 // TODO(chowie): General rotation for other shapes other than circles?
 inline m2x2
@@ -662,6 +675,8 @@ V2ToM2x2Rotation(v2 P)
     return(Result);
 }
 
+// RESOURCE(petrik clarberg): Fast equal-area mapping of (hemi)sphere
+// using SIMD by 2008, mentioned the sin approx I used below!
 // TODO(chowie): Pass starting angle. Average the triangle count too
 // to not look super detailed when rescaling?
 // NOTE(chowie): Works best for (n >= 5). Better accuracy / less
@@ -999,7 +1014,7 @@ inline v3
 Normalise(v3 A)
 {
     r32 LenSq = LengthSq(A);
-    v3 Result = A*ReciprocalSquareRoot(LenSq);
+    v3 Result = A*InvSquareRoot(LenSq);
     return(Result);
 }
 
@@ -1017,7 +1032,7 @@ NOZ(v3 A)
     r32 LenSq = LengthSq(A);
     if(LenSq > Square(Epsilon32))
     {
-        Result = A*ReciprocalSquareRoot(LenSq);
+        Result = A*InvSquareRoot(LenSq);
     }
 
     return(Result);
@@ -1033,7 +1048,7 @@ NOU(v3 A)
     r32 LenSq = LengthSq(A);
     if(AbsoluteValue(LenSq - 1.0f) > Square(Epsilon32))
     {
-        Result = A*ReciprocalSquareRoot(LenSq);
+        Result = A*InvSquareRoot(LenSq);
     }
 
     return(Result);
@@ -1120,7 +1135,6 @@ Lerp(v3 A, r32 t, v3 B)
 
 // RESOURCE(maggio): https://keithmaggio.wordpress.com/2011/02/15/math-magician-lerp-slerp-and-nlerp/
 // STUDY(chowie): For animation
-// TODO(chowie): Apply this to rotors/quarternions?
 // TODO(chowie): V2?
 inline v3
 NLerp(v3 A, r32 t, v3 B)
@@ -1197,7 +1211,7 @@ Clip(v3 A, v3 B)
 {
     r32 Coeff = Inner(A, B);
     v3 Result = (Coeff > 0.0f) ? A :
-        ((A - B*Coeff)*ReciprocalSquareRoot(1.0f - Square(Coeff) / Inner(A, A)));
+        ((A - B*Coeff)*InvSquareRoot(1.0f - Square(Coeff) / Inner(A, A)));
     return(Result);
 }
 
@@ -1317,7 +1331,7 @@ inline v4
 Normalise(v4 A)
 {
     r32 LenSq = LengthSq(A);
-    v4 Result = A*ReciprocalSquareRoot(LenSq);
+    v4 Result = A*InvSquareRoot(LenSq);
     return(Result);
 }
 
@@ -1339,6 +1353,27 @@ Lerp(v4 A, r32 t, v4 B)
 // NOTE(chowie): Rotors
 //
 
+// RESOURCE(): https://marctenbosch.com/quaternions/
+// NOTE(chowie): Small benefits of rotors over quaternions:
+// 1) Rotors work in n dimensions, helpful for transitioning from 3D
+// to 2D rotations with less effort (only need bivector, x^y)
+// 2) Geometric Algebra is conceptually easier to understand for the
+// average person
+// 3) More physics-based applications care about spinors
+// 4) Slerp simplification to Exp and Log, don't need angles
+
+// RESOURCE(endesga): https://endesga.xyz/?page=main
+// STUDY(chowie): Hangle is just the scalar! NOTE(chowie): Sometimes
+// people for a FPS camera tie the Euclid angle is convenient avoiding
+// converting between quaternion and Euclid.
+
+// RESOURCE(endesga): https://endesga.xyz/?page=rotor
+// TODO(chowie): Compare the rotor implementation
+
+// RESOURCE(): Nothing here yet - https://math.stackexchange.com/questions/4809683/how-to-derive-the-log-and-exp-functions-of-a-geometric-algebra-rotor-for-spheric
+
+// RESOURCE(kromenaker): http://clarkkromenaker.com/post/gengine-09-quaternions/
+
 // NOTE(chowie): Generic abstraction of a cross product
 inline v3
 Wedge(v3 A, v3 B)
@@ -1354,27 +1389,38 @@ Wedge(v3 A, v3 B)
 }
 
 // NOTE(chowie): Generic abstraction of a quarternion
+// NOTE(from marc): Construct the rotor that rotates one unit vector
+// to another uses the usual trick to get the half angle
 inline v4
 FromToRotor(v3 From, v3 To)
 {
     v4 Result;
-    Result.s = 1.0f + Inner(To, From);
-    Result.bxyyzzx = Wedge(To, From);
+    Result.s = 1.0f + Inner(To, From); // NOTE(chowie): Halfway normalise
+    Result.bxyyzzx = Wedge(To, From); // NOTE(from marc): The left side of the products have b a, not a b, so flip
     Result = Normalise(Result);
     return(Result);
 }
 
+// TODO(chowie): IMPORTANT(chowie): Why did everyone else's rotors not
+// have a dedicated yaw, roll, pitch func than endesga's & Casey's????
+// Could the bivector that represents 2 of the axis cover that
+// already? See "Axis-angle representation for rotors" on
+// jacquesheunis?
+
+// NOTE(chowie): Eq works regardless of the coord handedness!
+// NOTE(from marc): Angle+plane, plane must be normalized
+// NOTE(from marc): Angle must be in radians
 inline v4
-RotorPlane(v3 Plane, r32 Angle)
+RotorPlane(v3 Plane, r32 AngleRadians)
 {
     v4 Result;
-    r32 SinAngle = Sin(Angle / 2.0f);
-    Result.s = Cos(Angle / 2.0f);
-    Result.bxyyzzx = -SinAngle*Plane;
+    r32 SinAngle = Sin(AngleRadians / 2.0f);
+    Result.s = Cos(AngleRadians / 2.0f);
+    Result.bxyyzzx = -SinAngle*Plane; // NOTE(chowie): The left side of the products have b a, not a b
     return(Result);
 }
 
-// NOTE(chowie): Geometric product
+// NOTE(chowie): Geometric product -> produces twice angle, -tive direction
 inline v4
 Geo(v3 A, v3 B)
 {
@@ -1406,6 +1452,8 @@ operator*=(v4 &B, v4 A)
     return(B);
 }
 
+// NOTE(chowie): Vector rotation > multiply by quaternion > multiply
+// inverse = sandwich product
 // TODO(chowie): Is this the correct order? I'm assuming A = P, B = X
 // TODO(chowie): Marc Ten Bosch suggests this can be Optimised
 inline v3
@@ -1433,13 +1481,26 @@ RotateRotor(v4 A, v3 B)
     return(Result);
 }
 
+inline v4
+Invert(v4 A)
+{
+    v4 Result = {-A.x, -A.y, -A.z, -A.w};
+    return(Result);
+}
+
 // NOTE(chowie): Same as quarternion conjugate
+// NOTE(chowie): Negating only the axis via inversion causes the angle
+// to negate = calculates the opposite direction
 inline v4
 ReverseRotor(v4 A)
 {
     v4 Result = {-A.bxyyzzx, A.s};
     return(Result);
 }
+
+// TODO(chowie): The identity quaternion, [(0, 0, 0), 1] is achieved
+// by the inverse. Conjugate/LengthSquared = inverse. A unit length
+// quaternion is equal to its conjugate!
 
 // NOTE(chowie): Sandwich Product
 inline v4
@@ -1463,25 +1524,92 @@ RotorToMatrix(v4 A)
     return(Result);
 }
 
-// TODO(chowie): SLERP
-// RESOURCE(): https://jacquesheunis.com/post/rotors/
-// RESOURCE(): https://marctenbosch.com/quaternions/
-// RESOURCE(): https://endesga.xyz/?page=main
-
-// STUDY(chowie): Hangle is just the scalar! NOTE(chowie): Sometimes
-// people for a FPS camera tie the Euclid angle is convenient avoiding
-// converting between quaternion and Euclid.
-
-/*
-// NOTE(chowie): Slerp alternative
 inline v4
-RotorAverage(v4 A, v4 B, r32 t)
+Nlerp(v4 A, r32 t, v4 B)
 {
-    v4 Result = A*Exp(t*Log(ReverseRotor(A)*B));
+    v4 Result = Normalise(Lerp(A, t, B));
     return(Result);
 }
-*/
 
+// RESOURCE(): https://jacquesheunis.com/post/rotors/
+inline v4
+Slerp(v4 From, r32 t, v4 To)
+{
+    v4 Result = {};
+
+    r32 Dot = Inner(From, To);
+    if(Dot < 0.0f)
+    {
+        To = Invert(To);
+        Dot = -Dot;
+    }
+
+    // Avoid numerical stability issues with trig functions when
+    // the angle between `From` and `To` is close To zero.
+    // Also assumes `From` and `To` both have magnitude 1.
+    if(Dot > 0.99995f)
+    {
+        Result = Nlerp(From, t, To);
+    }
+    else
+    {
+        // Assume that `From` and `To` both have magnitude 1
+        // (IE they are the product of two unit vecTors)
+        // then cos(Theta) = Dot(From, To)
+        r32 CosTheta = Dot;
+
+        r32 Theta = acosf(CosTheta);
+        r32 FromFactor = sinf((1.0f - t)*Theta)/sinf(Theta);
+        r32 ToFactor = sinf(t*Theta)/sinf(Theta);
+
+        Result.bxy = SumOfProducts(FromFactor, From.bxy, ToFactor, To.bxy);
+        Result.byz = SumOfProducts(FromFactor, From.byz, ToFactor, To.byz);
+        Result.bzx = SumOfProducts(FromFactor, From.bzx, ToFactor, To.bzx);
+        Result.s = SumOfProducts(FromFactor, From.s, ToFactor, To.s);
+    }
+
+    return(Result);
+}
+
+// TODO(chowie): I think these only affects bivectors, not scalar. See
+// RotorReverse from Marc Ten Bosch.
+inline v4
+Log(v4 A)
+{
+    v4 Result = {};
+    Result.bxy = Log(A.bxy);
+    Result.byz = Log(A.byz);
+    Result.bzx = Log(A.bzx);
+    Result.s = A.s;
+
+    return(Result);
+}
+
+inline v4
+Exp(v4 A)
+{
+    v4 Result = {};
+    Result.bxy = Exp(A.bxy);
+    Result.byz = Exp(A.byz);
+    Result.bzx = Exp(A.bzx);
+    Result.s = A.s;
+
+    return(Result);
+}
+
+// RESOURCE(): https://rastergraphics.wordpress.com/2022/04/12/geometric-algebra-rotor-average-in-closed-form/
+// TODO(chowie): Is slerp alternative correct? I don't think so!
+inline v4
+RotorAverage(v4 A, r32 t, v4 B)
+{
+    // RESOURCE(): https://martin.ankerl.com/2007/02/11/optimized-exponential-functions-for-java/
+    // NOTE(chowie): Optimisations Exp(B*Log(A)) = Pow(A, B)
+    v4 Delta = ReverseRotor(A)*B;
+    v4 Result = A*Exp(t*Log(Delta));
+    return(Result);
+}
+
+/*
 // RESOURCE(quilez): https://www.shadertoy.com/view/3s33zj
 // RESOURCE(weiler): https://github.com/graphitemaster/normals_revisited/
 // TODO(chowie): Check this works with rotors
@@ -1498,6 +1626,9 @@ Adjugate(m4x4 A)
     return(Result);
 }
 */
+
+// RESOURCE(endesga): https://www.shadertoy.com/view/M3jBDW
+// IMPORTANT(chowie): TODO(chowie): Projection!
 
 //
 // NOTE(chowie): Rect2
@@ -1680,6 +1811,17 @@ inline s32
 GetHeight(rect2i A)
 {
     s32 Result = A.Max.y - A.Min.y;
+    return(Result);
+}
+
+inline rect2i
+Offset(rect2i A, v2s Offset)
+{
+    rect2i Result = A;
+
+    Result.Min = A.Min + Offset;
+    Result.Max = A.Max + Offset;
+
     return(Result);
 }
 
@@ -2090,6 +2232,7 @@ MauroHash(v3s Value)
 }
 
 // TODO(chowie): Spatial Hash Table? For particles?
+// RESOURCE(): https://matthias-research.github.io/pages/tenMinutePhysics/index.html
 // RESOURCE(cincotti): https://carmencincotti.com/2022-10-31/spatial-hash-maps-part-one/#how-to-populate-a-dense-hash-table
 // NOTE(chowie): Originally intended for s32, with an Abs. Why not
 // just type cast to u32?

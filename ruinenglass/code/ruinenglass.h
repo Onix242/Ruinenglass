@@ -42,6 +42,9 @@ struct game_state
 {
     controlled_player ControlledPlayer[sizeof(game_input::Controllers)];
 
+    u32 CameraFollowingEntityIndex;
+    world_pos CameraP;
+
     audio_state AudioState;
 
     // TODO(chowie): Put arena in world?

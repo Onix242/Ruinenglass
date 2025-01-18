@@ -50,7 +50,7 @@ SquareRoot(r32 R32)
 // RESOURCE(cbloom): http://cbloomrants.blogspot.com/2010/11/11-20-10-function-approximation-by_20.html
 // NOTE(chowie): 1/sqrt(x), replaces normalising vectors
 inline r32
-ReciprocalSquareRoot(r32 R32)
+InvSquareRoot(r32 R32)
 {
     __m128 Half = _mm_set1_ps(0.5f);
     __m128 Three = _mm_set1_ps(3.0f);
@@ -294,6 +294,7 @@ FindMostSignificantBit(u32 Value) // NOTE(chowie): clz
     return(Result);
 }
 
+// RESOURCE(): FMA improvements - https://momentsingraphics.de/FMA.html
 // NOTE(chowie): Requires AVX, otherwise use _mm_add and _mm_sub if unsure about the architecture
 // r32 Result = fmaf(MultA, MultB, AddValue);
 // NOTE(chowie): "A x B + C". A hidden benefit of fma is that it only rounds once (at the end).
@@ -309,7 +310,7 @@ Fma(r32 A, r32 B, r32 Add)
 // RESOURCE(pharr): https://pharr.org/matt/blog/2019/11/03/difference-of-floats
 // RESOURCE(njuffa): https://stackoverflow.com/questions/63665010/accurate-floating-point-computation-of-the-sum-and-difference-of-two-products
 // RESOURCE(njuffa): https://stackoverflow.com/questions/49191477/companion-to-hypot/58511178#58511178
-// NOTE(chowie): A * B - C * D for better accuracy; avoids catatrophic cancellation (high precision calculations without needing to convert to r64)
+// NOTE(chowie): A*B - C*D for better accuracy; avoids catatrophic cancellation (high precision calculations without needing to convert to r64)
 // TODO(chowie): Convert this to SIMD?
 // TODO(chowie): Also use this for quadratic discriminant, 2x2 matrix etc...
 inline r32
@@ -344,6 +345,9 @@ SumOfProducts(r32 A, r32 B, r32 C, r32 D)
 // RESOURCE(ganssle): https://web.archive.org/web/20030429001611/http://www.ganssle.com/approx/approx.pdf
 // RESOURCE(): https://github.com/divideconcept/FastTrigo/blob/master/fasttrigo.cpp
 // TODO(chowie): Work on approximations
+
+// RESOURCE(): https://handmade.network/forums/wip/t/1439-sse2_implementations_of_tan,_cot,_atan,_atan2
+// TODO(chowie): Trig functions examples
 
 // RESOURCE(fabien): https://fgiesen.wordpress.com/2010/10/21/finish-your-derivations-please/
 // TODO(chowie): I don't want to be using angles, right? Hopefully I can replace everything with rational trig

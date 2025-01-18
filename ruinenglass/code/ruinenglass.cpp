@@ -11,6 +11,7 @@
 #include "ruinenglass_audio.cpp"
 #include "ruinenglass_world.cpp"
 
+// TODO(chowie): Buckle down entity "index"/ID!
 internal entity *
 GetEntity(game_state *GameState, u32 Index)
 {
@@ -19,13 +20,14 @@ GetEntity(game_state *GameState, u32 Index)
     if((Index > 0) && (Index < ArrayCount(GameState->Entities)))
     {
         Entity = &GameState->Entities[Index];
+        Entity->EntityID = Index;
     }
 
     return(Entity);
 }
 
 internal u32
-AddEntity(game_state *GameState, entity_type Type)
+AddEntity(game_state *GameState, entity_type Type, world_pos *P)
 {
     Assert(GameState->EntityCount < ArrayCount(GameState->Entities));
     u32 EntityIndex = GameState->EntityCount++;
@@ -34,16 +36,22 @@ AddEntity(game_state *GameState, entity_type Type)
     ZeroStruct(*Entity);
     Entity->Type = Type;
 
+    if(P)
+    {
+        Entity->P = *P;
+        ChangeEntityLocation(&GameState->WorldArena, GameState->World, EntityIndex, 0, P);
+    }
+
     return(EntityIndex);
 }
 
 internal u32
 AddPlayer(game_state *GameState)
 {
-    u32 EntityIndex = AddEntity(GameState, EntityType_Player);
+    world_pos P = GameState->CameraP;
+    u32 EntityIndex = AddEntity(GameState, EntityType_Player, &P);
     entity *Entity = GetEntity(GameState, EntityIndex);
     AddFlag(Entity->Flags, EntityFlag_Collides|EntityFlag_Moveable);
-    Entity->P = V2(500.0f, 500.0f); // TODO(chowie): REMOVE when have world_chunk!
 
     return(EntityIndex);
 }
@@ -52,7 +60,7 @@ internal u32
 AddWall(game_state *GameState, v3s AbsTile)
 {
     world_pos P = ChunkPosFromTilePos(GameState->World, AbsTile);
-    u32 EntityIndex = AddEntity(GameState, EntityType_Wall);
+    u32 EntityIndex = AddEntity(GameState, EntityType_Wall, &P);
     entity *Entity = GetEntity(GameState, EntityIndex);
     AddFlag(Entity->Flags, EntityFlag_Collides);
 
@@ -60,10 +68,14 @@ AddWall(game_state *GameState, v3s AbsTile)
 }
 
 internal void
-MoveEntity(entity *Entity, r32 dt, v2 ddP, v2 MetersToPixels)
+MoveEntity(game_state *GameState, entity *Entity, r32 dt, v2 ddP, v2 MetersToPixels)
 {
+    world *World = GameState->World;
+
     // RESOURCE(HmH): https://guide.handmadehero.org/code/day211/#3368
     // STUDY(chowie): Numerical simulation, for proper ODE would need global t
+    // RESOURCE(): https://web.archive.org/web/20210724053826/https://lolengine.net/blog/2015/05/03/damping-with-delta-time
+    // TODO(chowie): You could dampen with lerp or pow/exp?
 
     // TODO(chowie): Change from pixels/second
     // TODO(chowie): Should it really be MaxddP > 1.0f?
@@ -75,11 +87,79 @@ MoveEntity(entity *Entity, r32 dt, v2 ddP, v2 MetersToPixels)
     r32 Drag = 8.0f;
     ddP += -Drag*Entity->dP;
 
+#if 0
+    // TODO(chowie): Change back to this!
     // RESOURCE(HmH): https://guide.handmadehero.org/code/day043/#4686
     // RESOURCE: Thomas and Finney calculus for more!
     // NOTE(chowie): (1/2)at^2 + vt + p
     Entity->P += MetersToPixels*(0.5f*ddP*Square(dt) + Entity->dP*dt);
     Entity->dP += ddP*dt;
+#else
+    v2 OldEntityP = Entity->P.Offset_.xy;
+    v2 EntityDelta = (0.5f*ddP*Square(dt) +
+                      Entity->dP*dt);
+    Entity->dP = ddP*dt + Entity->dP;
+    v2 NewEntityP = OldEntityP + EntityDelta;
+
+    world_pos NewP = MapIntoChunkSpace(GameState->World, GameState->CameraP, Entity->P.Offset_);
+
+    ChangeEntityLocation(&GameState->WorldArena, GameState->World, Entity->EntityID, &Entity->P, &NewP);
+    Entity->P = NewP;
+#endif
+}
+
+inline v2
+GetCameraSpaceP(game_state *GameState, entity *Entity)
+{
+    v3 Diff = Subtract(GameState->World, &Entity->P, &GameState->CameraP);
+    v2 Result = Diff.xy;
+    return(Result);
+}
+
+internal void
+SetCamera(game_state *GameState, world_pos NewCameraP, v3 TileSideInMeters)
+{
+    world *World = GameState->World;
+
+    v3 dCameraP = Subtract(World, &NewCameraP, &GameState->CameraP);
+    GameState->CameraP = NewCameraP;
+
+    v2u TileSpan = V2U(17*3, 9*3);
+    rect2 CameraBounds = RectCenterDim(V2(0, 0),
+                                       TileSideInMeters.xy*V2i(TileSpan));
+
+    world_pos MinChunkP = MapIntoChunkSpace(World, NewCameraP, V3(GetMin(CameraBounds), 0));
+    world_pos MaxChunkP = MapIntoChunkSpace(World, NewCameraP, V3(GetMax(CameraBounds), 0));
+
+    for(s32 ChunkY = MinChunkP.Chunk.y;
+        ChunkY <= MaxChunkP.Chunk.y;
+        ++ChunkY)
+    {
+        for(s32 ChunkX = MinChunkP.Chunk.x;
+            ChunkX <= MaxChunkP.Chunk.x;
+            ++ChunkX)
+        {
+            world_chunk *Chunk = GetWorldChunk(World, V3S(ChunkX, ChunkY, NewCameraP.Chunk.z));
+            if(Chunk)
+            {
+                for(world_entity_block *Block = &Chunk->FirstBlock;
+                    Block;
+                    Block = Block->Next)
+                {
+                    for(u32 EntityIndex = 0;
+                        EntityIndex < Block->EntityCount;
+                        ++EntityIndex)
+                    {
+                        entity *Entity = GameState->Entities + Block->EntityIndex[EntityIndex];
+                        v2 CameraSpaceP = GetCameraSpaceP(GameState, Entity);
+                        if(IsInRect(CameraBounds, CameraSpaceP))
+                        {
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
@@ -89,7 +169,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     if(!GameState->IsInitialised)
     {
         // TODO(chowie): REMOVE! Have entity hashing remember this!
-        AddEntity(GameState, EntityType_Null);
+        AddEntity(GameState, EntityType_Null, 0);
+        GameState->EntityCount = 1;
         GameState->Offset = V2(500.0f, 500.0f);
 
         // TODO(chowie): Initialise Audio State when there's proper
@@ -124,7 +205,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     }
 
     //
-    // NOTE(chowie): World Init & Generation
+    // World Init & Generation
     //
 
     // STUDY(chowie): Shortcut to avoid call with "&" all of the time
@@ -144,7 +225,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     v3 MetersToPixels = TileSideInPixels / TileSideInMeters; // TODO(chowie): REMOVE! This is more of a renderer concept, not the tiles
 
     //
-    // NOTE(chowie): Play World
+    // Play World
     //
 
     r32 dt = Input->dtForFrame;
@@ -188,7 +269,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                     ++ConPlayer->ddP.x;
                 }
 
-#if 1
+#if 0
                 // RESOURCE(HmH): https://guide.handmadehero.org/code/day211/#3368
                 // STUDY(chowie): Numerical simulation, for proper ODE would need global t
                 // RESOURCE(): https://web.archive.org/web/20210724053826/https://lolengine.net/blog/2015/05/03/damping-with-delta-time
@@ -216,7 +297,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     // NOTE(chowie): Simulate all entities
     //
 
-    PushCircle(RenderGroup, V3(600, 600, 0), 50.0f, 5, V4(0.5f, 0.5f, 0.5f, 0.5f));
+    PushCircle(RenderGroup, V3(600, 600, 0), 50.0f, 20, V4(0.5f, 0.5f, 0.5f, 0.5f));
 
     // STUDY(chowie): Straight ahead loop
     for(u32 EntityIndex = 0;
@@ -226,10 +307,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         entity *Entity = GameState->Entities + EntityIndex;
 
         //
-        // NOTE: "Physics"
+        // "Physics"
         //
 
-#if 0
+#if 1
         v3 ddP = {};
         if(Entity->Type == EntityType_Player)
         {
@@ -244,12 +325,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
         if(FlagSet(Entity->Flags, EntityFlag_Moveable))
         {
-            MoveEntity(Entity, dt, ddP, MetersToPixels.xy);
+            MoveEntity(GameState, Entity, dt, ddP.xy, MetersToPixels.xy);
         }
 #endif        
 
         //
-        // NOTE: Rendering
+        // Rendering
         //
 
         if(Entity->Type == EntityType_Player)
@@ -304,6 +385,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
       I'm opting to use 'modular fixing' over 'location
       grids' to place modules/slabs.
 
+      RESOURCE(): https://vanseodesign.com/web-design/grid-anatomy/
          Design Anatomy of a Modular Grid
       _______________________________________ ----o Flowline
       |     |            |     |            |

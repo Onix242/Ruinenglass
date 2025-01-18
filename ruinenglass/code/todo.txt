@@ -3,9 +3,26 @@
   * tags difficulty
 
   ----------------8<-------------[ architecture exploration ]------------------
+  Feature-set for engine: font rendering that allows zooming in
+  closely, text-based VFX, cooperative 3D pathfinding upwards of 30
+  entities (and up to 60 for level editing zoomed out from a
+  distance), user-input typing in different languages and a mix of
+  different languages and custom glyphs, automatic detection of
+  keyboard layout, developer tools for art that are also user-facing
+  tools for semi-procedural authorship (ASCII art, animation, music
+  language creation, dialogue).
 
   - Math
     = Rotors + Rational trig rotor paper + SLerp with >2 rotor
+    = RESOURCE(): https://twitter.com/SpiveeWorks/status/1592674655235887105
+    = RESOURCE(): https://jarviscarroll.net/math/rotors.pdf
+    = RESOURCE(): https://www.johndcook.com/blog/2022/11/30/trilinear-coordinates/
+      RESOURCE(): https://www.johndcook.com/blog/2019/12/11/redundant-coordinates/
+      RESOURCE(): https://www.johndcook.com/blog/2023/01/18/barycentric-trilinear/
+      Explore trilinear coordinates with barycentric coordinates
+    = RESOURCE(): https://www.johndcook.com/blog/2010/01/19/dont-invert-that-matrix/
+      RESOURCE(): https://blog.demofox.org/2017/01/02/incremental-least-squares-surface-and-hyper-volume-fitting/
+      RESOURCE(): https://stackoverflow.com/questions/24117204/algorithm-for-simple-squared-squares
 
   - Memory
     = [Mr.4th dimensions'] Arenas
@@ -21,15 +38,40 @@
     = [Martins'] monospace font shader
     = 3D Rendering
     = Matrix Camera (Orthographic and Perspective transition)
+    Sample camera functions - RESOURCE(): https://github.com/skejeton/cave-tropes/blob/main/src/camera.cpp
     = Non-square shapes mapping to grid e.g. circle to multiple squares on a grid?
     = [Brehensam's] shapes primatives: diagonal line drawing
-    = Splines
+    = Splines not only for animation; to populate things e.g. roads, rivers
     = Colour linear to srgb conversion. OkLab support?
-    RESOURCE: https://youtu.be/sRL_RU7-jfc?t=123
+    RESOURCE(): https://youtu.be/sRL_RU7-jfc?t=123
       > Reconstruction position by camera depth and shadow mapping /
         bloom
       > NOTE: Cutting down the v4 Colour / Emission vertex data isn't
         super impactful on performance
+    = Procedural UI text splats for the backdrop based on the chosen
+      font. Animation when going to setting or anything at fades to
+      black or needs a blank backing has a backdrop for text interfaces.
+      > Text should be rotated around unit circle, placed evenly by
+        trifan alignment like circle collision_group, need to fill small
+        gaps too?
+    = LOD should fill small holes (if too far).
+    = Play with Mipmaps like Sandvich disappearing as you got
+      closer. Or a cheap fog effect RESOURCE(): https://simonschreibt.de/gat/deus-ex-scanlines/
+    = Tessellation (corner) to make auto hole-aware wrapping of
+      surfaces e.g. fences placed along a hole or balcony. Need
+      symmetry for W & S edges.
+    = Tessellation are wrapped with moveable control points.
+    = Outlines and dithering RESOURCE(): https://blog.playstation.com/2019/10/17/return-of-the-obra-dinn-adventures-in-one-bit-out-tomorrow/
+    = Wrapping noise HmN RESOURCE(): https://discord.com/channels/239737791225790464/1290836334750990358
+    = Graphics tricks in games - RESOURCE(): https://simonschreibt.de/game-art-tricks/
+    = Parallax railing - RESOURCE(): https://simonschreibt.de/gat/alpha1-top5/
+    = Texturing faces animation - RESOURCE(): https://simonschreibt.de/gat/fishtanks-in-games/
+    = Finding stuff amongst the grass - RESOURCE(): https://simonschreibt.de/gat/zelda-the-bling-bling-offset/
+    = Text shadows TODO! Not too dark grey for the text shadows do I
+      make them all the same thickness and size, or should it vary by
+      distance?
+      RESOURCE(): https://www.reddit.com/r/oddlysatisfying/comments/77u8ha/mirror_calligraphy/
+    = Light refraction code - RESOURCE(): https://robertandrewspencer.com/rainbow/
 
   - Sorting?
 
@@ -51,6 +93,12 @@
     = [Red Blob Games'] Grid
     = [Fabian's] Morton's Code For Tile Storage? Must be u32, not s32!
     = Sim Regions
+    = RESOURCE(): https://grahamshawcross.com/2012/02/03/a-dream-world/
+      RESOURCE(): Inset tiles - https://bsky.app/profile/delaneyking.bsky.social/post/3l7fxcrd3ec2x
+      Splitting a tile in 4?
+    = TODO(chowie): Auto-size edges and corner by a ratio once buckled
+    down how big those should be. You would pick the body > edges and
+    corners are picked for you (which you can resize at a later point)
 
   RESOURCE: https://www.gridsagegames.com/blog/2015/07/roguelike-development-rexpaint/
   * Picross Growable Structure Editor
@@ -78,6 +126,7 @@
     * Design UI in a single window. i.e. no splitting
       perspective/orthographic viewport into 4, use blender's keybinds
       to snap to axis; editing the text/glyphs on the faces
+      > TODO(chowie): Look at Tiffany Smart's Marvel Snap UI
     = Brush type textures with MS spray paint-like (e.g. 5x5 default) with random placement (glyphs + colour)
     = Selecting colour schemes with image-wide swaps + colour picker (+ colour shifting?)
     = Editing transtion between bounding box that groups voxels and individual
@@ -92,22 +141,53 @@
     = Display shortcut history as a menu at the bottom to know which hotkeys you've pressed.
     * To what extent is an undo available?
     * Tablet pressure for colour?
+    = IMPORTANT(chowie): Think about max area for stretching structures?
+      Intentionally grow the stretching structures to the max and I can
+      get the memory total usage for the structures (basically run the
+      game fully during the rain) -> more deterministic.
+    = Random placement of objects in a brush or more interestingly on
+      surfaces (think lamps on fences). Default evenly spaced with an
+      apron and no overlap. But if it can overlap you could make some
+      interesting walls that splats textured surfaces. E.g. low hanging
+      walls with stalks that stick out -> animates into a tower
+    = Try sort by colour to aid in memory when you can’t remember the names
+      RESOURCE(): https://robertandrewspencer.com/sort-by-hue/
 
   - Particle Systems
+    = RESOURCE(): https://cowboyprogramming.com/2007/01/05/multithreading-particle-sytems/
     = Rain serving as compass directions
     * Mesh to particle
-    = Vector fields in grided world
+    TODO(chowie): HmH search up mesh deformation! Different from mesh skinning?
+    = Vector/flow fields in gridded world for dynamic wind patterns. See (3D) perlin noise
+      RESOURCE(): https://cowboyprogramming.com/2008/04/01/practical-fluid-mechanics/
+    = 2D parallax mapping (pixel shader) RESOURCE(): https://cowboyprogramming.com/2007/01/05/parallax-mapped-bullet-holes/
 
   - Entity
     = [Ryan Fleury's] Flag Storage
     = Brains
     = Collision Detection (only for player controllers)
       > CCD, SAT or similar
+    = Storage & updating entities -> on rain, saving out to disk
+      storage's stays low, need to combat the amount of entities that
+      need updating (memory usage will probably increase by more than
+      2x)
+    = Reflection of letters on opposite surfaces -> pairwise parallel
+      updating across entities within a range
+    = Separate entity static to include Movement-by-copy
+    = Packing transforms 3D - RESOURCE(): https://hero.handmade.network/forums/code-discussion/t/897-entity_transform_type
+    = Split entities by type rather than all?
+    = RESOURCE(): https://www.youtube.com/watch?v=FEch9yoWneo -
+      Not to render the world if an axis >= [number]. E.g. If you said
+      you cannot render if greater than X >= 6. Then, you can make any
+      wall a greenscreen!
 
+  RESOURCE(): https://cowboyprogramming.com/2007/03/12/optimized-asset-processing/
+  Asset pipelines: converters, calculators, packers
   - Asset Loading System
     = Bitmaps,
     = StbTrueType Text,
     = Audio?
+    = HUID and GUID RESOURCE(): https://cowboyprogramming.com/2007/01/04/practical-hash-ids/
 
   - Metagame / Save Game?
     = How do you enter a "save slot"?
@@ -120,14 +200,32 @@
   * AI
     = Coop A* Pathfinding
     = Include time as a 4d grid visualisation graph
+    = Light word generation with Bigrams and markov chains with pairs
+    of hooks that are not fixed length
+    RESOURCE(): https://linguistics.stackexchange.com/questions/4082/impossible-bigrams-in-the-english-language
+    = Parser
+      > Parse trees scanners - RESOURCE(): https://www.cs.binghamton.edu/~zdu/parsdemo/gramintro.html
+      > Recursive descent parsers - RESOURCE(): https://www.cs.binghamton.edu/~zdu/parsdemo/recintro.html
 
   * Procedural Animation
     = How do "eels" slide and bend (at corners) along walls?
+    = Animation pipeline bones - RESOURCE(): https://animcoding.com
+    = https://vladh.net/game-engine-skeletal-animation/
+    = Skeletal animation system too slow, Abzu uses procedural
+      animation and blend shapes for fish + kelp
+      https://www.youtube.com/watch?v=l9NX06mvp2E
+    = http://blog.wolfire.com/2014/05/GDC-2014-Procedural-Animation-Video
+    = Trifan concentric circles for shattering? - RESOURCE(): https://cowboyprogramming.com/2007/01/05/shattering-reality/
+    = Trifan sampling blob physics RESOURCE(): https://cowboyprogramming.com/2007/01/05/blob-physics/
 
   - Raw Input / Multimonitor / Multiple keyboards types
     = GetKeyboardLayout
     = ClipCursor for multimonitor support
     = Wtf is QueryCancelAutoplay?
+  - Controller
+    = What feedback on buttons not doing anything means? Disambiguate!
+      RESOURCE(): https://cowboyprogramming.com/2007/01/02/pushhing-buttons/
+  - Check out hybrid controller keyboard scheme in POE2 for input method
 
   - RESOURCE(): https://www.reddit.com/r/Minecraft/comments/13v6q19/notch_couldve_made_the_view_bob_animation_less/
     Smooth out curves - Sin(dt)^2 = double freq & halving amplitude
@@ -135,32 +233,69 @@
   - RESOURCE(): https://www.reddit.com/r/minecraftsuggestions/comments/iec26k/config_file_to_whitelist_what_assets_should_be/
     Reload few assets via a whitelist if noticable?
 
+  RESOURCE(): https://neugierig.org/software/blog/2018/07/options.html
+  - Considerations for options
+    = RESOURCE(): https://robertandrewspencer.com/antennapod-rewind/
+      IMPORTANT(chowie): QOL when in-editor. Rewinds a little bit to
+      where you last left off, scales based on number of hours and days,
+      so you remember the context. Should it be sooner, it continues
+      exactly as you left off.
+
   ----------------8<-------------[ production / game ]------------------
+  Voxel ASCII is like the faces of toy blocks.
 
   - Procedural World Generation?
     = Biomes
     = Growing ivy around non-growable structure
+    = Terrain sampling and extending (horizontally) but
+      drawing/grouping (hashing) vertically
+      RESOURCE(): https://m.youtube.com/watch?v=r8rn7Vppgrc
+    = RESOURCE(): Gradient for mountains not noise - https://iquilezles.org/articles/morenoise/
+
+    = Top of the starting point of the world made from a spiral, what
+    about this instead for variety?
+    RESOURCE(): https://www.johndcook.com/blog/2022/05/09/logarithmic-spiral/
+    RESOURCE(): https://erich-friedman.github.io/packing/almost/
+    RESOURCE(): https://en.wikipedia.org/wiki/Squaring_the_square
+
+  - RESOURCE(): https://robertandrewspencer.com/wherebeen/
+    Dataviz for geographic walk data
 
   - Entity System (will come off concurrent with GAME - scalability)
 
   * Surfaces peeling off in the wind (like a stack of papers)
+    = RESOURCE(): https://mymodernmet.com/illuminated-paper-blowing-in-the-wind/
     = Walls > Particle brains (sim region stored)
-    = Vector/flow fields for dynamic wind patterns
     = Procedural animations maybe with a simple bone and inverse kinematics?
+    = TODO(chowie): Look at origami to find how they subdivide their
+      surfaces. For Deus-Ex, this offset grid pattern is enough for a large
+      blowing flag! RESOURCE(): https://simonschreibt.de/gat/deus-ex-3-folds/
+      Normal maps simulating cloth. IMPORTANT: The mesh is really close to my
+      semi-uniform grid!
+    = RESOURCE(): https://www.reddit.com/r/programming/comments/7m97n/cloth_physics_simulation/
 
   - Interactive Text and Eels
     = Surfaces in the world hold text that can move
     = Keyword dictionary? Highlighting keywords
 
+  - Text Input
+    = RESOURCE(): https://www.mentalfloss.com/article/59521/semi-hemi-demi-whats-difference
+      I think I use 1 1/2 spaced too = demi-spaced? Because you have a
+      space in between words with potentially little other spaces to
+      fill in the non-alphabet glyphs of.
+
   - Talking System
     = Mindmap discovery view
     = Interactable 3-letter commands
+    = RESOURCE(): https://robertandrewspencer.com/bring-me-back/
+      A QOL is to have /me to replace whatever your generated username
+      is without having to remember it!
 
   - Key rebinding from game layer
 
   - Graph Visualisations https://datavizcatalogue.com/blog/ternary-graphs-triangular-plots/?
 
-  RESOURCE():
+  RESOURCE(): https://www.reddit.com/r/conlangs/comments/cfpeq2/a_minecraftbased_conlang/
   TODO(chowie): Try VSO like in Minecraft!
   /give Onix242 diamond_block 64
     > Verb, a command, if always requiring brackets might be the most memorable
@@ -198,17 +333,42 @@
 
   ----------------8<-------------[ advice ]------------------
 
+  IMPORTANT(chowie): JBlow doesn’t like _clamp_ and would rather fix
+  the underlying problem. As a light fix, log them so players can let
+  you know!
+
+  RESOURCE(johndcook): https://www.johndcook.com/blog/2024/07/02/incremental-improvement/
+  These small changes matters?
+
   RESOURCE(john d cook): https://www.johndcook.com/blog/2012/08/27/work-or-rest/
   Henri Poincare workflow
   He worked regularly from 10 to 12 in the morning and from 5 till 7
   in the late afternoon. He found that working longer seldom achieved
   anything
 
-  RESOURCE: https://hero.handmade.network/forums/code-discussion/t/7125-help_with_day_017_-_win32processkeyboardmessages_being_called_twice%252C_throwing_off_assert_check.#21900
+  RESOURCE(): https://cowboyprogramming.com/2007/01/04/debug-and-release/
+  RESOURCE(): https://hero.handmade.network/forums/code-discussion/t/7125-help_with_day_017_-_win32processkeyboardmessages_being_called_twice%252C_throwing_off_assert_check.#21900
   If you're trying to learn, you should try to figure out the problem
   instead of trying to move on. Solving bugs is a huge part of
   programming and a skill that is important and will benefit you more
   than moving on faster (in my opinion).
+
+  How realistic do you want to model things? Terms for reality - 
+  RESOURCE(): https://cowboyprogramming.com/2007/01/02/teleological-vs-ontogenetic/
+
+  RESOURCE(): https://cowboyprogramming.com/2008/03/23/debugging-heisenbugs/
+  Finding the most elusive bugs and what types there are.
+
+  RESOURCE(): https://cowboyprogramming.com/2008/02/26/managed-code-in-games/
+  RESOURCE(): https://cowboyprogramming.com/2007/01/05/evolve-your-heirachy/ 
+  Division of labour that separates engine work from gameplay
+  programmer work. Where inefficiencies gets folded into engine
+  related code. ECS is a way to understand this from a game designer
+  POV, where's it's not ideal from the perspective of the programmer.
+
+  JBlow - To use an ECS is to optimise for the size of the entity
+  data, but that's like 2MB that would fit in an L3 or maybe L2
+  cache. Not worth to ship.
 
   A few advice:
   - If you can't find the solution after 2 hours, take a break. Often
@@ -247,6 +407,7 @@
       you're PREDICTING what the state will be at time T + 1, so you
       cannot account for variable framerate.
 
+  See Tiny Glade's talk comparing their technology to Lumen's nanite technology.
   - Second (Seems every tutorial and article is):
     = You're at time T, you're calculating what happened to game
     state since time T - 1.

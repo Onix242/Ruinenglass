@@ -52,7 +52,8 @@ struct entity
     entity_type Type;
     u32 Flags;
 
-    v2 P;
+    u32 EntityID; // TODO(chowie): Change to using actual struct above!
+    world_pos P; // TODO(chowie): Change P back to v3!
     v2 dP;
 //    v2 ddP;
 };
