@@ -34,9 +34,9 @@ struct render_entry_circle
 {
     v4 Colour;
     v3 P;
-    r32 Radius;
+    f32 Radius;
     u32 Tris;
-    r32 Circumference;
+    f32 Circumference;
 };
 
 struct render_entry_rect
@@ -79,7 +79,7 @@ struct game_render_commands
 
 struct render_group
 {
-    rect2 ScreenArea;
+    v2 ScreenDim;
     game_render_commands *Commands;
 };
 

@@ -77,8 +77,8 @@ typedef int_least32_t b32x;
 typedef intptr_t smm;
 typedef uintptr_t umm; // NOTE(chowie): Memory-sized uint
 
-typedef float r32;
-typedef double r64;
+typedef float f32;
+typedef double f64;
 
 #define U32FromPointer(Pointer) ((u32)(umm)(Pointer))
 #define PointerFromU32(type, Value) (type *)((umm)Value)
@@ -95,6 +95,12 @@ typedef double r64;
 #else
 #define Assert(Expression)
 #define Logging(Message)
+#endif
+
+#if RUINENGLASS_INTERNAL
+#define NotImplemented Assert(!"NotImplemented")
+#else
+#define NotImplemented NotImplemented!!!!
 #endif
 
 // IMPORTANT(chowie): Assert in places I never expect code to run in practise.
@@ -118,8 +124,8 @@ typedef double r64;
 #define Maximum3(A, B, C) (Maximum(A, Maximum(B, C)))
 
 // NOTE(chowie): Limit macros
-#define R32Max FLT_MAX
-#define R32Min -FLT_MAX
+#define F32Max FLT_MAX
+#define F32Min -FLT_MAX
 #define S32Max INT32_MAX
 #define S32Min -INT32_MAX
 #define U32Max ((u32) - 1)
@@ -156,7 +162,7 @@ Log2(u32 Value)
 
 // RESOURCE(): Includes other math functions - https://github.com/romeric/fastapprox/tree/master/fastapprox/src
 // RESOURCE(): https://stackoverflow.com/questions/9411823/fast-log2float-x-implementation-c
-// TODO(chowie): r32 Log2?
+// TODO(chowie): f32 Log2?
 
 // RESOURCE(mineiro): https://web.archive.org/web/20150113003634/http://fastapprox.googlecode.com/svn/trunk/fastapprox/src/fastonebigheader.h
 // TODO(chowie): LGamma? Trig? Lambert? Sigmoid?
@@ -166,29 +172,34 @@ Log2(u32 Value)
 // RESOURCE(ekmett): https://github.com/ekmett/approximate/blob/master/cbits/fast.c
 // NOTE(from ekmett): These can be _quite_ inaccurate. ~20% in many cases, but being much faster (~7x) may
 // * permit more loop iterations of tuning algorithms that only need approximate powers.
+// NOTE(chowie): Exp must be between -700 to 700
 union rational_approx
 {
-    r32 f;
+    f32 f;
     s32 x;
 };
-inline r32
-Exp(r32 Value)
+inline f32
+Exp(f32 Value)
 {
     rational_approx Exp;
     Exp.x = (s32)(12102203*Value + 1064866805);
     return(Exp.f);
 }
 
-inline r32
-Log(r32 Value)
+inline f32
+Log(f32 Value)
 {
     rational_approx Log = { Value };
-    r32 Result = (Log.x - 1064866805)*8.262958405176314e-8f; /* 1 / 12102203.0; */
+    f32 Result = (Log.x - 1064866805)*8.262958405176314e-8f; /* 1 / 12102203.0; */
     return(Result);
 }
 
-inline r32
-Pow(r32 A, r32 B)
+// NOTE(chowie): Comparable to C-standard pow. There was a "more
+// precise" version but this was more precise for the circle. I assume
+// because of FMA rounding at the end (instead of after each math
+// op). See my notes of Fma instruction.
+inline f32
+Pow(f32 A, f32 B)
 {
     rational_approx Pow = { A };
     Pow.x = (s32)(B*(Pow.x - 1064866805) + 1064866805);
@@ -304,7 +315,7 @@ Powi(s64 Base, u8 Exp)
 // TODO(chowie): Figure out where to use Align16 for code I care about
 // the most; For SIMD?
 // NOTE(chowie): "(Value-Value)" forces integral promotion to size of Value
-#define AlignPow2(Value, Alignment) ((Value + (Alignment - 1)) & ~((Alignment) - 1))
+#define AlignPow2(Value, Alignment) ((Value + ((Alignment) - 1)) & ~((Value - Value) + (Alignment) - 1))
 #define Align4(Value) ((Value + 3) & ~3)
 #define Align8(Value) ((Value + 7) & ~7)
 #define Align16(Value) ((Value + 15) & ~15)
@@ -400,21 +411,21 @@ union v2
 {
     struct
     {
-        r32 x, y;
+        f32 x, y;
     };
     struct
     {
-        r32 u, v;
+        f32 u, v;
     };
     struct
     {
-        r32 Width, Height;
+        f32 Width, Height;
     };
     struct
     {
-        r32 Min, Max;
+        f32 Min, Max;
     };
-    r32 E[2];
+    f32 E[2];
 };
 
 union v3u
@@ -439,41 +450,41 @@ union v3
 {
     struct
     {
-        r32 x, y, z;
+        f32 x, y, z;
     };
     struct
     {
-        r32 bxy, byz, bzx; // NOTE(chowie): Biv3
+        f32 bxy, byz, bzx; // NOTE(chowie): Biv3
     };
     struct
     {
-        r32 u, v, w;
+        f32 u, v, w;
     };
     struct
     {
-        r32 r, g, b;
+        f32 r, g, b;
     };
     struct
     {
         v2 xy;
-        r32 Ignored0_;
+        f32 Ignored0_;
     };
     struct
     {
-        r32 Ignored1_;
+        f32 Ignored1_;
         v2 yz;
     };
     struct
     {
         v2 uv;
-        r32 Ignored2_;
+        f32 Ignored2_;
     };
     struct
     {
-        r32 Ignored3_;
+        f32 Ignored3_;
         v2 vw;
     };
-    r32 E[3];
+    f32 E[3];
 };
 
 union v4
@@ -485,11 +496,11 @@ union v4
             v3 xyz;
             struct
             {
-                r32 x, y, z;
+                f32 x, y, z;
             };
         };
 
-        r32 w;
+        f32 w;
     };
     struct
     {
@@ -498,11 +509,11 @@ union v4
             v3 bxyyzzx; // NOTE(chowie): Biv3
             struct
             {
-                r32 bxy, byz, bzx;
+                f32 bxy, byz, bzx;
             };
         };
 
-        r32 s; // NOTE(chowie): Scalar
+        f32 s; // NOTE(chowie): Scalar
     };
     struct
     {
@@ -511,31 +522,67 @@ union v4
             v3 rgb;
             struct
             {
-                r32 r, g, b;
+                f32 r, g, b;
             };
         };
 
-        r32 a;
+        f32 a;
     };
     struct
     {
         v2 xy;
-        r32 Ignored0_;
-        r32 Ignored1_;
+        f32 Ignored0_;
+        f32 Ignored1_;
     };
     struct
     {
-        r32 Ignored2_;
+        f32 Ignored2_;
         v2 yz;
-        r32 Ignored3_;
+        f32 Ignored3_;
     };
     struct
     {
-        r32 Ignored4_;
+        f32 Ignored4_;
         v2 zw;
-        r32 Ignored5_;
+        f32 Ignored5_;
     };
-    r32 E[4];
+    f32 E[4];
+};
+
+union v4u
+{
+    struct
+    {
+        union
+        {
+            v3u xyz;
+            struct
+            {
+                u32 x, y, z;
+            };
+        };
+
+        u32 w;
+    };
+    struct
+    {
+        v2 xy;
+        u32 Ignored0_;
+        u32 Ignored1_;
+    };
+    struct
+    {
+        u32 Ignored2_;
+        v2 yz;
+        u32 Ignored3_;
+    };
+    struct
+    {
+        u32 Ignored4_;
+        v2 zw;
+        u32 Ignored5_;
+    };
+    u32 E[4];
 };
 
 union rect2
@@ -550,7 +597,7 @@ union rect2
         v2 Min;
         v2 MaxN; // NOTE(chowie): N is negative
     };
-    r32 E[4];
+    f32 E[4];
 };
 
 union rect2i
@@ -588,7 +635,7 @@ union rect3
         v3 Min;
         v3 MaxN;
     };
-    r32 E[9];
+    f32 E[9];
 };
 
 // RESOURCE: Mat mult - https://gist.github.com/rygorous/4172889
@@ -602,8 +649,8 @@ union m2x2
         v2 RowB;
     };
     // NOTE(chowie): ROW-MAJOR order - E[Row][Column]
-    r32 E[2][2];
-    // TODO(chowie): I could add SIMD like this, r32 E[4]; with E[2][2]; in struct?
+    f32 E[2][2];
+    // TODO(chowie): I could add SIMD like this, f32 E[4]; with E[2][2]; in struct?
 };
 
 union m3x3
@@ -615,7 +662,7 @@ union m3x3
         v3 RowC;
     };
     // NOTE(chowie): ROW-MAJOR order - E[Row][Column]
-    r32 E[3][3];
+    f32 E[3][3];
 };
 
 // RESOURCE(pervognsen): https://gist.github.com/pervognsen/983649888fa7c9075ae64e37c20f0ab3
@@ -630,7 +677,7 @@ struct m4x4
         v4 RowD;
     };
     // NOTE(chowie): ROW-MAJOR order - E[Row][Column]
-    r32 E[4][4];
+    f32 E[4][4];
 };
 
 // TODO(chowie): Debug View
@@ -644,7 +691,7 @@ inline u32
 StringLength(char *String)
 {
     u32 Count = 0;
-    if(String)
+    if(String) // NOTE(chowie): Support dummy strings
     {
         while(*String++)
         {

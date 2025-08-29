@@ -39,47 +39,47 @@ V2S(s32 Value)
 inline v2
 V2i(s32 X, s32 Y)
 {
-    v2 Result = {(r32)X, (r32)Y};
+    v2 Result = {(f32)X, (f32)Y};
     return(Result);
 }
 
 inline v2
 V2i(u32 X, u32 Y)
 {
-    v2 Result = {(r32)X, (r32)Y};
+    v2 Result = {(f32)X, (f32)Y};
     return(Result);
 }
 
 inline v2
 V2i(v2s A)
 {
-    v2 Result = {(r32)A.x, (r32)A.y};
+    v2 Result = {(f32)A.x, (f32)A.y};
     return(Result);
 }
 
 inline v2
 V2i(v2u A)
 {
-    v2 Result = {(r32)A.x, (r32)A.y};
+    v2 Result = {(f32)A.x, (f32)A.y};
     return(Result);
 }
 
 inline v3
 V3i(v3s A)
 {
-    v3 Result = {(r32)A.x, (r32)A.y, (r32)A.z};
+    v3 Result = {(f32)A.x, (f32)A.y, (f32)A.z};
     return(Result);
 }
 
 inline v3
 V3i(v3u A)
 {
-    v3 Result = {(r32)A.x, (r32)A.y, (r32)A.z};
+    v3 Result = {(f32)A.x, (f32)A.y, (f32)A.z};
     return(Result);
 }
 
 inline v2
-V2(r32 X, r32 Y)
+V2(f32 X, f32 Y)
 {
     v2 Result = {X, Y};
     return(Result);
@@ -87,7 +87,7 @@ V2(r32 X, r32 Y)
 
 // NOTE(chowie): I want to say, Min = "Some Value" for both.
 inline v2
-V2(r32 Value)
+V2(f32 Value)
 {
     v2 Result = {Value, Value};
     return(Result);
@@ -108,39 +108,46 @@ V3S(s32 X, s32 Y, s32 Z)
 }
 
 inline v3
-V3(r32 X, r32 Y, r32 Z)
+V3(f32 X, f32 Y, f32 Z)
 {
     v3 Result = {X, Y, Z};
     return(Result);
 }
 
 inline v3
-V3(v2 XY, r32 Z)
+V3(v2 XY, f32 Z)
 {
     v3 Result = {XY.x, XY.y, Z};
     return(Result);
 }
 
 inline v4
-V4(r32 X, r32 Y, r32 Z, r32 W)
+V4(f32 X, f32 Y, f32 Z, f32 W)
 {
     v4 Result = {X, Y, Z, W};
     return(Result);
 }
 
 inline v4
-V4(v3 XYZ, r32 W)
+V4(v3 XYZ, f32 W)
 {
     v4 Result = {XYZ, W};
     return(Result);
 }
 
-// NOTE(chowie): Use SafeRatio where you are less concerned about
-// performance and more concerned about robustness
-inline r32
-SafeRatioN(r32 Numerator, r32 Divisor, r32 N)
+inline v4u
+V4U(u32 X, u32 Y, u32 Z, u32 W)
 {
-    r32 Result = N;
+    v4u Result = {X, Y, Z, W};
+    return(Result);
+}
+
+// NOTE(chowie): Use SafeRatio where you are less concerned about
+// performance and more concerned about robustness. Guard from dividing by 0
+inline f32
+SafeRatioN(f32 Numerator, f32 Divisor, f32 N)
+{
+    f32 Result = N;
     if(Divisor != 0.0f)
     {
         Result = Numerator / Divisor;
@@ -149,17 +156,36 @@ SafeRatioN(r32 Numerator, r32 Divisor, r32 N)
     return(Result);
 }
 
-inline r32
-SafeRatio0(r32 Numerator, r32 Divisor)
+inline f32
+SafeRatio0(f32 Numerator, f32 Divisor)
 {
-    r32 Result = SafeRatioN(Numerator, Divisor, 0.0f);
+    f32 Result = SafeRatioN(Numerator, Divisor, 0.0f);
     return(Result);
 }
 
-inline r32
-SafeRatio1(r32 Numerator, r32 Divisor)
+inline f32
+SafeRatio1(f32 Numerator, f32 Divisor)
 {
-    r32 Result = SafeRatioN(Numerator, Divisor, 1.0f);
+    f32 Result = SafeRatioN(Numerator, Divisor, 1.0f);
+    return(Result);
+}
+
+inline f64
+SafeRatioN(f64 Numerator, f64 Divisor, f64 N)
+{
+    f64 Result = N;
+    if(Divisor != 0.0f)
+    {
+        Result = Numerator / Divisor;
+    }
+
+    return(Result);
+}
+
+inline f64
+SafeRatio0(f64 Numerator, f64 Divisor)
+{
+    f64 Result = SafeRatioN(Numerator, Divisor, 0.0); // NOTE: Trick to take away 'f' from '0.0f' to allow the call!
     return(Result);
 }
 
@@ -168,24 +194,24 @@ SafeRatio1(r32 Numerator, r32 Divisor)
 //
 
 // NOTE(chowie): Squaring functions are nice for whole expressions
-inline r32
-Square(r32 A)
+inline f32
+Square(f32 A)
 {
-    r32 Result = QUADRATIC(A);
+    f32 Result = QUADRATIC(A);
     return(Result);
 }
 
-inline r32
-Cube(r32 A)
+inline f32
+Cube(f32 A)
 {
-    r32 Result = CUBIC(A);
+    f32 Result = CUBIC(A);
     return(Result);
 }
 
-inline r32
-Quin(r32 A)
+inline f32
+Quin(f32 A)
 {
-    r32 Result = QUINTIC(A);
+    f32 Result = QUINTIC(A);
     return(Result);
 }
 
@@ -194,12 +220,12 @@ Quin(r32 A)
 // TODO(chowie): Blog also contains Cos approx (0 to Pi32), what are ways to use it?
 // NOTE(chowie): Parabolas 0.5f, used with lerp! Oner on caller to
 // pass -0.25f*Tau32 to 0.25f*Tau32. For rotation e.g. sword swings
-inline r32
-Sin01(r32 t)
+inline f32
+Sin01(f32 t)
 {
-    r32 Range = (Pi32*t);
+    f32 Range = (Pi32*t);
     // NOTE(chowie): Sin approx (0 to Pi32) originates from Aryabhata I, around 500 AD.
-    r32 Result = ((16*Range)*(Pi32 - Range)) / (5*Square(Pi32) - 4*Range*(Pi32 - Range));
+    f32 Result = ((16*Range)*(Pi32 - Range)) / (5*Square(Pi32) - 4*Range*(Pi32 - Range));
     return(Result);
 }
 
@@ -212,10 +238,10 @@ Sin01(r32 t)
 // RESOURCE(): https://www.desmos.com/calculator/cefigtqgbw
 // TODO(chowie): Mod to triangle wave.
 // NOTE(chowie): As 0 -> 1, at 0.5f to be at 1.
-inline r32
-Triangle01(r32 t)
+inline f32
+Triangle01(f32 t)
 {
-    r32 Result = 2.0f*t;
+    f32 Result = 2.0f*t;
     if(Result > 1.0f)
     {
         Result = 2.0f - Result;
@@ -227,13 +253,13 @@ Triangle01(r32 t)
 // RESOURCE(longtran): https://handmade.network/forums/t/8776-best_way_to_generate_lerp_function
 // RESOURCE(fabian): https://fgiesen.wordpress.com/2012/08/15/linear-interpolation-past-present-and-future/
 // NOTE(chowie): Can be also represented as "A + T*(B - A)" or "(1.0f - t)*A + t*B"
-inline r32
-Lerp(r32 A, r32 t, r32 B)
+inline f32
+Lerp(f32 A, f32 t, f32 B)
 {
     __m128 LerpT = _mm_set_ss(t);
     __m128 LerpA = _mm_set_ss(A);
 
-    r32 Result = _mm_cvtss_f32(_mm_fmadd_ss(LerpT, _mm_set_ss(B), _mm_fnmsub_ss(LerpT, LerpA, LerpA)));
+    f32 Result = _mm_cvtss_f32(_mm_fmadd_ss(LerpT, _mm_set_ss(B), _mm_fnmsub_ss(LerpT, LerpA, LerpA)));
     return(Result);
 }
 
@@ -241,25 +267,36 @@ Lerp(r32 A, r32 t, r32 B)
 // NOTE(chowie): Returns t based on value between A and B without
 // needing to normalise. E.g. explosion or sound based on distance,
 // hue-shifting water depth
-inline r32
-InvLerp(r32 A, r32 Value, r32 B)
+inline f32
+InvLerp(f32 A, f32 Value, f32 B)
 {
-    r32 Result = (Value - A)/(B - A);
+    f32 Result = (Value - A)/(B - A);
     return(Result);
 }
 
-inline r32
-LerpRemap(v2 A, r32 Value, v2 B)
+inline f32
+LerpRemap(v2 A, f32 Value, v2 B)
 {
-    r32 t = InvLerp(A.Min, Value, A.Max);
-    r32 Result = Lerp(B.Min, t, B.Max);
+    f32 t = InvLerp(A.Min, Value, A.Max);
+    f32 Result = Lerp(B.Min, t, B.Max);
     return(Result);
 }
 
-inline r32
-Clamp(r32 Min, r32 Value, r32 Max)
+// RESOURCE(): https://theorangeduck.com/page/scalar-velocity
+// NOTE(chowie): For scaling between two values. Eerp requires mult,
+// div, pow. Compared to lerp (for positions), it requires add, sub,
+// mult. Slerp (for rotations) requires angles.
+inline f32
+Eerp(f32 A, f32 Value, f32 B)
 {
-    r32 Result = Value;
+    f32 Result = Exp(Lerp(Log(A), Value, Log(B)));
+    return(Result);
+}
+
+inline f32
+Clamp(f32 Min, f32 Value, f32 Max)
+{
+    f32 Result = Value;
 
     if(Result < Min)
     {
@@ -275,20 +312,20 @@ Clamp(r32 Min, r32 Value, r32 Max)
 
 // RESOURCE: https://developer.download.nvidia.com/cg/saturate.html
 // NOTE(chowie): This is Saturate
-inline r32
-Clamp01(r32 Value)
+inline f32
+Clamp01(f32 Value)
 {
-    r32 Result = Clamp(0.0f, Value, 1.0f);
+    f32 Result = Clamp(0.0f, Value, 1.0f);
     return(Result);
 }
 
 // NOTE(chowie): A barycentricafier
-inline r32
-Clamp01MapToRange(r32 Min, r32 t, r32 Max)
+inline f32
+Clamp01MapToRange(f32 Min, f32 t, f32 Max)
 {
-    r32 Result = 0.0f;
+    f32 Result = 0.0f;
 
-    r32 Range = Max - Min;
+    f32 Range = Max - Min;
     if(Range != 0.0f)
     {
         // STUDY(chowie): Normalises t bases around min, produce between 0 to
@@ -299,19 +336,19 @@ Clamp01MapToRange(r32 Min, r32 t, r32 Max)
     return(Result);
 }
 
-inline r32
-ClampAboveZero(r32 Value)
+inline f32
+ClampAboveZero(f32 Value)
 {
-    r32 Result = (Value < 0) ? 0.0f : Value;
+    f32 Result = (Value < 0) ? 0.0f : Value;
     return(Result);
 }
 
 // NOTE(chowie): It could be rewritten as "Square(Result) * (3.0f - 2.0f*Result)"
 // RESOURCE: https://handmade.network/p/64/geometer/blog/p/3048-1_year_of_geometer_-_lessons_learnt
-inline r32
-SmoothStep(r32 t)
+inline f32
+SmoothStep(f32 t)
 {
-    r32 Result = DifferenceOfProducts(3.0f, Square(t), 2.0f, Cube(t)); /* 3t^2 - 2t^3 */
+    f32 Result = DifferenceOfProducts(3.0f, Square(t), 2.0f, Cube(t)); /* 3t^2 - 2t^3 */
     return(Result);
 }
 
@@ -320,36 +357,36 @@ SmoothStep(r32 t)
 // RESOURCE: https://realtimecollisiondetection.net/blog/?p=95
 // RESOURCE: https://www.fundza.com/rman_shaders/smoothstep/
 // TODO(chowie): Test smooth-step and pulse for alpha tests?
-inline r32
-SmoothStep(r32 Min, r32 t, r32 Max)
+inline f32
+SmoothStep(f32 Min, f32 t, f32 Max)
 {
-    r32 Clamp = Clamp01MapToRange(Min, t, Max);
-    r32 Result = SmoothStep(Clamp);
+    f32 Clamp = Clamp01MapToRange(Min, t, Max);
+    f32 Result = SmoothStep(Clamp);
     return(Result);
 }
 
 // RESOURCE(): https://iradicator.com/fast-inverse-smoothstep/
 // TODO(chowie): Find which one matches me!
 
-inline r32
-Step(r32 t, r32 Value)
+inline f32
+Step(f32 t, f32 Value)
 {
-    r32 Result = (r32)(Value >= t);
+    f32 Result = (f32)(Value >= t);
     return(Result);
 }
 
-inline r32
-SquarePulse(r32 A, r32 B, r32 Value)
+inline f32
+SquarePulse(f32 A, f32 B, f32 Value)
 {
-    r32 Result = Step(A, Value) - Step(B, Value);
+    f32 Result = Step(A, Value) - Step(B, Value);
     return(Result);
 }
 
 // NOTE(chowie): Converted from "Clamp01(A.x*t + B.x) - Clamp01(A.y*t + B.y)"
-inline r32
-TrianglePulse(v2 A, r32 t, v2 B)
+inline f32
+TrianglePulse(v2 A, f32 t, v2 B)
 {
-    r32 Result = Clamp01(Fma(A.x, t, B.x)) - Clamp01(Fma(A.y, t, B.y));
+    f32 Result = Clamp01(Fma(A.x, t, B.x)) - Clamp01(Fma(A.y, t, B.y));
     return(Result);
 }
 
@@ -467,7 +504,7 @@ Invert(v2 A)
 
 // NOTE(chowie): A single multiplier
 inline v2
-operator*(r32 A, v2 B)
+operator*(f32 A, v2 B)
 {
     v2 Result = {A*B.x, A*B.y};
     return(Result);
@@ -475,7 +512,7 @@ operator*(r32 A, v2 B)
 
 // NOTE(chowie): 5*Vector or Vector*5 is valid syntax
 inline v2
-operator*(v2 B, r32 A)
+operator*(v2 B, f32 A)
 {
     v2 Result = A*B;
     return(Result);
@@ -491,21 +528,21 @@ operator*(v2 A, v2 B)
 
 // NOTE(chowie): Calls operator*
 inline v2 &
-operator*=(v2 &B, r32 A)
+operator*=(v2 &B, f32 A)
 {
     B = A*B;
     return(B);
 }
 
 inline v2
-operator/(v2 B, r32 A)
+operator/(v2 B, f32 A)
 {
     v2 Result = (1.0f*A)*B;
     return(Result);
 }
 
 inline v2
-operator/(r32 B, v2 A)
+operator/(f32 B, v2 A)
 {
     v2 Result = {B / A.x, B / A.y};
     return(Result);
@@ -519,7 +556,7 @@ operator/(v2 A, v2 B)
 }
 
 inline v2 &
-operator/=(v2 &B, r32 A)
+operator/=(v2 &B, f32 A)
 {
     B = B / A;
     return(B);
@@ -583,28 +620,28 @@ Hadamard(v2 A, v2 B)
    direction, if the value is 0 they are perpendicular.
 */
 // A.x*B.x + A.y*B.y
-inline r32
+inline f32
 Inner(v2 A, v2 B)
 {
-    r32 Result = SumOfProducts(A.x, B.x, A.y, B.y);
+    f32 Result = SumOfProducts(A.x, B.x, A.y, B.y);
     return(Result);
 }
 
 // NOTE(chowie): Also called Magnitude
-inline r32
+inline f32
 LengthSq(v2 A)
 {
-    r32 Result = Inner(A, A);
+    f32 Result = Inner(A, A);
     return(Result);
 }
 
 // STUDY(chowie): Sqrt is undefined negative numbers. LengthSq
 // cannot produce a negative number, i.e Negative*Negative is positive
 // NOTE(chowie): Also called "norm"
-inline r32
+inline f32
 Length(v2 A)
 {
-    r32 Result = SquareRoot(LengthSq(A));
+    f32 Result = SquareRoot(LengthSq(A));
     return(Result);
 }
 
@@ -613,7 +650,7 @@ NOZ(v2 A)
 {
     v2 Result = {};
 
-    r32 LenSq = LengthSq(A);
+    f32 LenSq = LengthSq(A);
     if(LenSq > Square(Epsilon32))
     {
         Result = A*InvSquareRoot(LenSq);
@@ -630,7 +667,7 @@ Clamp01(v2 Value)
 }
 
 inline v2
-Lerp(v2 A, r32 t, v2 B)
+Lerp(v2 A, f32 t, v2 B)
 {
     v2 Result = {Lerp(A.x, t, B.x), Lerp(A.y, t, B.y)};
     return(Result);
@@ -675,18 +712,29 @@ V2ToM2x2Rotation(v2 P)
     return(Result);
 }
 
+// COULDDO(chowie): Good for pentagon/hexagon tiling for SFX?
 // RESOURCE(petrik clarberg): Fast equal-area mapping of (hemi)sphere
 // using SIMD by 2008, mentioned the sin approx I used below!
 // TODO(chowie): Pass starting angle. Average the triangle count too
 // to not look super detailed when rescaling?
 // NOTE(chowie): Works best for (n >= 5). Better accuracy / less
 // underdraw as n increases. If n is high enough, circle overdraws.
+// NOTE(chowie): Pythag for cos is more accurate than small-angle approx
+// NOTE(chowie): Custom magic number Pow comparable to std:pow. Better
+// than nieve; accuracy close to sinf (n = 4 just short to close diamond; sinf no problem)
+// & similar no. instructions Nieve: 5x mult vs Magic Pow: 1x FMA, 1x sub, 1x cast
+// RESOURCE(basesandframes): https://basesandframes.wordpress.com/2020/04/04/even-faster-math-functions/
+// NOTE(chowie): Approx had indistinguishable results to -x^3/6 +x^5/120,
+// improved by using mult rather than division.
+// TODO(chowie): See when using sin, use this for the best accuracy!
+// Pow 7 seems to be less accurate compared to stopping at Pow 5?
+// -(Cube(Sector)*0.1666666635050979363f) + (Pow(Sector, 5)*0.0083332964926239037349f) - (Pow(Sector, 7)*0.00019777591579068317932f);
 internal v2
-RotationByCircleSector(r32 n, r32 Circumference)
+RotationByCircleSector(f32 n, f32 Circumference)
 {
     // RESOURCE(john d cook): https://www.johndcook.com/blog/2010/07/27/sine-approximation-for-small-x/
-    r32 Sector = (Circumference / n);
-    r32 Error = -(Cube(Sector)/6) + (Quin(Sector)/120);
+    f32 Sector = (Circumference / n);
+    f32 Error = -(Cube(Sector)*0.16667131080141501286f) + (Pow(Sector, 5)*0.008380604124044387360f);
 
     v2 Result;
     Result.y = Sector + Error;
@@ -697,12 +745,12 @@ RotationByCircleSector(r32 n, r32 Circumference)
 
 // RESOURCE(arnon): https://github.com/HardCoreCodin/Rational-Ray-Casting/blob/master/raycasting-c/src/main.c
 internal v2
-RotationByGradient(r32 m)
+RotationByGradient(f32 m)
 {
     // NOTE(by arnon): Project a point on a unit circle from a
     // position on a vertical line of "x = 1" towards the origin
-    r32 mSq = Square(m);
-    r32 Factor = 1.0f / (1.0f + mSq);
+    f32 mSq = Square(m);
+    f32 Factor = 1.0f / (1.0f + mSq);
 
     v2 Result;
     Result.x = (1.0f - mSq)*Factor;
@@ -713,7 +761,7 @@ RotationByGradient(r32 m)
 
 // TODO(chowie): Use for a radial menu?
 inline m2x2
-M2x2RotationByTris(r32 n, r32 Circumference)
+M2x2RotationByTris(f32 n, f32 Circumference)
 {
     v2 Rot = RotationByCircleSector(n, Circumference);
     m2x2 Result = V2ToM2x2Rotation(Rot);
@@ -723,22 +771,22 @@ M2x2RotationByTris(r32 n, r32 Circumference)
 
 /*
 internal v2
-NormalisedRotationByCircleSector(r32 n)
+NormalisedRotationByCircleSector(f32 n)
 {
     // IMPORTANT(chowie): An approximation where there's many
     // segments, so sin can be dropped. Might leave small gaps.
-    r32 s3 = (Tau32 / n);
-    //r32 s3 = (Sin(Tau32 / n)); // NOTE(chowie): Change to this for more accuracy
+    f32 s3 = (Tau32 / n);
+    //f32 s3 = (Sin(Tau32 / n)); // NOTE(chowie): Change to this for more accuracy
 
     // NOTE(chowie): Cross Law
-    r32 Gradient = s3 / (1.0f - SquareRoot(1.0f - Square(s3)));
-    //r32 Gradient = SquareRoot(s3 / (2 - SquareRoot(4*(1 - s3)) - s3));
+    f32 Gradient = s3 / (1.0f - SquareRoot(1.0f - Square(s3)));
+    //f32 Gradient = SquareRoot(s3 / (2 - SquareRoot(4*(1 - s3)) - s3));
 
     // NOTE(by arnon): Project a point on a unit circle from a
     // position on a vertical line of "x = 1" towards the origin
     // RESOURCE(NJ Wildberger): Rational Param of Circle - https://www.youtube.com/watch?v=Ui8OvmzDn7o
-    r32 mSq = Square(Gradient);
-    r32 Factor = 1.0f / (1.0f + mSq);
+    f32 mSq = Square(Gradient);
+    f32 Factor = 1.0f / (1.0f + mSq);
 
     v2 Result = {};
     Result.x = (mSq - 1.0f)*Factor; // NOTE(chowie): Flipped to +tive since gradient is > 1 for angles less than 45 deg
@@ -862,7 +910,7 @@ Invert(v3 A)
 
 // NOTE(chowie): A single multiplier
 inline v3
-operator*(r32 A, v3 B)
+operator*(f32 A, v3 B)
 {
     v3 Result = {A*B.x, A*B.y, A*B.z};
     return(Result);
@@ -870,7 +918,7 @@ operator*(r32 A, v3 B)
 
 // NOTE(chowie): 5*Vector or Vector*5 is valid syntax
 inline v3
-operator*(v3 B, r32 A)
+operator*(v3 B, f32 A)
 {
     v3 Result = A*B;
     return(Result);
@@ -886,21 +934,21 @@ operator*(v3 A, v3 B)
 
 // NOTE(chowie): Calls operator*
 inline v3 &
-operator*=(v3 &B, r32 A)
+operator*=(v3 &B, f32 A)
 {
     B = A*B;
     return(B);
 }
 
 inline v3
-operator/(v3 B, r32 A)
+operator/(v3 B, f32 A)
 {
     v3 Result = (1.0f*A)*B;
     return(Result);
 }
 
 inline v3
-operator/(r32 B, v3 A)
+operator/(f32 B, v3 A)
 {
     v3 Result = {B / A.x, B / A.y, B / A.z};
     return(Result);
@@ -914,7 +962,7 @@ operator/(v3 A, v3 B)
 }
 
 inline v3 &
-operator/=(v3 &B, r32 A)
+operator/=(v3 &B, f32 A)
 {
     B = B / A;
     return(B);
@@ -971,10 +1019,10 @@ Hadamard(v3 A, v3 B)
 
 // TODO(chowie): Is there a better way? Fma(A.x, B.x, Fma(A.y, B.y, A.z*B.z))?
 // A.x*B.x + A.y*B.y + A.z*B.z
-inline r32
+inline f32
 Inner(v3 A, v3 B)
 {
-    r32 Result = Fma(A.z, B.z, SumOfProducts(A.x, B.x, A.y, B.y));
+    f32 Result = Fma(A.z, B.z, SumOfProducts(A.x, B.x, A.y, B.y));
     return(Result);
 }
 
@@ -991,20 +1039,20 @@ Cross(v3 A, v3 B)
     return(Result);
 }
 
-inline r32
+inline f32
 LengthSq(v3 A)
 {
-    r32 Result = Inner(A, A);
+    f32 Result = Inner(A, A);
     return(Result);
 }
 
 // STUDY(chowie): Sqrt is undefined negative numbers. LengthSq
 // cannot produce a negative number, i.e Negative*Negative is positive
 // NOTE(chowie): Also called "norm"
-inline r32
+inline f32
 Length(v3 A)
 {
-    r32 Result = SquareRoot(LengthSq(A));
+    f32 Result = SquareRoot(LengthSq(A));
     return(Result);
 }
 
@@ -1013,7 +1061,7 @@ Length(v3 A)
 inline v3
 Normalise(v3 A)
 {
-    r32 LenSq = LengthSq(A);
+    f32 LenSq = LengthSq(A);
     v3 Result = A*InvSquareRoot(LenSq);
     return(Result);
 }
@@ -1029,7 +1077,7 @@ NOZ(v3 A)
 {
     v3 Result = {};
 
-    r32 LenSq = LengthSq(A);
+    f32 LenSq = LengthSq(A);
     if(LenSq > Square(Epsilon32))
     {
         Result = A*InvSquareRoot(LenSq);
@@ -1045,7 +1093,7 @@ NOU(v3 A)
 {
     v3 Result = V3(1, 1, 1);
 
-    r32 LenSq = LengthSq(A);
+    f32 LenSq = LengthSq(A);
     if(AbsoluteValue(LenSq - 1.0f) > Square(Epsilon32))
     {
         Result = A*InvSquareRoot(LenSq);
@@ -1059,9 +1107,9 @@ NOU(v3 A)
 // TODO(chowie): Not quite sure how useful this function is - for asserts mainly
 // NOTE(chowie): Vector length is within epsilon of 1
 inline b32x
-IsNormalisedEps(v3 A, r32 Epsilon)
+IsNormalisedEps(v3 A, f32 Epsilon)
 {
-    r32 Magnitude = LengthSq(A);
+    f32 Magnitude = LengthSq(A);
     b32x Result = (Magnitude >= Square(1.0f - Epsilon) &&
                   Magnitude <= Square(1.0f + Epsilon));
     return(Result);
@@ -1071,7 +1119,7 @@ IsNormalisedEps(v3 A, r32 Epsilon)
 // RESOURCE(gaul): https://www.reddit.com/r/gamedev/comments/2ljvlz/collection_of_numerically_robust_parallel_vectors/
 // TODO(chowie): Double Check this!
 inline b32x
-IsPerp(v3 A, v3 B, r32 Epsilon)
+IsPerp(v3 A, v3 B, f32 Epsilon)
 {
     b32x Result = false;
     if(AbsoluteValue(Inner(A, B)) < Epsilon)
@@ -1087,7 +1135,7 @@ IsPerp(v3 A, v3 B, r32 Epsilon)
 // sqrts. Cons; Epsilons with v3 of wildly different components, bias
 // to scale to the shorter or longer version - shorter?
 inline b32x
-IsParallel(v3 A, v3 B, r32 Epsilon)
+IsParallel(v3 A, v3 B, f32 Epsilon)
 {
     A = Normalise(A);
     B = Normalise(B);
@@ -1118,7 +1166,7 @@ Clamp01(v3 Value)
 }
 
 inline v3
-Lerp(v3 A, r32 t, v3 B)
+Lerp(v3 A, f32 t, v3 B)
 {
     v3 Result = {Lerp(A.x, t, B.x), Lerp(A.y, t, B.y), Lerp(A.z, t, B.z)};
     return(Result);
@@ -1137,7 +1185,7 @@ Lerp(v3 A, r32 t, v3 B)
 // STUDY(chowie): For animation
 // TODO(chowie): V2?
 inline v3
-NLerp(v3 A, r32 t, v3 B)
+NLerp(v3 A, f32 t, v3 B)
 {
     v3 Result = Normalise(Lerp(A, t, B));
     return(Result);
@@ -1150,11 +1198,11 @@ NLerp(v3 A, r32 t, v3 B)
 // TODO(chowie): No trig slerp!
 /*
 inline v3
-SLerp(v3 A, r32 t, v3 B)
+SLerp(v3 A, f32 t, v3 B)
 {
-    r32 Dot = Inner(A, B);
+    f32 Dot = Inner(A, B);
     Dot = Clamp(-1.0f, Dot, 1.0f);
-    r32 Theta = acosf(Dot)*t;
+    f32 Theta = acosf(Dot)*t;
     v3 Relative = Normalise(B - A*Dot);
     v3 Result = ((A*Cos(Theta)) + (Relative*Sin(Theta)));
     return(Result);
@@ -1200,7 +1248,7 @@ GetBasis(v3 A, v3 B, v3 C)
 inline v3
 Reflect(v3 A, v3 B)
 {
-    r32 Coeff = Inner(A, B);
+    f32 Coeff = Inner(A, B);
     v3 Result = (Coeff > 0.0f) ? A : (A - 2.0f*B*Coeff);
     return(Result);
 }
@@ -1209,7 +1257,7 @@ Reflect(v3 A, v3 B)
 inline v3
 Clip(v3 A, v3 B)
 {
-    r32 Coeff = Inner(A, B);
+    f32 Coeff = Inner(A, B);
     v3 Result = (Coeff > 0.0f) ? A :
         ((A - B*Coeff)*InvSquareRoot(1.0f - Square(Coeff) / Inner(A, A)));
     return(Result);
@@ -1219,7 +1267,7 @@ Clip(v3 A, v3 B)
 inline v3
 ClipNoLength(v3 A, v3 B)
 {
-    r32 Coeff = Inner(A, B);
+    f32 Coeff = Inner(A, B);
     v3 Result = (Coeff > 0.0f) ? A : (A - B*Coeff);
     return(Result);
 }
@@ -1228,9 +1276,58 @@ ClipNoLength(v3 A, v3 B)
 // NOTE(chowie): v4 operations
 //
 
+inline v4u
+operator+(v4u A, v4u B)
+{
+    v4u Result = {A.x + B.x, A.y + B.y, A.z + B.z, A.w + B.w};
+    return(Result);
+}
+
+// NOTE(chowie): This is hadamard
+inline v4u
+operator*(v4u A, v4u B)
+{
+    v4u Result = {A.x*B.x, A.y*B.y, A.z*B.z, A.w*B.w};
+    return(Result);
+}
+
+inline b32x
+AreEqual(v4u A, v4u B)
+{
+    b32x Result = ((A.x == B.x) &&
+                   (A.y == B.y) &&
+                   (A.z == B.z) &&
+                   (A.w == B.w));
+    return(Result);
+}
+
+// NOTE(chowie): A single multiplier
+inline v4u
+operator*(u32 A, v4u B)
+{
+    v4u Result = {A*B.x, A*B.y, A*B.z, A*B.w};
+    return(Result);
+}
+
+// NOTE(chowie): 5*Vector or Vector*5 is valid syntax
+inline v4u
+operator*(v4u B, u32 A)
+{
+    v4u Result = A*B;
+    return(Result);
+}
+
+// NOTE(chowie): Calls operator*
+inline v4u &
+operator*=(v4u &B, u32 A)
+{
+    B = A*B;
+    return(B);
+}
+
 // NOTE(chowie): A single multiplier
 inline v4
-operator*(r32 A, v4 B)
+operator*(f32 A, v4 B)
 {
     v4 Result = {A*B.x, A*B.y, A*B.z, A*B.w};
     return(Result);
@@ -1238,7 +1335,7 @@ operator*(r32 A, v4 B)
 
 // NOTE(chowie): 5*Vector or Vector*5 is valid syntax
 inline v4
-operator*(v4 B, r32 A)
+operator*(v4 B, f32 A)
 {
     v4 Result = A*B;
     return(Result);
@@ -1246,7 +1343,7 @@ operator*(v4 B, r32 A)
 
 // NOTE(chowie): Calls operator*
 inline v4 &
-operator*=(v4 &B, r32 A)
+operator*=(v4 &B, f32 A)
 {
     B = A*B;
     return(B);
@@ -1302,26 +1399,26 @@ Hadamard(v4 A, v4 B)
 }
 
 // A.x*B.x + A.y*B.y + A.z*B.z + A.w*B.w
-inline r32
+inline f32
 Inner(v4 A, v4 B)
 {
-    r32 Result = SumOfProducts(A.x, B.x, A.y, A.y) + SumOfProducts(A.z, B.z, A.w, B.w);
+    f32 Result = SumOfProducts(A.x, B.x, A.y, A.y) + SumOfProducts(A.z, B.z, A.w, B.w);
     return(Result);
 }
 
-inline r32
+inline f32
 LengthSq(v4 A)
 {
-    r32 Result = Inner(A, A);
+    f32 Result = Inner(A, A);
     return(Result);
 }
 
 // STUDY(chowie): Sqroot is undefined negative numbers. LengthSq
 // cannot produce a negative number, i.e Negative*Negative is positive
-inline r32
+inline f32
 Length(v4 A)
 {
-    r32 Result = SquareRoot(LengthSq(A));
+    f32 Result = SquareRoot(LengthSq(A));
     return(Result);
 }
 
@@ -1330,7 +1427,7 @@ Length(v4 A)
 inline v4
 Normalise(v4 A)
 {
-    r32 LenSq = LengthSq(A);
+    f32 LenSq = LengthSq(A);
     v4 Result = A*InvSquareRoot(LenSq);
     return(Result);
 }
@@ -1343,9 +1440,18 @@ Clamp01(v4 Value)
 }
 
 inline v4
-Lerp(v4 A, r32 t, v4 B)
+Lerp(v4 A, f32 t, v4 B)
 {
     v4 Result = {Lerp(A.x, t, B.x), Lerp(A.y, t, B.y), Lerp(A.z, t, B.z), Lerp(A.w, t, B.w)};
+    return(Result);
+}
+
+// RESOURCE(Ameye): https://ameye.dev/notes/rendering-outlines/
+// TODO(chowie): Figure out which outlines might be the best!
+inline f32
+FresnelSphericalOutline(v4 NormalisedNormal, v4 NormalisedView, f32 Power)
+{
+    f32 Result = Pow((1.0f - Clamp01(Inner(NormalisedNormal, NormalisedView))), Power);
     return(Result);
 }
 
@@ -1375,6 +1481,12 @@ Lerp(v4 A, r32 t, v4 B)
 // RESOURCE(kromenaker): http://clarkkromenaker.com/post/gengine-09-quaternions/
 
 // NOTE(chowie): Generic abstraction of a cross product
+// NOTE(chowie): Also called outer product. Rotations can be thought of the as an "offset" in the axis
+//    |                         | offset in x*x-axis, and y*y-axis
+//  \ | /                       ^
+// __\|/___  -- rotates --> ____|-->___
+//    |                         |
+//    |                         |
 inline v3
 Wedge(v3 A, v3 B)
 {
@@ -1411,10 +1523,10 @@ FromToRotor(v3 From, v3 To)
 // NOTE(from marc): Angle+plane, plane must be normalized
 // NOTE(from marc): Angle must be in radians
 inline v4
-RotorPlane(v3 Plane, r32 AngleRadians)
+RotorPlane(v3 Plane, f32 AngleRadians)
 {
     v4 Result;
-    r32 SinAngle = Sin(AngleRadians / 2.0f);
+    f32 SinAngle = Sin(AngleRadians / 2.0f);
     Result.s = Cos(AngleRadians / 2.0f);
     Result.bxyyzzx = -SinAngle*Plane; // NOTE(chowie): The left side of the products have b a, not a b
     return(Result);
@@ -1456,6 +1568,7 @@ operator*=(v4 &B, v4 A)
 // inverse = sandwich product
 // TODO(chowie): Is this the correct order? I'm assuming A = P, B = X
 // TODO(chowie): Marc Ten Bosch suggests this can be Optimised
+// STUDY(chowie): For an orbiting camera's "azimuth", think Wii sports orbiting camera for a stadium
 inline v3
 RotateRotor(v4 A, v3 B)
 {
@@ -1468,7 +1581,7 @@ RotateRotor(v4 A, v3 B)
         };
 
     // NOTE(chowie): Trivector part of result is always zero!
-    r32 Tri = B.x*A.bzx - B.y*A.byz + B.z*A.bxy;
+    f32 Tri = B.x*A.bzx - B.y*A.byz + B.z*A.bxy;
 
     // NOTE(chowie): R = Q A*
     v3 Result =
@@ -1490,7 +1603,7 @@ Invert(v4 A)
 
 // NOTE(chowie): Same as quarternion conjugate
 // NOTE(chowie): Negating only the axis via inversion causes the angle
-// to negate = calculates the opposite direction
+// to negate = calculates the opposite direction. Looks like 2D perp to me!
 inline v4
 ReverseRotor(v4 A)
 {
@@ -1525,7 +1638,7 @@ RotorToMatrix(v4 A)
 }
 
 inline v4
-Nlerp(v4 A, r32 t, v4 B)
+Nlerp(v4 A, f32 t, v4 B)
 {
     v4 Result = Normalise(Lerp(A, t, B));
     return(Result);
@@ -1533,11 +1646,11 @@ Nlerp(v4 A, r32 t, v4 B)
 
 // RESOURCE(): https://jacquesheunis.com/post/rotors/
 inline v4
-Slerp(v4 From, r32 t, v4 To)
+Slerp(v4 From, f32 t, v4 To)
 {
     v4 Result = {};
 
-    r32 Dot = Inner(From, To);
+    f32 Dot = Inner(From, To);
     if(Dot < 0.0f)
     {
         To = Invert(To);
@@ -1556,11 +1669,11 @@ Slerp(v4 From, r32 t, v4 To)
         // Assume that `From` and `To` both have magnitude 1
         // (IE they are the product of two unit vecTors)
         // then cos(Theta) = Dot(From, To)
-        r32 CosTheta = Dot;
+        f32 CosTheta = Dot;
 
-        r32 Theta = acosf(CosTheta);
-        r32 FromFactor = sinf((1.0f - t)*Theta)/sinf(Theta);
-        r32 ToFactor = sinf(t*Theta)/sinf(Theta);
+        f32 Theta = acosf(CosTheta);
+        f32 FromFactor = sinf((1.0f - t)*Theta)/sinf(Theta);
+        f32 ToFactor = sinf(t*Theta)/sinf(Theta);
 
         Result.bxy = SumOfProducts(FromFactor, From.bxy, ToFactor, To.bxy);
         Result.byz = SumOfProducts(FromFactor, From.byz, ToFactor, To.byz);
@@ -1571,8 +1684,46 @@ Slerp(v4 From, r32 t, v4 To)
     return(Result);
 }
 
-// TODO(chowie): I think these only affects bivectors, not scalar. See
-// RotorReverse from Marc Ten Bosch.
+// RESOURCE(): https://www.euclideanspace.com/maths/algebra/clifford/d3/index.htm
+// RESOURCE(): https://www.reddit.com/r/gamedev/comments/np27gy/rotations_using_quaternions/
+// RESOURCE(): https://imadr.me/rotations-with-quaternions/
+inline v4
+RotorLog(v4 A)
+{
+    v3 Normal = Normalise(A.bxyyzzx);
+    f32 Magnitude = LengthSq(A);
+    f32 Angle = acosf(A.s / Magnitude);
+
+    v4 Result = V4(Normal.x*Angle, Normal.y*Angle, Normal.z*Angle, Log(Magnitude));
+
+    return(Result);
+}
+
+inline v4
+RotorExp(v4 A)
+{
+    v3 Normal = Normalise(A.bxyyzzx);
+    f32 Magnitude = LengthSq(A.bxyyzzx);
+    f32 SinAngle = sinf(Magnitude);
+    f32 ExpW = Exp(A.s);
+
+    v4 Result = V4(Normal.x*SinAngle*ExpW, Normal.y*SinAngle*ExpW, Normal.z*SinAngle*ExpW, cosf(Magnitude)*ExpW);
+
+    return(Result);
+}
+
+inline v4
+RotorSlerp(v4 A, f32 t, v4 B)
+{
+    // RESOURCE(): https://martin.ankerl.com/2007/02/11/optimized-exponential-functions-for-java/
+    // STUDY(chowie): Optimisations Exp(B*Log(A)) = Pow(A, B)
+    v4 Delta = ReverseRotor(A)*B;
+    v4 Result = A*RotorExp(t*RotorLog(Delta));
+    return(Result);
+}
+
+// TODO(chowie): Is this wrong? I think these only affects
+// bivectors, not scalar. See RotorReverse from Marc Ten Bosch.
 inline v4
 Log(v4 A)
 {
@@ -1597,13 +1748,13 @@ Exp(v4 A)
     return(Result);
 }
 
+// TODO(chowie): Really no angles?
 // RESOURCE(): https://rastergraphics.wordpress.com/2022/04/12/geometric-algebra-rotor-average-in-closed-form/
-// TODO(chowie): Is slerp alternative correct? I don't think so!
 inline v4
-RotorAverage(v4 A, r32 t, v4 B)
+RotorAverage(v4 A, f32 t, v4 B)
 {
     // RESOURCE(): https://martin.ankerl.com/2007/02/11/optimized-exponential-functions-for-java/
-    // NOTE(chowie): Optimisations Exp(B*Log(A)) = Pow(A, B)
+    // STUDY(chowie): Optimisations Exp(B*Log(A)) = Pow(A, B)
     v4 Delta = ReverseRotor(A)*B;
     v4 Result = A*Exp(t*Log(Delta));
     return(Result);
@@ -1638,7 +1789,7 @@ Adjugate(m4x4 A)
 inline rect2
 InvertedInfinityRect2(void)
 {
-    rect2 Result {V2(R32Max), V2(-R32Max)};
+    rect2 Result {V2(F32Max), V2(-F32Max)};
     return(Result);
 }
 
@@ -1786,11 +1937,11 @@ GetBarycentric(rect2 A, v2 P)
     return(Result);
 }
 
-inline r32
+inline f32
 GetArea(rect2 A)
 {
     v2 Dim = GetDim(A);
-    r32 Result = Dim.x*Dim.y;
+    f32 Result = Dim.x*Dim.y;
     return(Result);
 }
 
@@ -2148,7 +2299,6 @@ Linear1ToSRGB255(v4 C)
 // as uint32 or packed into an __m128i, where I had to multply alpha
 // values from nested containers and it was beneficial to do it
 // in-place, as bytes, without extracting to float and repacking
-
 // normalized byte multiplication:
 // range [0, 255] maps to [0.0, 1.0]
 // examples:
@@ -2165,15 +2315,15 @@ D7samNormalisedMul(u8 A, u8 B)
 
 //
 // NOTE(chowie): Hashing Functions
-// TODO(chowie): Better Hash Functions!
+// TODO(chowie): Better Hash Function
 //
 
 // RESOURCE(reed): https://www.reedbeta.com/blog/hash-functions-for-gpu-rendering/
 // NOTE(chowie): Compared to Wang Hash, slightly better performance and much better statistical quality
 inline u32
-PCGHash(u32 Input)
+PCGHash(u32 Value)
 {
-    u32 State = Input*747796405u + 2891336453u;
+    u32 State = Value*747796405u + 2891336453u;
     u32 Word = ((State >> ((State >> 28u) + 4u)) ^ State)*277803737u;
     u32 Result = (Word >> 22u) ^ Word;
     return(Result);
@@ -2251,7 +2401,66 @@ MullerHash(v3s Value)
     return(Result);
 }
 
-// TODO: String hash? - https://theartincode.stanis.me/008-djb2/
+// RESOURCE(codejar): https://youtu.be/OjZ7vV62lJk?t=271
+/*
+inline u32
+Hash(v4u Value)
+{
+    u32 Mult = 1103515245u;
+    Value *= Mult;
+    u32 Result = ((Value >> 2u) ^ (Value.yzwx >> 1u) ^ (Value.zwxy >> 3u) ^ (Value.wxyz >> 4) * Mult);
+    return(Result);
+}
+*/
+
+// RESOURCE(mason remaley): https://gamesbymason.com/2020/03/30/symmetric-matrices/
+// f(x,y) = (x + (y)(y+1)/2), x = low/column, y = high/triangle
+// RESOURCE(): https://en.wikipedia.org/wiki/Triangular_number
+// Technically more correct to process the largest int with binary OR (, branchless), too niche for me thought
+inline u32
+TriangleNumber(v2u Value)
+{
+    u32 Result = (Value.x + ((Value.y)*(Value.y + 1))/2);
+    return(Result);
+}
+
+// NOTE(chowie): Pairwise
+// RESOURCE(mason remaley): https://gamesbymason.com/2020/03/30/symmetric-matrices/
+internal u32
+MapPairwiseToIndex(u16 A, u16 B)
+{
+    // TODO(chowie): I assume that if with swap is better than two if min/max
+    // STUDY(chowie): This makes entity pairs AB vs BA pair agnostic
+    v2u Pair = V2U((u32)B, (u32)A);
+    if(A < B)
+    {
+        Swap(u32, Pair.x, Pair.y);
+    }
+
+    u32 Result = TriangleNumber(Pair);
+    return(Result);
+}
+
+// NOTE(chowie): Non-pairwise, must be used with hierarchical trees
+// RESOURCE(alex fink & jorg rhiemeier): https://listserv.brown.edu/archives/cgi-bin/wa?A2=ind0907B&L=CONLANG&P=R12478
+// P.S. From 1999 amazingly! It's not even your main point????
+// f(x,y) = 1 + 2(x + (x+y)(x+y+1)/2)
+inline u32
+TriangleNumber2D(v2u Value)
+{
+    v2u Offset = V2U(Value.x, Value.x + Value.y);
+    u32 Result = 2*TriangleNumber(Offset) + 1;
+    return(Result);
+}
+
+// RESOURCE(): https://theartincode.stanis.me/008-djb2/
+inline u32
+DJB2Hash(char *Scan)
+{
+    u32 MagicNumber = 5381;
+    u32 Result = ((MagicNumber << 5) + MagicNumber) + *Scan;
+    return(Result);
+}
 
 //
 // NOTE(chowie): Compression
@@ -2384,30 +2593,30 @@ DecodeMorton3(u32 Value)
 // RESOURCE(chowie): https://fastcpp.blogspot.com/2011/03/changing-sign-of-float-values-using-sse.html
 // TODO(chowie): Convert to BitscanForward & Reverse? Or SSE SIMD?
 inline u32
-FloatFlip(u32 R32)
+FloatFlip(u32 F32)
 {
-    u32 Mask = -(s32)(R32 >> 31) | 0x80000000;
-    u32 Result = R32 ^ Mask;
+    u32 Mask = -(s32)(F32 >> 31) | 0x80000000;
+    u32 Result = F32 ^ Mask;
     return(Result);
 }
 
 inline void
-FloatFlipX(u32 *R32)
+FloatFlipX(u32 *F32)
 {
-    u32 Mask = -(s32)(*R32 >> 31) | 0x80000000;
-    *R32 ^= Mask;
+    u32 Mask = -(s32)(*F32 >> 31) | 0x80000000;
+    *F32 ^= Mask;
 }
 
 inline u32
-InvFloatFlip(u32 R32)
+InvFloatFlip(u32 F32)
 {
-    u32 Mask = ((R32 >> 31) - 1) | 0x80000000;
-    u32 Result = R32 ^ Mask;
+    u32 Mask = ((F32 >> 31) - 1) | 0x80000000;
+    u32 Result = F32 ^ Mask;
     return(Result);
 }
 
 internal void
-HerfRadixSort(u32 Count, r32 *First, r32 *Temp)
+HerfRadixSort(u32 Count, f32 *First, f32 *Temp)
 {
     u32 *Source = (u32 *)First;
     u32 *Dest = (u32 *)Temp;
@@ -2494,6 +2703,181 @@ HerfRadixSort(u32 Count, r32 *First, r32 *Temp)
         Dest[++Hist2[Pos]] = InvFloatFlip(SourceIndex);
     }
 }
+
+//
+// TODO(chowie): Particle Systems HmH 337/(first 20 min of)338
+//
+
+/*
+  Follow this guide on how fast the code should be structured! 0.02%
+  vs 0.50% in -Od is a sizable different based on what we had to
+  change at the time! It's next to nothing in O2 mode. However, some
+  notation will be much more clunky to write! NOTE(chowie): It should
+  be pretty similar to what we had before, so no big changes needed!
+  
+#define MMSetExpr(Expr) _mm_set_ps(Expr, Expr, Expr, Expr)
+
+inline __m128
+operator+(__m128 A, __m128 B)
+{
+    __m128 Result = _mm_add_ps(A, B);
+    return(Result);
+}
+
+inline __m128
+operator*(f32 A, __m128 B)
+{
+    __m128 Result = _mm_mul_ps(_mm_set1_ps(A), B);
+    return(Result);
+}
+
+#define MAX_PARTICLE_COUNT 4096
+#define MAX_PARTICLE_COUNT_4 (MAX_PARTICLE_COUNT/4)
+#define PARTICLE_SYSTEM_COUNT 64
+
+struct particle_system_info
+{
+    entity_id ID;
+    u32 FramesSinceTouched;
+};
+struct particle_system
+{
+    __m128 Px[MAX_PARTICLE_COUNT_4];
+    __m128 Py[MAX_PARTICLE_COUNT_4];
+    __m128 Pz[MAX_PARTICLE_COUNT_4];
+    
+    __m128 dPx[MAX_PARTICLE_COUNT_4];
+    __m128 dPy[MAX_PARTICLE_COUNT_4];
+    __m128 dPz[MAX_PARTICLE_COUNT_4];
+    
+    __m128 ddPx[MAX_PARTICLE_COUNT_4];
+    __m128 ddPy[MAX_PARTICLE_COUNT_4];
+    __m128 ddPz[MAX_PARTICLE_COUNT_4];
+    
+    __m128 Cr[MAX_PARTICLE_COUNT_4];
+    __m128 Cg[MAX_PARTICLE_COUNT_4];
+    __m128 Cb[MAX_PARTICLE_COUNT_4];
+    __m128 Ca[MAX_PARTICLE_COUNT_4];
+
+    __m128 dCr[MAX_PARTICLE_COUNT_4];
+    __m128 dCg[MAX_PARTICLE_COUNT_4];
+    __m128 dCb[MAX_PARTICLE_COUNT_4];
+    __m128 dCa[MAX_PARTICLE_COUNT_4];
+    
+    u32 NextParticle4;
+    
+};
+
+struct v3_4x
+{
+    __m128 x;
+    __m128 y;
+    __m128 z;
+};
+
+struct v4_4x
+{
+    __m128 r;
+    __m128 g;
+    __m128 b;
+    __m128 a;
+};
+
+struct particle_v3
+{
+    __m128 x;
+    __m128 Ignored0[MAX_PARTICLE_COUNT_4 - 1];
+    
+    __m128 y;
+    __m128 Ignored1[MAX_PARTICLE_COUNT_4 - 1];
+    
+    __m128 z;
+    __m128 Ignored2[MAX_PARTICLE_COUNT_4 - 1];
+};
+
+inline particle_v3 &
+operator+=(particle_v3 &A, v3_4x B)
+{
+    A.x = _mm_add_ps(A.x, B.x);
+    A.y = _mm_add_ps(A.y, B.y);
+    A.z = _mm_add_ps(A.z, B.z);
+    
+    return(A);
+}
+
+inline v3_4x
+operator*(f32 As, v3_4x B)
+{
+    v3_4x Result;
+    
+    __m128 A = _mm_set1_ps(As);
+    Result.x = _mm_mul_ps(A, B.x);
+    Result.y = _mm_mul_ps(A, B.y);
+    Result.z = _mm_mul_ps(A, B.z);
+    
+    return(Result);
+}
+
+inline v3_4x
+operator+(v3_4x A, v3_4x B)
+{
+    v3_4x Result;
+    
+    Result.x = _mm_add_ps(A.x, B.x);
+    Result.y = _mm_add_ps(A.y, B.y);
+    Result.z = _mm_add_ps(A.z, B.z);
+    
+    return(Result);
+}
+
+inline v3_4x
+operator*(f32 As, particle_v3 B)
+{
+    v3_4x Result;
+    
+    __m128 A = _mm_set1_ps(As);
+    Result.x = _mm_mul_ps(A, B.x);
+    Result.y = _mm_mul_ps(A, B.y);
+    Result.z = _mm_mul_ps(A, B.z);
+    
+    return(Result);
+}
+
+struct particle_v4
+{
+    __m128 r;
+    __m128 Ignored0[MAX_PARTICLE_COUNT_4 - 1];
+    
+    __m128 g;
+    __m128 Ignored1[MAX_PARTICLE_COUNT_4 - 1];
+    
+    __m128 b;
+    __m128 Ignored2[MAX_PARTICLE_COUNT_4 - 1];
+    
+    __m128 a;
+    __m128 Ignored3[MAX_PARTICLE_COUNT_4 - 1];
+};
+
+struct particle
+{
+    particle_v3 *P;
+    particle_v3 *dP;
+    particle_v3 *ddP;
+    particle_v4 *C;
+    particle_v4 *dC;
+};
+
+struct particle_cache
+{
+    particle_system_info SystemInfos[PARTICLE_SYSTEM_COUNT];
+    particle_system Systems[PARTICLE_SYSTEM_COUNT];
+};
+
+struct particle_spec
+{
+    f32 SomethingSomethingSomething;
+};
+*/
 
 #define RUINENGLASS_MATH_H
 #endif

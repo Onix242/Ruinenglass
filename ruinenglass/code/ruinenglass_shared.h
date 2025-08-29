@@ -104,6 +104,23 @@ StringsAreEqual(umm ALength, char *A, umm BLength, char *B)
     return(Result);
 }
 
+// NOTE(chowie): atoi
+internal s32
+S32FromZ(char *At)
+{
+    s32 Result = 0;
+
+    while((*At >= '0') &&
+          (*At <= '9'))
+    {
+        Result *= 10; // STUDY(chowie): Read first things we see of string, assumes a digit. For every place we move, digits (accumulator) should increase up by pow of 10
+        Result += (*At - '0');
+        ++At;
+    }
+
+    return(Result);
+}
+
 internal void
 CatStrings(umm SourceACount, char *SourceA,
            umm SourceBCount, char *SourceB,
@@ -142,6 +159,16 @@ StringReverse(char *String)
     }
     return(String);
 }
+/* NOTE(chowie): Could write it like
+   while(Start < End)
+   {
+       --End;
+       char Temp = *End;
+       *End = *Start;
+       *Start = Temp;
+       ++Start;
+   }
+*/
 
 // NOTE(chowie): Log10 should really start from 0
 inline s32
@@ -175,6 +202,9 @@ NumDigitsLog10(u32 Value)
     return(Result);
 }
 
+// RESOURCE(): https://gist.github.com/d7samurai/140807683843a06195c33494e3546a84
+// TODO(chowie): Add the string to float conversion!
+
 /* NOTE(chowie): Sample string usage
    char *name = "slim shady";
    int   line = 1337;
@@ -186,9 +216,12 @@ NumDigitsLog10(u32 Value)
    OutputDebugStringA(d7sam_concat("attention, ")(name)("! there's an error in line ")(line)(" : the error code is ")(666)(" and the temperature is ")(temp, 1)(" degrees\n"));
 */
 
+// STUDY(chowie): It's easier to print out to a temp buffer, to do
+// whatever you want and reconstruct the number e.g. you can take a
+// high number and pad to low number
 #define CONCAT_BUFFER_SIZE 256
 #define Base10 10
-global r32 Bases[] = { 1, 10, 100, 1000, 10000, 100000, 1000000 };
+global f32 Bases[] = { 1, 10, 100, 1000, 10000, 100000, 1000000 };
 // RESOURCE: https://gist.github.com/d7samurai/1d778693ba33bbd2b9d709b209cc0aba
 // TODO(chowie): Convert to using arenas!
 // TODO(chowie): This hideous functions is really convenient! Probably only use this for debugging only!
@@ -196,10 +229,10 @@ struct d7sam_concat
 {
     d7sam_concat(char* Source) { operator()(Source); }
     d7sam_concat(s32 Value) { operator()(Value); }
-    d7sam_concat(r32 Value, u32 Decimals = 2) { operator()(Value, Decimals); }
+    d7sam_concat(f32 Value, u32 Decimals = 2) { operator()(Value, Decimals); }
 
     u32 CharCount = 0;
-    char TextBuffer[CONCAT_BUFFER_SIZE];
+    char TempBuffer[CONCAT_BUFFER_SIZE];
 
     d7sam_concat &
     operator()(char* Source)
@@ -212,7 +245,7 @@ struct d7sam_concat
             CharIndex < Size;
             ++CharIndex)
         {
-            TextBuffer[CharCount++] = Source[CharIndex];
+            TempBuffer[CharCount++] = Source[CharIndex];
         }
         CharCount--;
 
@@ -223,58 +256,57 @@ struct d7sam_concat
     d7sam_concat &
     operator()(s32 Value)
     {
-        b32x Negative = false;
-        if(Value < 0)
+        b32x Negative = (Value < 0);
+        if(Negative)
         {
-            Negative = true;
             Value = -Value;
         }
 
         CharCount += NumDigitsLog10(Value) + Negative;
         s32 CharIndex = CharCount;
 
-        TextBuffer[CharIndex--] = 0;
+        // STUDY(chowie): Process digits backwards; must flip buffer!
+        TempBuffer[CharIndex--] = 0; // STUDY(chowie): Null terminate at the end (even if buffer is full)
         do {
-            TextBuffer[CharIndex--] = '0' + (Value % Base10);
-            Value /= Base10;
+            TempBuffer[CharIndex--] = '0' + (Value % Base10); // STUDY(chowie): Value % Base -> 1st Digit
+            Value /= Base10; // STUDY(chowie): Value / Base -> Moves one digit down e.g. 123 -> 12
         } while(Value);
 
         if(Negative)
         {
-            TextBuffer[CharIndex] = '-';
+            TempBuffer[CharIndex] = '-';
         }
 
         return(*this);
     }
 
     d7sam_concat &
-    operator()(r32 Value, u32 Decimals = 2)
+    operator()(f32 Value, u32 Decimals = 2)
     {
-        b32x Negative = false;
-        if(Value < 0)
+        b32x Negative = (Value < 0);
+        if(Negative)
         {
-            Negative = true;
             Value = -Value;
         }
 
-        u32 CastValue = RoundR32ToU32(Bases[Decimals] * Value);
+        u32 CastValue = RoundF32ToU32(Bases[Decimals]*Value);
         u32 MaxDecimals = Maximum(NumDigitsLog10(CastValue), (s32)Decimals + 1);
         CharCount += MaxDecimals + Negative + (Decimals > 0);
         u32 CharIndex = CharCount;
 
-        TextBuffer[CharIndex--] = 0;
+        TempBuffer[CharIndex--] = 0;
         do {
-            TextBuffer[CharIndex--] = '0' + (CastValue % Base10);
-            CastValue /= Base10;
+            TempBuffer[CharIndex--] = '0' + (CastValue % Base10);
+            CastValue /= Base10; // STUDY(chowie): For floats, dividing by 10 is destructive and precision may be loss because 10 isn't a power of 2!
             if(CharIndex == (CharCount - Decimals - 1))
             {
-                TextBuffer[CharIndex--] = '.';
+                TempBuffer[CharIndex--] = '.';
             }
         } while(CastValue || ((CharCount - CharIndex) <= (Decimals ? Decimals + 2 : 0)));
 
         if(Negative)
         {
-            TextBuffer[CharIndex] = '-';
+            TempBuffer[CharIndex] = '-';
         }
 
         return(*this);
@@ -282,9 +314,40 @@ struct d7sam_concat
 
     operator char* ()
     {
-        return(TextBuffer);
+        return(TempBuffer);
     }
 };
+
+// TODO(chowie): String To Float - https://gist.github.com/d7samurai/140807683843a06195c33494e3546a84
+/*
+double string_to_float(char* str)
+{
+    double num = 0.0;
+    double mul = 1.0;
+    int    len = 0;
+    int    dec = 0;
+
+    while (str[len]) if (str[len++] == '.') dec = 1;
+
+    for (int idx = len - 1; idx >= 0; idx--)
+    {
+        if      (str[idx] == '-') num = -num;
+        else if (str[idx] == '.') dec = 0; 
+        else if (dec)
+        {
+            num += str[idx] - '0';
+            num *= 0.1;
+        }
+        else
+        {
+            num += (str[idx] - '0') * mul;
+            mul *= 10.0;
+        }
+    }
+
+    return num;
+}
+*/
 
 /* STUDY(chowie): Alternative to printf. Takes sizeof(Buffer) prevents
    passing a buffer that's too small that would overwrite the end of

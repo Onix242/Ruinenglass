@@ -68,7 +68,7 @@ AddWall(game_state *GameState, v3s AbsTile)
 }
 
 internal void
-MoveEntity(game_state *GameState, entity *Entity, r32 dt, v2 ddP, v2 MetersToPixels)
+MoveEntity(game_state *GameState, entity *Entity, f32 dt, v2 ddP, v2 MetersToPixels)
 {
     world *World = GameState->World;
 
@@ -81,10 +81,10 @@ MoveEntity(game_state *GameState, entity *Entity, r32 dt, v2 ddP, v2 MetersToPix
     // TODO(chowie): Should it really be MaxddP > 1.0f?
     ddP = NOZ(ddP);
 
-    r32 Speed = 30.0f;
+    f32 Speed = 30.0f;
     ddP *= Speed;
 
-    r32 Drag = 8.0f;
+    f32 Drag = 8.0f;
     ddP += -Drag*Entity->dP;
 
 #if 0
@@ -116,6 +116,7 @@ GetCameraSpaceP(game_state *GameState, entity *Entity)
     return(Result);
 }
 
+// TODO: IMPORTANT: Use the idea of SimBounds!
 internal void
 SetCamera(game_state *GameState, world_pos NewCameraP, v3 TileSideInMeters)
 {
@@ -182,7 +183,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                         Memory->Permanent.Size - sizeof(game_state),
                         Memory->Permanent.Base + sizeof(game_state));
 
-        r32 PixelsToMeters = 1.0f / 42.0f;
+        f32 PixelsToMeters = 1.0f / 42.0f;
         v3 WorldChunkDimInMeters = V3(PixelsToMeters*256.0f, PixelsToMeters*256.0f, PixelsToMeters*256.0f);
 
         GameState->World = PushStruct(&GameState->WorldArena, world);
@@ -228,7 +229,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     // Play World
     //
 
-    r32 dt = Input->dtForFrame;
+    f32 dt = Input->dtForFrame;
     for(u32 ControllerIndex = 0;
         ControllerIndex < ArrayCount(Input->Controllers);
         ++ControllerIndex)
@@ -277,10 +278,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
                 ConPlayer->ddP = NOZ(ConPlayer->ddP);
 
-                r32 Speed = 30.0f;
+                f32 Speed = 30.0f;
                 ConPlayer->ddP *= Speed;
 
-                r32 Drag = 8.0f;
+                f32 Drag = 8.0f;
                 ConPlayer->ddP += -Drag*GameState->dP;
 
                 // RESOURCE(HmH): https://guide.handmadehero.org/code/day043/#4686
@@ -297,7 +298,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     // NOTE(chowie): Simulate all entities
     //
 
-    PushCircle(RenderGroup, V3(600, 600, 0), 50.0f, 20, V4(0.5f, 0.5f, 0.5f, 0.5f));
+    PushCircle(RenderGroup, V3(600, 600, 0), 50.0f, 4, V4(0.5f, 0.5f, 0.5f, 0.5f));
 
     // STUDY(chowie): Straight ahead loop
     for(u32 EntityIndex = 0;
@@ -495,8 +496,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
             // TODO(chowie): Tesselate for n-sized group tiles?
             v2 Min;
-            Min.x = (r32)((Column - 1*Odd(Column)) / 2)*HoneycombDim.x + BlockDim.x*Odd(Column);
-            Min.y = (r32)((Row - 1*Odd(Row)) / 2)*HoneycombDim.y + BlockDim.y*Odd(Row);
+            Min.x = (f32)((Column - 1*Odd(Column)) / 2)*HoneycombDim.x + BlockDim.x*Odd(Column);
+            Min.y = (f32)((Row - 1*Odd(Row)) / 2)*HoneycombDim.y + BlockDim.y*Odd(Row);
 
             v2 Max;
             Max.x = Min.x + BlankDim.x*Odd(Column) + BlockDim.x*!Odd(Column);

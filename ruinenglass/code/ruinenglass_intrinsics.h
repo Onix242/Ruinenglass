@@ -14,65 +14,65 @@ SignOf(s32 Value)
     return(Result);
 }
 
-inline r32
-SignOf(r32 Value)
+inline f32
+SignOf(f32 Value)
 {
     __m128 SignMask = _mm_set1_ps(-0.0f); // NOTE(chowie): -0.0f = 1 << 31
     __m128 One = _mm_set_ss(1.0f);
     __m128 SignBit = _mm_and_ps(_mm_set_ss(Value), SignMask);
     __m128 Combined = _mm_or_ps(One, SignBit);
 
-    r32 Result = _mm_cvtss_f32(Combined);
+    f32 Result = _mm_cvtss_f32(Combined);
     return(Result);
 }
 
 // RESOURCE(wychmaster): https://stackoverflow.com/questions/57870896/writing-a-portable-sse-avx-version-of-stdcopysign
 // RESOURCE(theowl84): Same technique using andnot to negate can be observed here - http://fastcpp.blogspot.com/2011/03/changing-sign-of-float-values-using-sse.html
-inline r32
-CopySign(r32 Sign, r32 Value)
+inline f32
+CopySign(f32 Sign, f32 Value)
 {
     __m128 SignMask = _mm_set1_ps(-0.0f);
     __m128 ExtractSign = _mm_and_ps(_mm_set_ss(Sign), SignMask);
     __m128 ExtractValue = _mm_andnot_ps(SignMask, _mm_set_ss(Value)); // STUDY(chowie): Equivalent of AbsoluteValue(Value)
 
-    r32 Result = _mm_cvtss_f32(_mm_or_ps(ExtractSign, ExtractValue));
+    f32 Result = _mm_cvtss_f32(_mm_or_ps(ExtractSign, ExtractValue));
     return(Result);
 }
 
-inline r32
-SquareRoot(r32 R32)
+inline f32
+SquareRoot(f32 F32)
 {
-    r32 Result = _mm_cvtss_f32(_mm_sqrt_ss(_mm_set_ss(R32)));
+    f32 Result = _mm_cvtss_f32(_mm_sqrt_ss(_mm_set_ss(F32)));
     return(Result);
 }
 
 // RESOURCE(martins): https://handmade.network/forums/t/6940-understanding_basic_simd#21153
 // RESOURCE(cbloom): http://cbloomrants.blogspot.com/2010/11/11-20-10-function-approximation-by_20.html
 // NOTE(chowie): 1/sqrt(x), replaces normalising vectors
-inline r32
-InvSquareRoot(r32 R32)
+inline f32
+InvSquareRoot(f32 F32)
 {
     __m128 Half = _mm_set1_ps(0.5f);
     __m128 Three = _mm_set1_ps(3.0f);
-    __m128 Value = _mm_set_ss(R32);
+    __m128 Value = _mm_set_ss(F32);
     __m128 Rsqrt = _mm_rsqrt_ss(Value);
 
     // NOTE(chowie): Newton's
     __m128 Temp = _mm_mul_ps(_mm_mul_ps(Value, Rsqrt), Rsqrt);
     Rsqrt = _mm_mul_ps(_mm_mul_ps(Half, Rsqrt), _mm_sub_ps(Three, Temp));
 
-    r32 Result = _mm_cvtss_f32(Rsqrt);
+    f32 Result = _mm_cvtss_f32(Rsqrt);
     return(Result);
 }
 
 // RESOURCE(norbert): https://stackoverflow.com/questions/5508628/how-to-absolute-2-double-or-4-floats-using-sse-instruction-set-up-to-sse4
-inline r32
-AbsoluteValue(r32 R32)
+inline f32
+AbsoluteValue(f32 F32)
 {
     __m128 SignMask = _mm_set1_ps(-0.0f); // NOTE(chowie): -0.0f = 1 << 31
-    __m128 ExtractValue = _mm_andnot_ps(SignMask, _mm_set_ss(R32));
+    __m128 ExtractValue = _mm_andnot_ps(SignMask, _mm_set_ss(F32));
 
-    r32 Result = _mm_cvtss_f32(ExtractValue);
+    f32 Result = _mm_cvtss_f32(ExtractValue);
     return(Result);
 }
 
@@ -132,33 +132,33 @@ RotateRight(u32 Value, s32 Amount)
 }
 
 // NOTE(chowie): SSE4.1
-inline r32
-Round(r32 R32)
+inline f32
+Round(f32 F32)
 {
-    r32 Result = _mm_cvtss_f32(_mm_round_ss(_mm_setzero_ps(), _mm_set_ss(R32),
+    f32 Result = _mm_cvtss_f32(_mm_round_ss(_mm_setzero_ps(), _mm_set_ss(F32),
                                             (_MM_FROUND_TO_NEAREST_INT |_MM_FROUND_NO_EXC)));
     return(Result);
 }
 
 inline s32
-RoundR32ToS32(r32 R32)
+RoundF32ToS32(f32 F32)
 {
-    s32 Result = _mm_cvtss_si32(_mm_set_ss(R32));
+    s32 Result = _mm_cvtss_si32(_mm_set_ss(F32));
     return(Result);
 }
 
 inline u32
-RoundR32ToU32(r32 R32)
+RoundF32ToU32(f32 F32)
 {
-    u32 Result = (u32)_mm_cvtss_si32(_mm_set_ss(R32));
+    u32 Result = (u32)_mm_cvtss_si32(_mm_set_ss(F32));
     return(Result);
 }
 
 /*
 // NOTE(chowie): SSE2 Floor - Thanks martins, Includes INF & NaN
 // RESOURCE(martins): https://gist.github.com/mmozeiko/56db3df14ab380152d6875383d0f4afd
-internal r32
-MartinsFloor(r32 Value)
+internal f32
+MartinsFloor(f32 Value)
 {
     __m128 SignBit = _mm_set1_ps(-0.0f);
     __m128 One = _mm_set1_ps(1.0f);
@@ -182,62 +182,63 @@ MartinsFloor(r32 Value)
 */
 
 // NOTE(chowie): SSE 4.1
-internal r32
-Floor(r32 R32)
+internal f32
+Floor(f32 F32)
 {
-    r32 Result = _mm_cvtss_f32(_mm_floor_ss(_mm_setzero_ps(), _mm_set_ss(R32)));
+    f32 Result = _mm_cvtss_f32(_mm_floor_ss(_mm_setzero_ps(), _mm_set_ss(F32)));
     return(Result);
 }
 
 // NOTE(chowie): Floor for non-negative values, only [0 .. +2147483648) range.
-internal r32
-FloorPositive(r32 R32)
+internal f32
+FloorPositive(f32 F32)
 {
-    Assert(SignOf(R32) == 1.0f);
-    r32 Result = _mm_cvtss_f32(_mm_cvtepi32_ps(_mm_cvttps_epi32(_mm_set_ss(R32))));
+    Assert(SignOf(F32) == 1.0f);
+    f32 Result = _mm_cvtss_f32(_mm_cvtepi32_ps(_mm_cvttps_epi32(_mm_set_ss(F32))));
     return(Result);
 }
 
-inline r32
-Fract(r32 R32)
+// NOTE(chowie): Exact same as modf
+inline f32
+Fract(f32 F32)
 {
-    r32 Result = (R32 - Floor(R32));
+    f32 Result = (F32 - Floor(F32));
     return(Result);
 }
 
 inline s32
-FloorR32ToS32(r32 R32)
+FloorF32ToS32(f32 F32)
 {
-    s32 Result = (s32)Floor(R32);
+    s32 Result = (s32)Floor(F32);
     return(Result);
 }
 
 inline u32
-FloorR32ToU32(r32 R32)
+FloorF32ToU32(f32 F32)
 {
-    u32 Result = (u32)FloorPositive(R32);
+    u32 Result = (u32)FloorPositive(F32);
     return(Result);
 }
 
-inline r32
-Ceil(r32 R32)
+inline f32
+Ceil(f32 F32)
 {
-    r32 Result = _mm_cvtss_f32(_mm_ceil_ss(_mm_setzero_ps(), _mm_set_ss(R32)));
+    f32 Result = _mm_cvtss_f32(_mm_ceil_ss(_mm_setzero_ps(), _mm_set_ss(F32)));
     return(Result);
 }
 
 // TODO(chowie): Don't think I need this!
 inline s32
-CeilR32ToS32(r32 R32)
+CeilF32ToS32(f32 F32)
 {
-    s32 Result = _mm_cvtss_si32(_mm_ceil_ss(_mm_setzero_ps(), _mm_set_ss(R32)));
+    s32 Result = _mm_cvtss_si32(_mm_ceil_ss(_mm_setzero_ps(), _mm_set_ss(F32)));
     return(Result);
 }
 
 inline s32
-TruncateR32ToS32(r32 R32)
+TruncateF32ToS32(f32 F32)
 {
-    s32 Result = (s32)R32;
+    s32 Result = (s32)F32;
     return(Result);
 }
 
@@ -296,14 +297,14 @@ FindMostSignificantBit(u32 Value) // NOTE(chowie): clz
 
 // RESOURCE(): FMA improvements - https://momentsingraphics.de/FMA.html
 // NOTE(chowie): Requires AVX, otherwise use _mm_add and _mm_sub if unsure about the architecture
-// r32 Result = fmaf(MultA, MultB, AddValue);
+// f32 Result = fmaf(MultA, MultB, AddValue);
 // NOTE(chowie): "A x B + C". A hidden benefit of fma is that it only rounds once (at the end).
 // A * B is maintained with enough accuracy, by the time that C is added, it's much closer to the result of A * B + C.
 // NOTE(chowie): DifferenceOfProducts multiplying by a power of 2 is exact to IEEE, Quadratic Formula = DifferenceOfProducts(b, b, 4 * a, c)
-inline r32
-Fma(r32 A, r32 B, r32 Add)
+inline f32
+Fma(f32 A, f32 B, f32 Add)
 {
-    r32 Result = _mm_cvtss_f32(_mm_fmadd_ss(_mm_set_ss(A), _mm_set_ss(B), _mm_set_ss(Add)));
+    f32 Result = _mm_cvtss_f32(_mm_fmadd_ss(_mm_set_ss(A), _mm_set_ss(B), _mm_set_ss(Add)));
     return(Result);
 }
 
@@ -313,26 +314,26 @@ Fma(r32 A, r32 B, r32 Add)
 // NOTE(chowie): A*B - C*D for better accuracy; avoids catatrophic cancellation (high precision calculations without needing to convert to r64)
 // TODO(chowie): Convert this to SIMD?
 // TODO(chowie): Also use this for quadratic discriminant, 2x2 matrix etc...
-inline r32
-DifferenceOfProducts(r32 A, r32 B, r32 C, r32 D)
+inline f32
+DifferenceOfProducts(f32 A, f32 B, f32 C, f32 D)
 {
-    r32 Mult = C*D;
-    r32 Error = Fma(-C, D, Mult);
-    r32 Difference = Fma(A, B, -Mult);
+    f32 Mult = C*D;
+    f32 Error = Fma(-C, D, Mult);
+    f32 Difference = Fma(A, B, -Mult);
 
-    r32 Result = Difference + Error;
+    f32 Result = Difference + Error;
     return(Result);
 }
 
 // NOTE(chowie): A*B + C*D
-inline r32
-SumOfProducts(r32 A, r32 B, r32 C, r32 D)
+inline f32
+SumOfProducts(f32 A, f32 B, f32 C, f32 D)
 {
-    r32 Mult = C*D;
-    r32 Error = Fma(C, -D, Mult);
-    r32 Difference = Fma(A, B, Mult);
+    f32 Mult = C*D;
+    f32 Error = Fma(C, -D, Mult);
+    f32 Difference = Fma(A, B, Mult);
 
-    r32 Result = Difference - Error;
+    f32 Result = Difference - Error;
     return(Result);
 }
 
@@ -352,26 +353,26 @@ SumOfProducts(r32 A, r32 B, r32 C, r32 D)
 // RESOURCE(fabien): https://fgiesen.wordpress.com/2010/10/21/finish-your-derivations-please/
 // TODO(chowie): I don't want to be using angles, right? Hopefully I can replace everything with rational trig
 // TODO(chowie): Replace with SSE2 instruction of sin?
-inline r32
-Sin(r32 Angle)
+inline f32
+Sin(f32 Angle)
 {
-    r32 Result = sinf(Angle);
+    f32 Result = sinf(Angle);
     return(Result);
 }
 
-inline r32
-Cos(r32 Angle)
+inline f32
+Cos(f32 Angle)
 {
-    r32 Result = cosf(Angle);
+    f32 Result = cosf(Angle);
     return(Result);
 }
 
 // RESOURCE(nghia ho): https://nghiaho.com/?p=997
 // TODO(chowie): Replace atan2?
-inline r32
-ATan2(r32 Y, r32 X)
+inline f32
+ATan2(f32 Y, f32 X)
 {
-    r32 Result = atan2f(Y, X);
+    f32 Result = atan2f(Y, X);
     return(Result);
 }
 
@@ -384,10 +385,10 @@ FMod(u32 X, u32 Y)
     return(Result);
 }
 
-inline r32
-FMod(r32 X, r32 Y)
+inline f32
+FMod(f32 X, f32 Y)
 {
-    r32 Result = fmodf(X, Y);
+    f32 Result = fmodf(X, Y);
     return(Result);
 }
 

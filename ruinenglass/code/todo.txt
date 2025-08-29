@@ -14,6 +14,7 @@
 
   - Math
     = Rotors + Rational trig rotor paper + SLerp with >2 rotor
+    = Math + Quaternions RESOURCE(): http://marc-b-reynolds.github.io/categories.html
     = RESOURCE(): https://twitter.com/SpiveeWorks/status/1592674655235887105
     = RESOURCE(): https://jarviscarroll.net/math/rotors.pdf
     = RESOURCE(): https://www.johndcook.com/blog/2022/11/30/trilinear-coordinates/
@@ -23,6 +24,16 @@
     = RESOURCE(): https://www.johndcook.com/blog/2010/01/19/dont-invert-that-matrix/
       RESOURCE(): https://blog.demofox.org/2017/01/02/incremental-least-squares-surface-and-hyper-volume-fitting/
       RESOURCE(): https://stackoverflow.com/questions/24117204/algorithm-for-simple-squared-squares
+    = RESOURCE(): Generic functions https://allenchou.net/blog/
+    = RESOURCE(): https://blog.demofox.org/2014/11/04/four-ways-to-calculate-sine-without-trig/
+    = RESOURCE(): Shuffling a POSET - https://www.youtube.com/watch?v=dr-jUCelobk
+      > Topological sort in two passes odd and even in pairs
+      > Useful for randomising a list fairly while still mailing certain ordered rules.
+      > Might be useful for language learning e.g. transitive verbs are tested before intransitive!
+      > Even/Odd int http://marc-b-reynolds.github.io/math/2022/12/16/ParityWalks.html
+      > https://marc-b-reynolds.github.io/math/2022/01/28/RNGParity.html
+        ~"u  |= 1; return u ^ (u >> 1);" = "return u ^ rotl(u,1)" // 3u
+        ~"u <<= 1; return u ^ (u >> 1);" = "return u ^ rotl(u,1) ^ 1" // 3u + 1
 
   - Memory
     = [Mr.4th dimensions'] Arenas
@@ -32,22 +43,38 @@
     = [Emacs'] Gap Buffer for simple text input
     = Defining the concept of a paragraph?
 
+  - Z!
+    = Need to make a solid concept of ground levels, so the camera
+      can be freely placed in Z and have multiple ground levels in
+      one sim region.
+    = Concept of ground in collision so it can handle collisions
+      coming onto _and off of_ stairwells, for example.
+    = Straighten out all coordinate systems!
+      > Screen
+      > World
+      > Texture
+
   - Rendering
+    = IMPORTANT(chowie): Enable showing grid lines, name them "data prison"
     = Blit bitmap fonts as mirrored textures
     = Subdivide square meshes on the fly for bending
     = [Martins'] monospace font shader
     = 3D Rendering
     = Matrix Camera (Orthographic and Perspective transition)
     Sample camera functions - RESOURCE(): https://github.com/skejeton/cave-tropes/blob/main/src/camera.cpp
+    = HmH Day 333 14:01 - Orthographic to perspective camera when climbing stairs vertically would look good!
     = Non-square shapes mapping to grid e.g. circle to multiple squares on a grid?
     = [Brehensam's] shapes primatives: diagonal line drawing
     = Splines not only for animation; to populate things e.g. roads, rivers
     = Colour linear to srgb conversion. OkLab support?
-    RESOURCE(): https://youtu.be/sRL_RU7-jfc?t=123
+      RESOURCE(): https://youtu.be/sRL_RU7-jfc?t=123
       > Reconstruction position by camera depth and shadow mapping /
         bloom
       > NOTE: Cutting down the v4 Colour / Emission vertex data isn't
         super impactful on performance
+      RESOURCE(): https://gist.github.com/rygorous/2203834
+      RESOURCE(): https://gamedev.stackexchange.com/questions/92015/optimized-linear-to-srgb-glsl
+      RESOURCE(): http://chilliant.blogspot.com/2012/08/srgb-approximations-for-hlsl.html
     = Procedural UI text splats for the backdrop based on the chosen
       font. Animation when going to setting or anything at fades to
       black or needs a blank backing has a backdrop for text interfaces.
@@ -57,11 +84,11 @@
     = LOD should fill small holes (if too far).
     = Play with Mipmaps like Sandvich disappearing as you got
       closer. Or a cheap fog effect RESOURCE(): https://simonschreibt.de/gat/deus-ex-scanlines/
+      > Fog is under Continuum Dynamics!
     = Tessellation (corner) to make auto hole-aware wrapping of
       surfaces e.g. fences placed along a hole or balcony. Need
       symmetry for W & S edges.
     = Tessellation are wrapped with moveable control points.
-    = Outlines and dithering RESOURCE(): https://blog.playstation.com/2019/10/17/return-of-the-obra-dinn-adventures-in-one-bit-out-tomorrow/
     = Wrapping noise HmN RESOURCE(): https://discord.com/channels/239737791225790464/1290836334750990358
     = Graphics tricks in games - RESOURCE(): https://simonschreibt.de/game-art-tricks/
     = Parallax railing - RESOURCE(): https://simonschreibt.de/gat/alpha1-top5/
@@ -72,33 +99,69 @@
       distance?
       RESOURCE(): https://www.reddit.com/r/oddlysatisfying/comments/77u8ha/mirror_calligraphy/
     = Light refraction code - RESOURCE(): https://robertandrewspencer.com/rainbow/
+    = RESOURCE(): https://www.youtube.com/watch?v=rIX-RsFFF4Y
+      Flood-fill but sample 2 blocks on the face of the normal. If the
+      furthest sample is darker (d), then the block's side is in shadow (S).
+      Lights are 32 block radius. Lighting is "inaccurate", but good enough!
+      Works for all RGB channels too, wow! Usually flood fill looks flat.
+      E.g.  x  x  [ ]
+            d  l  S ]
+    = RESOURCE(): https://forkingpaths.dev/posts/22-11-01/vector_graphics.html
+    = Shader CRT
+      > RESOURCE(): https://mini.gmshaders.com/p/gm-shaders-mini-crt
+      > Fractal texturing without mipmapping, replaced with numerical methods -
+        RESOURCE(): https://mini.gmshaders.com/p/gm-shaders-mini-fractal-texturing-1408552
+    = Outlines and dithering RESOURCE(): https://blog.playstation.com/2019/10/17/return-of-the-obra-dinn-adventures-in-one-bit-out-tomorrow/
+      - RESOURCE(): Stable-diffusion dithering - https://www.youtube.com/watch?v=HPqGaIMVuLs
+    = Real projections with solid concept of project/unproject (with mouse too)
 
   - Sorting?
 
   - Enable Multi-Threading
+    = Ticket-taking
+    = Dynamic memory arenas
+
+  - UI
+    = (A little GUI, but only a little!) [Red Blob Games'] Switches / Sliders / etc.
+    = RESOURCE(): https://forkingpaths.dev/posts/23-03-10/rule_based_styling_imgui.html
+    = RESOURCE(): Rect cuts - https://halt.software/p/rectcut-for-dead-simple-ui-layouts
+    = RESOURCE(): https://ambientimpact.com/web/snippets/amazons-menu-prediction-cone
+      Prediction drop-down menus triangle???
+    = Radial menu + Spiral
+    = Geologica (heading) + Hyperlegible (body -> 0.3f leading)
 
   - Debug Code
     = [Computer Enhance's] Simple Profiler set as a base
     = Logging
     = Diagramming
-    = (A little GUI, but only a little!) [Red Blob Games'] Switches / Sliders / etc.
     = Draw tile chunks so we can verify that things are aligned / in the chunks we want them in / etc.
     = Thread visualisation
 
   - Audio
     = [Martins'] Multi-threaded audio
     = Audio Mixer
+    = RESOURCE(): Freeverb - https://gist.github.com/rxi/d542a249b0bc52a9ac9bdfc047dc4083
 
   - World
     = [Red Blob Games'] Grid
     = [Fabian's] Morton's Code For Tile Storage? Must be u32, not s32!
-    = Sim Regions
     = RESOURCE(): https://grahamshawcross.com/2012/02/03/a-dream-world/
       RESOURCE(): Inset tiles - https://bsky.app/profile/delaneyking.bsky.social/post/3l7fxcrd3ec2x
       Splitting a tile in 4?
     = TODO(chowie): Auto-size edges and corner by a ratio once buckled
     down how big those should be. You would pick the body > edges and
     corners are picked for you (which you can resize at a later point)
+
+  - Sim Regions
+      = Multiple Sim Regions per frame
+        > Per entity clocking
+        > Multiple Sim Regions and active entities
+        > Sim Region Merging?
+
+  - RNG
+    = Random placement of points, dithering (better than Bayers and whatever Call of Duty uses)?
+      Need Fibonacci and Phi -
+      RESOURCE(): https://extremelearning.com.au/unreasonable-effectiveness-of-quasirandom-sequences/
 
   RESOURCE: https://www.gridsagegames.com/blog/2015/07/roguelike-development-rexpaint/
   * Picross Growable Structure Editor
@@ -153,6 +216,8 @@
     = Try sort by colour to aid in memory when you can’t remember the names
       RESOURCE(): https://robertandrewspencer.com/sort-by-hue/
 
+  - Waypoint web, refer to HmH where we did made directed edges with sprite sorting and walked the graph with visted nodes
+
   - Particle Systems
     = RESOURCE(): https://cowboyprogramming.com/2007/01/05/multithreading-particle-sytems/
     = Rain serving as compass directions
@@ -160,13 +225,15 @@
     TODO(chowie): HmH search up mesh deformation! Different from mesh skinning?
     = Vector/flow fields in gridded world for dynamic wind patterns. See (3D) perlin noise
       RESOURCE(): https://cowboyprogramming.com/2008/04/01/practical-fluid-mechanics/
+      RESOURCE(): Fluidsim Base - https://www.shadertoy.com/view/MdSczK
     = 2D parallax mapping (pixel shader) RESOURCE(): https://cowboyprogramming.com/2007/01/05/parallax-mapped-bullet-holes/
+
+  - Collision Detection (only for player controllers)
+    = CCD, SAT or similar
 
   - Entity
     = [Ryan Fleury's] Flag Storage
     = Brains
-    = Collision Detection (only for player controllers)
-      > CCD, SAT or similar
     = Storage & updating entities -> on rain, saving out to disk
       storage's stays low, need to combat the amount of entities that
       need updating (memory usage will probably increase by more than
@@ -180,14 +247,46 @@
       Not to render the world if an axis >= [number]. E.g. If you said
       you cannot render if greater than X >= 6. Then, you can make any
       wall a greenscreen!
+    = Multi-segment snakes (if each letter is an entity)
+      > ~25 avg. length with basic to no AI (no AI could get promoted to basic)
+      > Typically with a small search space?
+      > Length = move speed + priority of who gives way if two will collide,
+        longer is slower with better priority (like public transport buses)
+
+  - AI
+    = AI "storage" (how much state and where?)
 
   RESOURCE(): https://cowboyprogramming.com/2007/03/12/optimized-asset-processing/
   Asset pipelines: converters, calculators, packers
   - Asset Loading System
     = Bitmaps,
-    = StbTrueType Text,
+    = StbTrueType Text, RESOURCE(): http://arkanis.de/weblog/2023-08-14-simple-good-quality-subpixel-text-rendering-in-opengl-with-stb-truetype-and-dual-source-blending#gl45-subpixel-text-rendering-subpixel-pos
     = Audio?
     = HUID and GUID RESOURCE(): https://cowboyprogramming.com/2007/01/04/practical-hash-ids/
+      U32 to u32 hash - https://stackoverflow.com/questions/664014/what-integer-hash-function-are-good-that-accepts-an-integer-hash-key
+
+  - Text data structures:
+    = Unicode lib - Inspired by HMN scroll:
+    RESOURCE(): https://github.com/HandmadeNetwork/wishlist/discussions/16
+    RESOURCE(): https://github.com/HandmadeNetwork/wishlist/discussions/20
+    RESOURCE(): https://www.youtube.com/watch?v=1RjU5XJqysc
+    > Smallest unit are words (word struct has pointer to screen), so
+      formatting like bold, italics, colour is quick! Cursor contains
+      all types (char, word, para, level) as well!
+    > What if text filters could autogenerate "grouped tabs" e.g. A-Z
+      filter would generate on a sidebar buttons you could then
+      click. You would have to autogenerate a tree with linked list
+      for each entry (nodes)? You could do nesting filters on top of
+      that lol! “Group” then “sort” filter displayed chronologically
+      left to right, and can be rearranged/swapped.
+    > Now having a hierarchy to play with is quite different from
+      other text editors!
+    > Node editor (subtree gets complicated with a textual position)
+      vs text editor (simpler way of editing, offset from file or line
+      and column)
+    > Searching should include for "free list", "free-list",
+      "free…[words later]…list"
+    > IMPORTANT(chowie): Case-insensitive search
 
   - Metagame / Save Game?
     = How do you enter a "save slot"?
@@ -199,6 +298,8 @@
 
   * AI
     = Coop A* Pathfinding
+    = RESOURCE(): https://www.reddit.com/r/gamedev/comments/dk19g6/new_pathfinding_algorithm_factorio/
+    = RESOURCE(): https://www.redblobgames.com/pathfinding/
     = Include time as a 4d grid visualisation graph
     = Light word generation with Bigrams and markov chains with pairs
     of hooks that are not fixed length
@@ -206,6 +307,7 @@
     = Parser
       > Parse trees scanners - RESOURCE(): https://www.cs.binghamton.edu/~zdu/parsdemo/gramintro.html
       > Recursive descent parsers - RESOURCE(): https://www.cs.binghamton.edu/~zdu/parsdemo/recintro.html
+      > RESOURCE(): https://btmc.substack.com/p/how-to-parse-expressions-easy
 
   * Procedural Animation
     = How do "eels" slide and bend (at corners) along walls?
@@ -217,6 +319,10 @@
     = http://blog.wolfire.com/2014/05/GDC-2014-Procedural-Animation-Video
     = Trifan concentric circles for shattering? - RESOURCE(): https://cowboyprogramming.com/2007/01/05/shattering-reality/
     = Trifan sampling blob physics RESOURCE(): https://cowboyprogramming.com/2007/01/05/blob-physics/
+    = Clean up our notion of multiple part entities and how they are animated
+    = Spring/Dampers? RESOURCE(): https://theorangeduck.com/page/spring-roll-call
+      RESOURCE(): https://theorangeduck.com/page/perfect-tracking-springs
+    = RESOURCE(): https://theorangeduck.com/page/tags-ranges-masks
 
   - Raw Input / Multimonitor / Multiple keyboards types
     = GetKeyboardLayout
@@ -241,6 +347,8 @@
       so you remember the context. Should it be sooner, it continues
       exactly as you left off.
 
+  RESOURCE(): Defer? https://btmc.substack.com/p/implementing-scoped-defer-in-c
+
   ----------------8<-------------[ production / game ]------------------
   Voxel ASCII is like the faces of toy blocks.
 
@@ -251,6 +359,11 @@
       drawing/grouping (hashing) vertically
       RESOURCE(): https://m.youtube.com/watch?v=r8rn7Vppgrc
     = RESOURCE(): Gradient for mountains not noise - https://iquilezles.org/articles/morenoise/
+    = RESOURCE(runevision): Layer-based deterministic gen - https://www.youtube.com/watch?v=4oJGkx0K8UQ
+    = RESOURCE(): Interesting generation spaces - http://maetl.net/notes/storyboard/generating-interesting-content
+    = Cyclic generation!
+      > RESOURCE(): http://ctrl500.com/tech/handcrafted-feel-dungeon-generation-unexplored-explores-cyclic-dungeon-generation/
+      > RESOURCE(): http://maetl.net/notes/storyboard/cyclic-dungeon-generation
 
     = Top of the starting point of the world made from a spiral, what
     about this instead for variety?
@@ -295,11 +408,19 @@
 
   - Graph Visualisations https://datavizcatalogue.com/blog/ternary-graphs-triangular-plots/?
 
+  - Serious Optimisations
+    = 18,000 rectangles calls? (that was the fonts)
+      > HmH Day 332 shows how to batch at certain intervals; but you have to touch a lot of code usually!
+
   RESOURCE(): https://www.reddit.com/r/conlangs/comments/cfpeq2/a_minecraftbased_conlang/
   TODO(chowie): Try VSO like in Minecraft!
   /give Onix242 diamond_block 64
     > Verb, a command, if always requiring brackets might be the most memorable
     > Subject is the stablest position of a sentence (to be OSV)
+
+  STUDY(chowie): This is a smart way to do alternating!
+  b32x LeftHole = ScreenIndex % 2;
+  b32x RightHole = !LeftHole;
 
   Inspired by Turkish vowel cube mapping.
                                 W______________T
@@ -332,6 +453,17 @@
                             |_____________|
 
   ----------------8<-------------[ advice ]------------------
+
+  IMPORTANT(chowie): STUDY(chowie): "Writing the usage code first"
+  isn't quite right to CASEY anymore, if you know how the
+  implementation should work, not the API is like he uses a
+  compression style scheme and if you know you want the API to look a
+  certain way, or believe he could determine it, but don't know the
+  implementation should look like he goes in the other direction. The
+  hardest is not know either side, the efficient way to write the code
+  or what the API should look like. Then you're in a no man's land
+  like boundary value problems (mathematics), you don't know any in
+  between.
 
   IMPORTANT(chowie): JBlow doesn’t like _clamp_ and would rather fix
   the underlying problem. As a light fix, log them so players can let

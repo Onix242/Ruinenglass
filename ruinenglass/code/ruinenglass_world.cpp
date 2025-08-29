@@ -21,7 +21,7 @@ NullPosition(void)
 
 // TODO(chowie): Replace with rectcenterdim?
 inline b32x
-IsCanonical(r32 ChunkDim, r32 TileRel)
+IsCanonical(f32 ChunkDim, f32 TileRel)
 {
     b32x Result = ((TileRel >= -(0.5f*ChunkDim + Epsilon32)) &&
                    (TileRel <= (0.5f*ChunkDim + Epsilon32)));
@@ -135,11 +135,11 @@ GetWorldChunk(world *World, v3s ChunkValue, memory_arena *Arena = 0)
 // We would like to add .5, then divide. If it was .5, it would round
 // to 1. Then do a standard truncation towards 0.
 inline void
-RecanonicaliseCoord(r32 ChunkDim, s32 *Tile, r32 *TileRel)
+RecanonicaliseCoord(f32 ChunkDim, s32 *Tile, f32 *TileRel)
 {
-    s32 Offset = RoundR32ToS32(*TileRel / ChunkDim); // NOTE: Negative offset after round, ChunkDim +tive, TileRel -tive;
+    s32 Offset = RoundF32ToS32(*TileRel / ChunkDim); // NOTE: Negative offset after round, ChunkDim +tive, TileRel -tive;
     *Tile += Offset; // NOTE: Delta is treated, here Bottom-left corner of a tile, tile-relative
-    *TileRel -= (r32)Offset*ChunkDim;
+    *TileRel -= (f32)Offset*ChunkDim;
     Assert(IsCanonical(ChunkDim, *TileRel));
 }
 

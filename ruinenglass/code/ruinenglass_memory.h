@@ -21,6 +21,23 @@ ZeroSize(umm Size, void *Ptr)
     }
 }
 
+// NOTE(chowie): HmH 351 1:33:55, Good easy speedup clear for SIMD. If
+// you need this, you might want to look for other methods! Set the
+// arena to AlignedNoClear, manually set the zero struct!
+// TODO(chowie): Pass in the alignment?
+#define ZeroStructAlign16(Instance) ZeroSizeAlign16(sizeof(Instance), &(Instance))
+inline void
+ZeroSizeAlign16(umm Size, void *Ptr)
+{
+    umm SizeDiv16 = sizeof(Ptr)/16;
+    f32 *DestSize = (f32 *)Ptr;
+    while(SizeDiv16--)
+    {
+        _mm_store_ps(DestSize, _mm_setzero_ps());
+        DestSize += 4;
+    }
+}
+
 // TODO(chowie): Check this? And use this!
 #define IsInBoundsArray(Count, type) IsInBounds_(Count, (Count)*sizeof(type))
 internal b32x
@@ -111,18 +128,19 @@ Align(u32 Alignment, b32x Clear = true)
 }
 
 // STUDY(chowie): Avoids slow startup as to not clear to zero
+// NOTE(chowie): Mostly used for SIMD
 inline arena_push_params
-AlignNoClear(u32 Alignment)
+AlignNoClear(u32 Alignment = 16)
 {
-    arena_push_params Result = Align(Alignment, false);
-    return(Result);
+    arena_push_params Params = Align(Alignment, false);
+    return(Params);
 }
 
 inline arena_push_params
 NoClear(void)
 {
     arena_push_params Params = DefaultArenaParams();
-    Params.Flags &= ~ArenaFlag_ClearToZero;
+    ClearFlag(Params.Flags, ArenaFlag_ClearToZero);
     return(Params);
 }
 
@@ -143,35 +161,16 @@ GetAlignmentOffset(memory_arena *Arena, umm Alignment)
     return(AlignmentOffset);
 }
 
-inline umm
-GetArenaSizeRemaining(memory_arena *Arena, arena_push_params Params = DefaultArenaParams())
-{
-    umm Result = Arena->Size - (Arena->Used + GetAlignmentOffset(Arena, Params.Alignment));
-    return(Result);
-}
-
 // STUDY(chowie): The alternative would be providing the arena's a way
 // to free memory on demand or allow deallocation to the arena.
 inline umm
 GetEffectiveSizeFor(memory_arena *Arena, umm SizeInit, arena_push_params Params = DefaultArenaParams())
 {
     umm Size = SizeInit;
-    if(Params.Alignment)
-    {
-        umm AlignmentOffset = GetAlignmentOffset(Arena, Params.Alignment);
-        Size += AlignmentOffset;
-    }
+    umm AlignmentOffset = GetAlignmentOffset(Arena, Params.Alignment);
+    Size += AlignmentOffset;
 
     return(Size);
-}
-
-// TODO(chowie): Debugging for per-frame arena
-inline b32x
-ArenaHasRoomFor(memory_arena *Arena, umm SizeInit, arena_push_params Params = DefaultArenaParams())
-{
-    umm Size = GetEffectiveSizeFor(Arena, SizeInit, Params);
-    b32x Result = ((Arena->Used + Size) <= Arena->Size);
-    return(Result);
 }
 
 #define PushStruct(Arena, type, ...) (type *)PushSize_(Arena, sizeof(type), ## __VA_ARGS__)
@@ -191,19 +190,17 @@ PushSize_(memory_arena *Arena, umm SizeInit, arena_push_params Params = DefaultA
     Assert(Size >= SizeInit);
     if(Params.Flags & ArenaFlag_ClearToZero)
     {
-        ZeroSize(SizeInit, Result);
+        if(Params.Alignment == 16) // TODO(chowie): See how useful this really is
+        {
+            ZeroSizeAlign16(SizeInit, Result);
+        }
+        else
+        {
+            ZeroSize(SizeInit, Result);
+        }
     }
 
     return(Result);
-}
-
-inline void
-SubArena(memory_arena *Result, memory_arena *Arena, umm Size, arena_push_params Params = DefaultArenaParams())
-{
-    Result->Size = Size;
-    Result->Base = (u8 *)PushSize_(Arena, Size, Params);
-    Result->Used = 0;
-    Result->TempCount = 0;
 }
 
 // NOTE(chowie): Nicety without having to call StringLength twice on a

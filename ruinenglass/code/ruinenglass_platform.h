@@ -199,7 +199,7 @@ typedef struct game_input
     // STUDY(chowie): The wall clock is passed as an input device
     // since time is passing (the elapsed interval). What do you have
     // to record to replay a user's session? Keyboard, mouse and time.
-    r32 dtForFrame;
+    f32 dtForFrame;
 
     b32x QuitRequested;
 

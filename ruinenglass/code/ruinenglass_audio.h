@@ -14,7 +14,7 @@ struct wilwa_dial_tone
 
     s32 Period;
     s32 ToneHz; // NOTE(chowie): For testing 200-500hz is a good range!
-    r32 Value; // NOTE(chowie): Sine value
+    f32 Value; // NOTE(chowie): Sine value
 };
 struct test_output_sound
 {
@@ -28,8 +28,8 @@ struct test_output_sound
 
 struct audio_state
 {
-    r32 tSine1;
-    r32 tSine2;
+    f32 tSine1;
+    f32 tSine2;
 };
 
 #define RUINENGLASS_AUDIO_H

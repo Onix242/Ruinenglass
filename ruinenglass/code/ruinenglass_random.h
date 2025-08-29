@@ -81,25 +81,25 @@ RandomChoice(random_series *Series, u32 ChoiceCount)
 // TODO(chowie): Check this for bias!
 // NOTE: Normal (0 to 1)
 // NOTE(chowie): Masked off lower bits
-inline r32
+inline f32
 RandomUnilateral(random_series *Series)
 {
-    r32 Result = (r32)((u32)(XorshiftStar32(Series) >> 1) / ((u32)(U32Max >> 1)));
+    f32 Result = (f32)((u32)(XorshiftStar32(Series) >> 1) / ((u32)(U32Max >> 1)));
     return(Result);
 }
 
 // NOTE: Binormal (-1 to 1) 
-inline r32
+inline f32
 RandomBilateral(random_series *Series)
 {
-    r32 Result = 2.0f*RandomUnilateral(Series) - 1.0f;
+    f32 Result = 2.0f*RandomUnilateral(Series) - 1.0f;
     return(Result);
 }
 
-inline r32
+inline f32
 RandomBetween(random_series *Series, v2 Range)
 {
-    r32 Result = Lerp(Range.Min, RandomUnilateral(Series), Range.Max);
+    f32 Result = Lerp(Range.Min, RandomUnilateral(Series), Range.Max);
     return(Result);
 }
 

@@ -13,7 +13,7 @@ BeginRenderGroup(game_render_commands *Commands)
 {
     render_group Result = {};
     Result.Commands = Commands;
-    Result.ScreenArea = RectMinDim(V2(0, 0), V2i(Commands->Dim));
+    Result.ScreenDim = V2i(Commands->Dim);
 
     return(Result);
 }
@@ -54,7 +54,7 @@ PushClear(render_group *RenderGroup, v4 Colour)
 // TODO(chowie): Pass rotation
 inline void
 PushCircle(render_group *RenderGroup,
-           v3 Offset, r32 Radius, u32 TriCount, v4 Colour = V4(1, 1, 1, 1), r32 Circumference = Tau32)
+           v3 Offset, f32 Radius, u32 TriCount, v4 Colour = V4(1, 1, 1, 1), f32 Circumference = Tau32)
 {
     render_entry_circle *Circle = PushRenderElement(RenderGroup, render_entry_circle);
     if(Circle)
@@ -70,10 +70,10 @@ PushCircle(render_group *RenderGroup,
 /*
 inline void
 PushCircle(render_group *RenderGroup,
-           v3 Offset, r32 Radius, r32 Error, v4 Colour = V4(1, 1, 1, 1))
+           v3 Offset, f32 Radius, f32 Error, v4 Colour = V4(1, 1, 1, 1))
 {
-    r32 Theta = (r32)acos(1 - Error / Radius);
-    r32 Tris = Ceil(Pi32 / Theta);
+    f32 Theta = (f32)acos(1 - Error / Radius);
+    f32 Tris = Ceil(Pi32 / Theta);
     PushCircle(RenderGroup, Offset, Radius, Tris, Colour);
 }
 */
@@ -102,7 +102,7 @@ PushRect(render_group *RenderGroup,
 
 inline void
 PushRectOutline(render_group *RenderGroup,
-                v3 Offset, v2 Dim, v4 Colour = V4(1, 1, 1, 1), r32 BorderThickness = 0.1f)
+                v3 Offset, v2 Dim, v4 Colour = V4(1, 1, 1, 1), f32 BorderThickness = 0.1f)
 {
     // NOTE(chowie): Top and bottom
     PushRect(RenderGroup, Offset - V3(0, 0.5f*Dim.y, 0), V2(Dim.x - BorderThickness - 0.01f, BorderThickness), Colour);
@@ -115,7 +115,7 @@ PushRectOutline(render_group *RenderGroup,
 
 inline void
 PushRectOutline(render_group *RenderGroup,
-                rect2 Rect, v4 Colour = V4(1, 1, 1, 1), r32 BorderThickness = 0.1f)
+                rect2 Rect, v4 Colour = V4(1, 1, 1, 1), f32 BorderThickness = 0.1f)
 {
     PushRectOutline(RenderGroup, V3(GetCenter(Rect), 0), GetDim(Rect), Colour, BorderThickness);
 }

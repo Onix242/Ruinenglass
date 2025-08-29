@@ -610,6 +610,7 @@ IsTriangleNumber(entity *Entity, u32 Value)
     triangle_number_result Result = {};
     Result.IsTriangleNumber = false;
 
+    // TODO(chowie): Refer to HmH Day 354 29:50 for how to look back to a prev value!
     // TODO(chowie): Is it possible to combine the prev and current cases?
     for(u32 TriangleIndex = 0;
         TriangleIndex < (EntityType_Count + 1);
@@ -717,19 +718,12 @@ main(void)
         // NOTE(chowie): At runtime
         //
 
-        // STUDY(chowie): This is awfully similar to HmH Day 279 0h49m27s, in PackEntityIntoChunk() vs PackEntityIntoWorld()
+        // STUDY(chowie): This is similar to HmH Day 279 0h49m27s, in PackEntityIntoChunk() vs PackEntityIntoWorld()
         // TODO(chowie): Rename this to packed / unpack -> change accordingly
         u32 EntityPair = MapEntityPairToIndex(EntityType_Wall, EntityType_Wall);
         entity_pair_index_result TestPair = GetEntityPairFromIndex(&Entity, EntityPair);
         char *Test = PushString(&TextArena, d7sam_concat("Testing Unpacking Pairs: ")(TestPair.Row)(", ")(TestPair.Col)("\n"));
         OutputDebugStringA(Test);
-
-        /*
-        // NOTE(chowie): String test
-        char *Name = "Slim shady?";
-        char *Test = PushString(&TextArena, d7sam_concat("Attention! ")(Name)("\n"));
-        OutputDebugStringA(Test);
-        */
 
         ClearArena(&TextArena);
     }

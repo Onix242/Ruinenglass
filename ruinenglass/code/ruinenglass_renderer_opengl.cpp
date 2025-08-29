@@ -53,8 +53,7 @@ OpenGLGetInfo(b32x ModernContext)
     glGetIntegerv(GL_MINOR_VERSION, &Minor);
     if((Major > 2) || ((Major == 2) && (Minor >= 1)))
     {
-        // NOTE(chowie): We _believe_ we have srgb textures in 2.1 and above
-        // automatically
+        // NOTE(chowie): Should have srgb textures in 2.1+ automatically
         Result.GL_EXT_texture_sRGB = true;
     }
 
@@ -79,6 +78,7 @@ OpenGLInit(b32x ModernContext, b32x FramebufferSupportsSRGB)
         OpenGLDefaultInternalTextureFormat = GL_SRGB8_ALPHA8;
         glEnable(GL_FRAMEBUFFER_SRGB);
     }
+    glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE); // NOTE(chowie): This wouldn't work for multi-texturing env!
 }
 
 // RESOURCE(): https://ktstephano.github.io/rendering/opengl/prog_vtx_pulling
@@ -158,10 +158,10 @@ OpenGLRect(v3 MinP, v3 MaxP, v4 Colour, v2 MinUV = V2(0, 0), v2 MaxUV = V2(1, 1)
 // RESOURCE(inigo quilez): Eerily similar - https://iquilezles.org/articles/sincos/
 // RESOURCE(SiegeLord): Eerily similar - https://siegelord.net/circle_draw
 inline void
-OpenGLCircle(v3 CentreP, r32 Radius, u32 TriCount,
-             v4 Colour, r32 Circumference, v2 MinUV = V2(0, 0), v2 MaxUV = V2(1, 1))
+OpenGLCircle(v3 CentreP, f32 Radius, u32 TriCount,
+             v4 Colour, f32 Circumference, v2 MinUV = V2(0, 0), v2 MaxUV = V2(1, 1))
 {
-    m2x2 Rot = M2x2RotationByTris((r32)TriCount, Circumference);
+    m2x2 Rot = M2x2RotationByTris((f32)TriCount, Circumference);
     v2 OrientationP = V2(0, Radius);
 
     // NOTE(chowie): TriFan vector version default is clockwise.
@@ -175,7 +175,7 @@ OpenGLCircle(v3 CentreP, r32 Radius, u32 TriCount,
         TriangleIndex <= TriCount;
         ++TriangleIndex)
     {
-        // TODO(chowie): Why is anticlockwise imprecise?
+        // TODO(chowie): Why is anticlockwise more imprecise??
         glVertex2f(CentreP.x - OrientationP.x, CentreP.y + OrientationP.y);
         // NOTE(chowie): Orientation after glVertex, starts drawing from top
         OrientationP = Rot*OrientationP;
@@ -184,6 +184,7 @@ OpenGLCircle(v3 CentreP, r32 Radius, u32 TriCount,
     glEnd();
 }
 
+// TODO(chowie): Change in HmH 359 and actually use 3D coord (set up depth buffer!)
 inline void
 OpenGLSetScreenSpace(v2u Dim)
 {
@@ -194,16 +195,16 @@ OpenGLSetScreenSpace(v2u Dim)
     // STUDY(chowie): Identity Matrix (similar to glOrtho),
     // fix-function pipeline by column vectors (see placement of -1)
     glMatrixMode(GL_PROJECTION);
-    r32 a = SafeRatio1(2.0f, (r32)Dim.Width);
-    r32 b = SafeRatio1(2.0f, (r32)Dim.Height);
-    r32 Proj[] =
+    f32 a = SafeRatio1(2.0f, (f32)Dim.Width);
+    f32 b = SafeRatio1(2.0f, (f32)Dim.Height);
+    f32 Proj[] =
     {
          a,  0,  0,  0,
          0,  b,  0,  0,
          0,  0,  1,  0,
         -1, -1,  0,  1,
-    };
-    glLoadMatrixf(Proj);
+    }; // TODO(chowie): Convert "-1, -1,  0,  1," to "0, 0, 0, 1", needs basis points!
+    glLoadMatrixf(Proj); // COULDDO: Replace glLoadMatrixf with glLoadTransposedMatrix for row-major matrices. But don't care when get out of fixed function pipeline!
 }
 
 // RESOURCE(): https://ktstephano.github.io/rendering/opengl/dsa
@@ -295,8 +296,8 @@ case RenderGroupEntryType_render_entry_bitmap:
         // TODO: Hold the frame if we are not ready with the texture?
         // TODO(chowie): Check that type cast to umm works fine?
         glBindTexture(GL_TEXTURE_2D, (GLuint)U32FromPointer(Entry->Bitmap->TextureHandle));
-        r32 OneTexelU = 1.0f / (r32)Entry->Bitmap->Width;
-        r32 OneTexelV = 1.0f / (r32)Entry->Bitmap->Height;
+        f32 OneTexelU = 1.0f / (f32)Entry->Bitmap->Width;
+        f32 OneTexelV = 1.0f / (f32)Entry->Bitmap->Height;
         v2 MinUV = V2(OneTexelU, OneTexelV);
         v2 MaxUV = V2(1.0f - OneTexelU, 1.0f - OneTexelV);
         OpenGLRectangle(Entry->P, MaxP, Entry->Colour, MinUV, MaxUV);

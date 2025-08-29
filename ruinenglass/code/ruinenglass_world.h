@@ -43,6 +43,7 @@ struct world_chunk
     world_chunk *NextInHash; // STUDY(chowie): External Chaining
 };
 
+// IMPORTANT(chowie): What's stored in the world is persistent data
 // IMPORTANT(chowie): Origin is the world's center, at [0, 0, 0]
 // NOTE(chowie): Origin nice for perspective transform and relativeness
 struct world

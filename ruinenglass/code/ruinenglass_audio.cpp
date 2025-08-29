@@ -37,7 +37,7 @@ TestOutputWilwaDialTone(audio_state *AudioState,
         Wave1->Value = Sin(AudioState->tSine1);
         Wave2->Value = Sin(AudioState->tSine2);
 
-        r32 TotalValue = 0;
+        f32 TotalValue = 0;
         for(u32 ToneIndex = 0;
             ToneIndex < ArrayCount(WilwaDialTone.E); // STUDY(chowie): I'm really proud to be able to convert a range-based for loop into a regular one!
             ++ToneIndex)
@@ -53,12 +53,12 @@ TestOutputWilwaDialTone(audio_state *AudioState,
         // the same, it would produce audio clicks; the wave period
         // must continuous at the point of change. 1.0f Samples
         // increments on sine.
-        AudioState->tSine1 += Tau32*1.0f / (r32)Wave1->Period; // NOTE(chowie): 2*Pi is how many wave periods elapsed since we started
+        AudioState->tSine1 += Tau32*1.0f / (f32)Wave1->Period; // NOTE(chowie): 2*Pi is how many wave periods elapsed since we started
         if(AudioState->tSine1 > Tau32)
         {
             AudioState->tSine1 -= Tau32; // NOTE(chowie): Normalising to its period
         }
-        AudioState->tSine2 += Tau32*1.0f / (r32)Wave2->Period;
+        AudioState->tSine2 += Tau32*1.0f / (f32)Wave2->Period;
         if(AudioState->tSine2 > Tau32)
         {
             AudioState->tSine2 -= Tau32;

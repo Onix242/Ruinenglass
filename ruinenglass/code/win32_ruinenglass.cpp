@@ -598,10 +598,10 @@ Win32GetPerfCountFreq(void)
     return(Result.QuadPart);
 }
 
-inline r32
+inline f32
 Win32GetSecondsElapsed(u64 LastCounter, u64 EndCounter)
 {
-    r32 Result = ((r32)(EndCounter - LastCounter) /
+    f32 Result = ((f32)(EndCounter - LastCounter) /
                   GlobalPerfCountFrequency);
     return(Result);
 }
@@ -724,6 +724,8 @@ Win32GetInputFileLocation(win32_state *State, u32 SlotIndex,
     Win32BuildEXEPathFileName(State, "loop_edit.hmi", DestCount, Dest);
 }
 
+// TODO(chowie): Replace CopyMemory(), with our Copy(). Remember to
+// swap source and dest around! Win32 is the other way around.
 // TODO(chowie): Can instead just loop over the permanent storage as
 // the transient storage will reconstruct itself!
 // TODO(chowie): This could live on layer above the platform?
@@ -904,18 +906,18 @@ Win32ProcessXInputDigitalButton(DWORD XInputButtonState,
 // is actually rectangular. A "cross" is a "region where at least one
 // stick axis does nothing". A square is a "region where the stick
 // does nothing". Maybe on the average case a radial deadzone better?
-internal r32
+internal f32
 Win32ProcessStickValue(SHORT Value, SHORT DeadZoneThreshold)
 {
-    r32 Result = 0;
+    f32 Result = 0;
 
     if(Value < -DeadZoneThreshold)
     {
-        Result = (r32)((Value + DeadZoneThreshold) / (32768.0f - DeadZoneThreshold));
+        Result = (f32)((Value + DeadZoneThreshold) / (32768.0f - DeadZoneThreshold));
     }
     else if(Value > DeadZoneThreshold)
     {
-        Result = (r32)((Value - DeadZoneThreshold) / (32767.0f - DeadZoneThreshold));
+        Result = (f32)((Value - DeadZoneThreshold) / (32767.0f - DeadZoneThreshold));
     }
 
     return(Result);
@@ -1310,7 +1312,7 @@ WinMain(HINSTANCE Instance,
             {
                 MonitorRefreshHz = Win32RefreshRate;
             }
-            r32 GameUpdateHz = (r32)(MonitorRefreshHz);
+            f32 GameUpdateHz = (f32)(MonitorRefreshHz);
 
             win32_sound_output SoundOutput = {};
             SoundOutput.SamplesPerSecond = 48000; // TODO(chowie): Set to 60 seconds?
@@ -1426,7 +1428,7 @@ WinMain(HINSTANCE Instance,
 
                 Win32LoadCode(&GameCode);
                 u32 ExpectedFramesPerUpdate = 1;
-                r32 TargetSecondsPerFrame = (r32)ExpectedFramesPerUpdate / (r32)GameUpdateHz;
+                f32 TargetSecondsPerFrame = (f32)ExpectedFramesPerUpdate / (f32)GameUpdateHz;
                 while(GlobalRunning)
                 {
                     NewInput->dtForFrame = TargetSecondsPerFrame;
@@ -1482,8 +1484,8 @@ WinMain(HINSTANCE Instance,
                         POINT MouseP;
                         GetCursorPos(&MouseP);
                         ScreenToClient(Window, &MouseP);
-                        NewInput->Mouse.x = (r32)MouseP.x;
-                        NewInput->Mouse.y = (r32)((GlobalBackbuffer.Dim.Height - 1) - MouseP.y);
+                        NewInput->Mouse.x = (f32)MouseP.x;
+                        NewInput->Mouse.y = (f32)((GlobalBackbuffer.Dim.Height - 1) - MouseP.y);
                         NewInput->Mouse.z = 0; // TODO(chowie): Support Mousewheel
 
                         DWORD WinButtonID[PlatformMouseButton_Count]
@@ -1595,7 +1597,7 @@ WinMain(HINSTANCE Instance,
                                 // NOTE(chowie): Want to be smooth on the analog side, but look at
                                 // keyboard messages for the purposes of buttons, e.g. double-tap
                                 // is 3 half-transitions.
-                                r32 StickThreshold = 0.5f;
+                                f32 StickThreshold = 0.5f;
                                 PROCESS_DIGITAL_BUTTON_THRESHOLD((NewController->StickAverage.x < -StickThreshold) ? 1 : 0,
                                                                  MoveLeft, 1);
                                 PROCESS_DIGITAL_BUTTON_THRESHOLD((NewController->StickAverage.x > StickThreshold) ? 1 : 0,
@@ -1728,9 +1730,9 @@ WinMain(HINSTANCE Instance,
                     u32 CyclesElapsed = (u32)EndCycleCount - (u32)LastCycleCount;
                     u32 EndCounter = (u32)Win32GetWallClock();
                     s32 CounterElapsed = EndCounter - (u32)LastCounter;
-                    r32 MSPerFrame = 1000.0f*Win32GetSecondsElapsed(LastCounter, EndCounter);
-                    r32 FPS = ((r32)GlobalPerfCountFrequency / (r32)CounterElapsed);
-                    r32 MCPF = ((r32)CyclesElapsed / Square(1000.0f));
+                    f32 MSPerFrame = 1000.0f*Win32GetSecondsElapsed(LastCounter, EndCounter);
+                    f32 FPS = ((f32)GlobalPerfCountFrequency / (f32)CounterElapsed);
+                    f32 MCPF = ((f32)CyclesElapsed / Square(1000.0f));
 //                    OutputDebugStringA(d7sam_concat(MSPerFrame)("ms/f, ")(FPS)("f/s, ")(MCPF)("mc/f")("\n"));
 
                     // TODO: Should we clear these here?
