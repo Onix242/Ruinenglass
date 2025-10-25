@@ -295,26 +295,24 @@ InsertString(gap_buffer *GapBuffer, umm Cursor, char *String)
 }
 
 // TODO(chowie): utf-8 support? How does one encode a rune in C? TIMESTAMP: 17:00-18:00
-/*
-internal void
-InsertRune(gap_buffer *GapBuffer, umm Cursor, u8 Char)
-{
-    CheckGapSize(GapBuffer, 1);
-    ShiftGapTo(GapBuffer, Cursor);
-    GapBuffer->Buffer[GapBuffer->Start] = Char;
-    GapBuffer->Start += 1;
-}
-
-// TODO(chowie): How does one insert a string in C? TIMESTAMP: 17:00-18:00
-internal void
-InsertString(gap_buffer *GapBuffer, umm Cursor, char *String)
-{
-    CheckGapSize(GapBuffer, StringLength(String));
-    ShiftGapTo(GapBuffer, Cursor);
-    strcpy(GapBuffer->Buffer, *String); // TODO(chowie): This is totally not correct!
-    GapBuffer->Start += StringLength(String);
-}
-*/
+// internal void
+// InsertRune(gap_buffer *GapBuffer, umm Cursor, u8 Char)
+// {
+//     CheckGapSize(GapBuffer, 1);
+//     ShiftGapTo(GapBuffer, Cursor);
+//     GapBuffer->Buffer[GapBuffer->Start] = Char;
+//     GapBuffer->Start += 1;
+// }
+// 
+// // TODO(chowie): How does one insert a string in C? TIMESTAMP: 17:00-18:00
+// internal void
+// InsertString(gap_buffer *GapBuffer, umm Cursor, char *String)
+// {
+//     CheckGapSize(GapBuffer, StringLength(String));
+//     ShiftGapTo(GapBuffer, Cursor);
+//     strcpy(GapBuffer->Buffer, *String); // TODO(chowie): This is totally not correct!
+//     GapBuffer->Start += StringLength(String);
+// }
 
 int
 main(void)

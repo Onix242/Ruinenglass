@@ -6,8 +6,6 @@
    $Notice: $
    ======================================================================== */
 
-#include "ruinenglass_renderer_opengl.h"
-
 internal opengl_info
 OpenGLGetInfo(b32x ModernContext)
 {
@@ -26,23 +24,20 @@ OpenGLGetInfo(b32x ModernContext)
         Result.ShadingLanguageVersion = "(none)";
     }
 
-    Result.Extensions = (char *)glGetString(GL_EXTENSIONS);
-
-    char *At = Result.Extensions;
-    while(*At)
+    GLint ExtensionCount = 0;
+    glGetIntegerv(GL_NUM_EXTENSIONS, &ExtensionCount);
+    for(GLint ExtensionIndex = 0;
+        ExtensionIndex < ExtensionCount;
+        ++ExtensionIndex)
     {
-        while(IsWhitespace(*At)) {++At;}
-        char *End = At;
-        while(*End && !IsWhitespace(*End)) {++End;}
+        char *ExtensionName = (char *)glGetStringi(GL_EXTENSIONS, ExtensionIndex);
 
-        umm Count = End - At;
-
+        // STUDY: If 0 is to make everything an else if, being a bit clever
         if(0) {}
-        else if(StringsAreEqual(Count, At, "GL_EXT_texture_sRGB")) {Result.GL_EXT_texture_sRGB = true;}
-        else if(StringsAreEqual(Count, At, "GL_EXT_framebuffer_sRGB")) {Result.GL_ARB_framebuffer_sRGB = true;}
-        else if(StringsAreEqual(Count, At, "GL_ARB_framebuffer_sRGB")) {Result.GL_ARB_framebuffer_sRGB = true;}
-
-        At = End;
+        else if(StringsAreEqual(ExtensionName, "GL_EXT_texture_sRGB")) {Result.GL_EXT_texture_sRGB = true;}
+        else if(StringsAreEqual(ExtensionName, "GL_EXT_framebuffer_sRGB")) {Result.GL_ARB_framebuffer_sRGB = true;}
+        else if(StringsAreEqual(ExtensionName, "GL_ARB_framebuffer_sRGB")) {Result.GL_ARB_framebuffer_sRGB = true;}
+        // TODO: Make sure this works!
     }
 
     // TODO(chowie): Ref HmH 323, only available OpenGL
@@ -63,10 +58,8 @@ OpenGLGetInfo(b32x ModernContext)
 // RESOURCE: https://registry.khronos.org/OpenGL/api/GL/glcorearb.h
 // RESOURCE: https://registry.khronos.org/OpenGL/extensions/EXT/EXT_sRGB.txt
 internal void
-OpenGLInit(b32x ModernContext, b32x FramebufferSupportsSRGB)
+OpenGLInit(b32x ModernContext, opengl_info Info, b32x FramebufferSupportsSRGB)
 {
-    opengl_info Info = OpenGLGetInfo(ModernContext);
-
     // NOTE(chowie): If we can go full sRGB on the texture side and
     // the framebuffer side, we can enable it. Otherwise, it is safer
     // for us to pass it straight through.
@@ -85,34 +78,29 @@ OpenGLInit(b32x ModernContext, b32x FramebufferSupportsSRGB)
 // RESOURCE(): https://voxel.wiki/wiki/vertex-pulling/
 // TODO(chowie): Vertex pulling?
 // TODO(chowie): Triangle Strip? Turn OpenGL circle too
+// TODO(chowie): Support shearing?
 // NOTE(chowie): Extra parameters to account for 1-pixel apron
 inline void
 OpenGLRect(v3 MinP, v3 MaxP, v4 Colour, v2 MinUV = V2(0, 0), v2 MaxUV = V2(1, 1))
 {
-    glBegin(GL_TRIANGLES);
+    glBegin(GL_QUADS);
 
     glColor4fv(Colour.E);
 
     // TODO(chowie): Use fv (vector) op! Access with .E
     // NOTE(chowie): Lower triangle
     glTexCoord2f(MinUV.x, MinUV.y);
-    glVertex3f(MinP.x, MinP.y, MinP.z);
+    glVertex3f(MinP.x, MinP.y, 0.0f);
 
     glTexCoord2f(MaxUV.x, MinUV.y);
-    glVertex3f(MaxP.x, MinP.y, MinP.z);
+    glVertex3f(MaxP.x, MinP.y, 0.0f);
 
     glTexCoord2f(MaxUV.x, MaxUV.y);
-    glVertex3f(MaxP.x, MaxP.y, MinP.z);
+    glVertex3f(MaxP.x, MaxP.y, 0.0f);
 
     // NOTE(chowie): Upper triangle
-    glTexCoord2f(MinUV.x, MinUV.y);
-    glVertex3f(MinP.x, MinP.y, MinP.z);
-
-    glTexCoord2f(MaxUV.x, MaxUV.y);
-    glVertex3f(MaxP.x, MaxP.y, MinP.z);
-
     glTexCoord2f(MinUV.x, MaxUV.y);
-    glVertex3f(MinP.x, MaxP.y, MinP.z);
+    glVertex3f(MinP.x, MaxP.y, 0.0f);
 
     glEnd();
 }
@@ -164,23 +152,24 @@ OpenGLCircle(v3 CentreP, f32 Radius, u32 TriCount,
     m2x2 Rot = M2x2RotationByTris((f32)TriCount, Circumference);
     v2 OrientationP = V2(0, Radius);
 
-    // NOTE(chowie): TriFan vector version default is clockwise.
-    // Anticlockwise +cos +sin <=> (0, -1), Clockwise +cos -sin <=> (0, 1)
+    // NOTE(chowie): TriFan vector version default is clockwise currently.
     glBegin(GL_TRIANGLE_FAN);
     glColor4fv(Colour.E);
+
 //    glTexCoord2f(MinUV.x, MinUV.y);
     glVertex2f(CentreP.x, CentreP.y);
-
     for(u32 TriangleIndex = 0;
         TriangleIndex <= TriCount;
         ++TriangleIndex)
     {
         // TODO(chowie): Why is anticlockwise more imprecise??
+        // Anticlockwise +cos +sin <=> (0, -1), Clockwise +cos -sin <=> (0, 1)
         glVertex2f(CentreP.x - OrientationP.x, CentreP.y + OrientationP.y);
         // NOTE(chowie): Orientation after glVertex, starts drawing from top
         OrientationP = Rot*OrientationP;
     }
 //    glTexCoord2f(MaxUV.x, MaxUV.y);
+
     glEnd();
 }
 
@@ -236,6 +225,7 @@ OpenGLRenderCommands(game_render_commands *Commands, v2u WindowDim)
     {
         render_group_entry_header *Header = (render_group_entry_header *)(Commands->CommandsArena.Base + BaseAddress);
         BaseAddress += sizeof(*Header);
+
         void *Data = (u8 *)Header + sizeof(*Header);
         switch(Header->Type)
         {

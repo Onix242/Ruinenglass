@@ -26,6 +26,7 @@
 
 // TODO(chowie): These are global for now!
 global platform_api Platform; // TODO(chowie): Remove? For moving code between renderer and win32
+
 global b32x GlobalRunning;
 global b32x GlobalPause;
 global b32x GlobalShowCursor;
@@ -39,7 +40,6 @@ global u64 GlobalPerfCountFrequency; // TODO(chowie): Time with this?
 global GLuint OpenGLDefaultInternalTextureFormat;
 
 #include "ruinenglass_renderer.cpp"
-#include "ruinenglass_renderer_opengl.cpp"
 #include "win32_ruinenglass_renderer_opengl.cpp"
 
 // NOTE(chowie): This is the only round trip allowed atm.
@@ -1769,3 +1769,4 @@ WinMain(HINSTANCE Instance,
 
     return(0);
 }
+

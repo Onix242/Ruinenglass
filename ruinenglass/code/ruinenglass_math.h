@@ -353,7 +353,7 @@ SmoothStep(f32 t)
 }
 
 // RESOURCE(inigo quilez): https://iquilezles.org/articles/smoothstepintegral/
-// NOTE(chowie): Also called EaseInOut
+// NOTE(chowie): Also called EaseInOut = Cubic curve
 // RESOURCE: https://realtimecollisiondetection.net/blog/?p=95
 // RESOURCE: https://www.fundza.com/rman_shaders/smoothstep/
 // TODO(chowie): Test smooth-step and pulse for alpha tests?
@@ -537,7 +537,7 @@ operator*=(v2 &B, f32 A)
 inline v2
 operator/(v2 B, f32 A)
 {
-    v2 Result = (1.0f*A)*B;
+    v2 Result = (1.0f/A)*B;
     return(Result);
 }
 
@@ -618,6 +618,10 @@ Hadamard(v2 A, v2 B)
    value is positive they are pointing in the same general direction,
    if the value is negative they are pointing in opposite general
    direction, if the value is 0 they are perpendicular.
+
+   If two vectors are parallel, 2d or 3d. Dot product will equal to
+   their length, "atb = |a||b|cos0" > "atb = |a||b|" >
+   "ax*bx + ay*by = sqrt(ax^2+ay^2)*sqrt(bx^2+by^2)"
 */
 // A.x*B.x + A.y*B.y
 inline f32
@@ -943,7 +947,7 @@ operator*=(v3 &B, f32 A)
 inline v3
 operator/(v3 B, f32 A)
 {
-    v3 Result = (1.0f*A)*B;
+    v3 Result = (1.0f/A)*B;
     return(Result);
 }
 
@@ -1594,14 +1598,7 @@ RotateRotor(v4 A, v3 B)
     return(Result);
 }
 
-inline v4
-Invert(v4 A)
-{
-    v4 Result = {-A.x, -A.y, -A.z, -A.w};
-    return(Result);
-}
-
-// NOTE(chowie): Same as quarternion conjugate
+// NOTE(chowie): Same as quarternion conjugate/invert
 // NOTE(chowie): Negating only the axis via inversion causes the angle
 // to negate = calculates the opposite direction. Looks like 2D perp to me!
 inline v4
@@ -1623,13 +1620,17 @@ RotateRotorByAnother(v4 A, v4 B)
     return(Result);
 }
 
+// STUDY(chowie): HmH 366 2:07:40 - Camera defined by X,Y,Z and P. You
+// would defined by Quaternion and P, generate X,Y,Z axis by
+// quaternion. Not so difficult because you can turn a quaternion into
+// a matrix, thus you can extract the axis from that!
 // TODO(chowie): Marc Ten Bosch suggests this can be optimised
 inline m3x3
 RotorToMatrix(v4 A)
 {
     m3x3 Result =
         {
-            RotateRotor(A, V3(1, 0, 0)),
+            RotateRotor(A, V3(1, 0, 0)), // STUDY(chowie): Isn't this the identity matrix?
             RotateRotor(A, V3(0, 1, 0)),
             RotateRotor(A, V3(0, 0, 1)),
         };
@@ -1644,6 +1645,13 @@ Nlerp(v4 A, f32 t, v4 B)
     return(Result);
 }
 
+inline v4
+Negate(v4 A)
+{
+    v4 Result = {-A.x, -A.y, -A.z, -A.w};
+    return(Result);
+}
+
 // RESOURCE(): https://jacquesheunis.com/post/rotors/
 inline v4
 Slerp(v4 From, f32 t, v4 To)
@@ -1653,7 +1661,7 @@ Slerp(v4 From, f32 t, v4 To)
     f32 Dot = Inner(From, To);
     if(Dot < 0.0f)
     {
-        To = Invert(To);
+        To = Negate(To);
         Dot = -Dot;
     }
 
@@ -2259,6 +2267,31 @@ ToRectXY(rect3 A)
     return(Result);
 }
 
+// STUDY: Convert to linear colours e.g. SRGB255ToLinear1(V4(0.0f, 0.6f, 0.3f, 1))
+// Approximation of un-srgb to srgb input
+// TODO: Do a real srgb curve, not square. Use graphics hardware!
+inline v4
+SRGBToLinear(v4 C)
+{
+    v4 Result;
+
+    Result.r = Square(C.r);
+    Result.g = Square(C.g);
+    Result.b = Square(C.b);
+    Result.a = C.a;
+
+    return(Result);
+}
+
+inline v4
+SRGBToLinear(f32 R, f32 G, f32 B, f32 A)
+{
+    v4 Input = {R, G, B, A};
+    v4 Result = SRGBToLinear(Input);
+
+    return(Result);
+}
+
 // RESOURCE: https://web.archive.org/web/20211023131624/https://lolengine.net/blog/2011/3/20/understanding-fast-float-integer-conversions
 // TODO(chowie): Conversion for colours?
 // NOTE(chowie): Alpha is not a brightness value, but a value tells us how
@@ -2295,7 +2328,7 @@ Linear1ToSRGB255(v4 C)
 
 // TODO(chowie): Try to use this!
 // RESOURCE: https://gist.github.com/d7samurai/f98cb2aa30a6d73e62a65a376d24c6da
-// NOTE(chowie): Storing argb color in various compact forms, either
+// NOTE(from d7sam): Storing argb color in various compact forms, either
 // as uint32 or packed into an __m128i, where I had to multply alpha
 // values from nested containers and it was beneficial to do it
 // in-place, as bytes, without extracting to float and repacking

@@ -7,6 +7,8 @@
    $Notice: $
    ======================================================================== */
 
+#define GL_NUM_EXTENSIONS                 0x821D
+
 #define GL_MAJOR_VERSION                  0x821B
 #define GL_MINOR_VERSION                  0x821C
 
@@ -43,10 +45,30 @@ struct opengl_info
     char *Renderer;
     char *Version;
     char *ShadingLanguageVersion;
-    char *Extensions;
+//    char *Extensions;
 
     b32x GL_EXT_texture_sRGB;
     b32x GL_ARB_framebuffer_sRGB;
+};
+
+// TODO(chowie): Switch over to "type_" and not underscoring
+// everything for less typing and slightly easier automation (if you
+// wanted reflection). Change this for GetInputState stub?
+// HmH D371 2:06:05 - You could use a #include file with all of them for macro tricks!
+// TODO(chowie): HmH D371 2:20:30 - Automate this with a function
+// table like in Win32? Maybe change the function names to lowercase
+// instead of "type_"?
+#define GlobalFunctionStub(Name) global type_##Name *Name
+
+GlobalFunctionStub(wglCreateContextAttribsARB);
+GlobalFunctionStub(wglChoosePixelFormatARB);
+GlobalFunctionStub(wglSwapIntervalEXT);
+GlobalFunctionStub(wglGetExtensionsStringEXT);
+GlobalFunctionStub(glGetStringi);
+
+// TODO(chowie): IMPORTANT(chowie): Move all function stubs here!
+struct opengl
+{
 };
 
 // RESOURCE(): https://hero.handmade.network/forums/code-discussion/t/1011-opengl_srgb__assets

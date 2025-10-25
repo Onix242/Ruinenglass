@@ -6,6 +6,10 @@
    $Notice: $
    ======================================================================== */
 
+typedef char GLchar;
+typedef ptrdiff_t GLsizeiptr;
+typedef ptrdiff_t GLintptr;
+
 #define WGL_DRAW_TO_WINDOW_ARB                  0x2001
 #define WGL_ACCELERATION_ARB                    0x2003
 #define WGL_FULL_ACCELERATION_ARB               0x2027
@@ -20,25 +24,25 @@
 #define WGL_SAMPLE_BUFFERS_ARB                  0x2041
 #define WGL_SAMPLES_ARB                         0x2042
 
-typedef HGLRC WINAPI wgl_create_context_attribs_arb(HDC hDC, HGLRC hshareContext,
-                                                    const int *attribList);
-global wgl_create_context_attribs_arb *wglCreateContextAttribsARB;
-
-typedef BOOL WINAPI wgl_choose_pixel_format_arb(HDC hdc,
-                                                const int *piAttribIList,
-                                                const FLOAT *pfAttribFList,
-                                                UINT nMaxFormats,
-                                                int *piFormats,
-                                                UINT *nNumFormats);
-global wgl_choose_pixel_format_arb *wglChoosePixelFormatARB;
-
-typedef BOOL WINAPI wgl_swap_interval_ext(int interval); // NOTE: Marking with a WINAPI might matter for 32-bit code, not 64-bit!
-global wgl_swap_interval_ext *wglSwapIntervalEXT;
-
-typedef const char *WINAPI wgl_get_extensions_string_ext(void);
-global wgl_get_extensions_string_ext *wglGetExtensionsStringEXT;
+// NOTE(chowie): Marking with a WINAPI might matter for 32-bit code, not 64-bit!
+typedef HGLRC WINAPI type_wglCreateContextAttribsARB(HDC hDC, HGLRC hshareContext, const int *attribList);
+typedef BOOL WINAPI type_wglChoosePixelFormatARB(HDC hdc, const int *piAttribIList, const FLOAT *pfAttribFList, UINT nMaxFormats, int *piFormats, UINT *nNumFormats);
+typedef BOOL WINAPI type_wglSwapIntervalEXT(int interval);
+typedef const char *WINAPI type_wglGetExtensionsStringEXT(void);
+typedef const GLubyte *WINAPI type_glGetStringi(GLenum name, GLuint index);
 
 global b32x OpenGLSupportsSRGBFramebuffer;
+
+#include "ruinenglass_renderer_opengl.h"
+#include "ruinenglass_renderer_opengl.cpp"
+
+// NOTE(chowie): wglGetProcAddress isn't technically what you want to
+// do, check for the existance of extensions by checking a string to
+// the drivers. But you still need to make the function call after the
+// fact. HmH thinks this is better though, in theory you could get
+// something different. Swap interval is the only way to use this
+// function.
+#define Win32GetOpenGLFunctionProc(Name) Name = (type_##Name *)wglGetProcAddress(#Name)
 
 internal void
 Win32SetPixelFormat(HDC WindowDC)
@@ -122,23 +126,17 @@ Win32LoadWGLExtensions(void)
         Win32SetPixelFormat(WindowDC);
 
         // RESOURCE: https://computergraphics.stackexchange.com/questions/8311/how-do-i-create-a-win32-window-with-a-vulkan-context
-        // STUDY(chowie): OpenGL context ties together the concept of extension management, memory management, draw commands and surface presentation. In Vulkan those are all managed through independent interfaces.
+        // STUDY(chowie): OpenGL context ties together the concept of
+        // extension management, memory management, draw commands and
+        // surface presentation. In Vulkan those are all managed
+        // through independent interfaces.
         HGLRC OpenGLRC = wglCreateContext(WindowDC);
         if(wglMakeCurrent(WindowDC, OpenGLRC))
         {
-            wglChoosePixelFormatARB =
-                (wgl_choose_pixel_format_arb *)wglGetProcAddress("wglChoosePixelFormatARB");
-            wglCreateContextAttribsARB =
-                (wgl_create_context_attribs_arb *)wglGetProcAddress("wglCreateContextAttribsARB");
-            wglGetExtensionsStringEXT = (wgl_get_extensions_string_ext *)wglGetProcAddress("wglGetExtensionsStringEXT");
-            // NOTE(chowie): wglGetProcAddress is not technically what
-            // you do, check for the existance of extensions by
-            // checking a string to the drivers. But you still need to
-            // make the function call after the fact. Casey thinks
-            // this is better though, in theory you could get
-            // something different. Swap interval is the only way to
-            // use this function.
-            wglSwapIntervalEXT = (wgl_swap_interval_ext *)wglGetProcAddress("wglSwapIntervalEXT");
+            Win32GetOpenGLFunctionProc(wglChoosePixelFormatARB);
+            Win32GetOpenGLFunctionProc(wglCreateContextAttribsARB);
+            Win32GetOpenGLFunctionProc(wglGetExtensionsStringEXT);
+            Win32GetOpenGLFunctionProc(wglSwapIntervalEXT);
 
             if(wglGetExtensionsStringEXT)
             {
@@ -169,17 +167,20 @@ Win32LoadWGLExtensions(void)
     }
 }
 
+// TODO(chowie): Doesn't OpenGL 3.2+ Core Profile require VAO? For RenderDoc's minimum spec.
 // RESOURCE(martins): https://git.handmade.network/hmn/gitlab_snippets/src/branch/master/mmozeiko/win32_opengl.c
 // NOTE(chowie): Modern OpenGL version.
 global int
 Win32OpenGLAttribs[] =
 {
     WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
-    WGL_CONTEXT_MINOR_VERSION_ARB, 0,
+    WGL_CONTEXT_MINOR_VERSION_ARB, 3,
+    WGL_CONTEXT_FLAGS_ARB, WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB
 #if HANDMADE_INTERNAL
-    WGL_CONTEXT_FLAGS_ARB, WGL_CONTEXT_DEBUG_BIT_ARB, // NOTE(chowie): Enable this for testing WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB (cannot use this flag with deprecated OpenGL calls)
+    | WGL_CONTEXT_DEBUG_BIT_ARB // NOTE(chowie): Enable this for testing (cannot use this flag with deprecated OpenGL calls)
 #endif
-    WGL_CONTEXT_PROFILE_MASK_ARB, WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
+    ,
+    0, WGL_CONTEXT_CORE_PROFILE_BIT_ARB, // TODO(chowie): Find out if leaving 'WGL_CONTEXT_PROFILE_MASK_ARB' as implicit is okay? Should this work if I remove all deprecated OpenGL calls?
     0,
 };
 
@@ -209,12 +210,18 @@ Win32InitOpenGL(HDC WindowDC, b32x EnableVsync)
 
     if(wglMakeCurrent(WindowDC, OpenGLRC))
     {
-        OpenGLInit(ModernContext, OpenGLSupportsSRGBFramebuffer);
+        Win32GetOpenGLFunctionProc(glGetStringi);
+
+        opengl_info Info = OpenGLGetInfo(ModernContext);
+
         if(wglSwapIntervalEXT)
         {
             wglSwapIntervalEXT(EnableVsync ? true : false); // TODO(chowie): How long this is for a 120hz display vs 60hz display?
         }
+
+        OpenGLInit(ModernContext, Info, OpenGLSupportsSRGBFramebuffer);
     }
 
     return(OpenGLRC);
 }
+

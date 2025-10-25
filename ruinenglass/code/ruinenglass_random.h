@@ -225,5 +225,48 @@ Permute(random_series *Series, u32 Index, u32 Length)
     return(Result);
 }
 
+// TODO(chowie): Use this to make static starfields, the ones in the
+// night sky!
+// RESOURCE(): https://hero.handmade.network/forums/code-discussion/t/2799-samplehemisphere_is_not_uniform#13820
+// RESOURCE(): https://hero.handmade.network/forums/code-discussion/t/419-periodic_functions
+internal v3
+SampleUniformlyHemisphere(random_series *Series)
+{
+    v3 Result = {};
+
+    f32 z = RandomBilateral(Series);
+    f32 r = SquareRoot(1 - Square(z));
+    f32 theta = RandomBilateral(Series)*Tau32;
+
+    Result.x = r*Cos(theta);
+    Result.y = r*Sin(theta);
+    Result.z = z;
+
+    return(Result);
+}
+
+// NOTE(from bromage): For light transport, add geometric cosine
+// factor, sample unit disc, map to hemisphere sitting above
+internal v3
+CosineSampleNonuniformlyHemisphere(random_series *Series)
+{
+    v3 Result = {};
+
+    f32 r2 = RandomBilateral(Series);
+    f32 r = SquareRoot(r2);
+    f32 theta = RandomBilateral(Series)*Tau32;
+    f32 z = SquareRoot(1 - r2);
+
+    Result.x = r*Cos(theta);
+    Result.y = r*Sin(theta);
+    Result.z = z;
+
+    return(Result);
+}
+
+// TODO(chowie): Random distribution of a triangle using barycentric
+// with exponential distribution
+// RESOURCE(): https://www.johndcook.com/blog/2025/09/11/random-inside-triangle/
+
 #define RUINENGLASS_RANDOM_H
 #endif

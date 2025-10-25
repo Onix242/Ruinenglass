@@ -219,7 +219,7 @@ NumDigitsLog10(u32 Value)
 // STUDY(chowie): It's easier to print out to a temp buffer, to do
 // whatever you want and reconstruct the number e.g. you can take a
 // high number and pad to low number
-#define CONCAT_BUFFER_SIZE 256
+#define TEMP_BUFFER_SIZE 1024
 #define Base10 10
 global f32 Bases[] = { 1, 10, 100, 1000, 10000, 100000, 1000000 };
 // RESOURCE: https://gist.github.com/d7samurai/1d778693ba33bbd2b9d709b209cc0aba
@@ -232,7 +232,7 @@ struct d7sam_concat
     d7sam_concat(f32 Value, u32 Decimals = 2) { operator()(Value, Decimals); }
 
     u32 CharCount = 0;
-    char TempBuffer[CONCAT_BUFFER_SIZE];
+    char TempBuffer[TEMP_BUFFER_SIZE];
 
     d7sam_concat &
     operator()(char* Source)
@@ -320,16 +320,16 @@ struct d7sam_concat
 
 // TODO(chowie): String To Float - https://gist.github.com/d7samurai/140807683843a06195c33494e3546a84
 /*
-double string_to_float(char* str)
+r64 string_to_float(char* str)
 {
-    double num = 0.0;
-    double mul = 1.0;
-    int    len = 0;
-    int    dec = 0;
+    r64 num = 0.0;
+    r64 mul = 1.0;
+    s32    len = 0;
+    s32    dec = 0;
 
     while (str[len]) if (str[len++] == '.') dec = 1;
 
-    for (int idx = len - 1; idx >= 0; idx--)
+    for (s32 idx = len - 1; idx >= 0; idx--)
     {
         if      (str[idx] == '-') num = -num;
         else if (str[idx] == '.') dec = 0; 

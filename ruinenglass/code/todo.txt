@@ -1,16 +1,75 @@
-  ------
+
+------
   DOCKET
   * tags difficulty
 
+  ----------------8<-------------[ close future ]------------------
+  In order!
+  - OpenGL prefix for functions -> just GL
+  - cliprect -> resize window
+  - Gimbal camera -> double check quaternions -> infinite far plane
+  - Test-z
+  - Sim Region again
+  - Cubes
+  - Font bitmap / asset streaming
+
+  - Idea for sorting and to give the flat surfaces extra volume:
+    Have ASCII faces shear slightly and point outwards like in HmH.
+    OR
+    Inversely, have all NPCs/eels be shear slightly of flat walls!
+
+         ______________
+        /             /|/| <- Example of surface sheared on angle
+       /             / |/|
+      /             /  |/|
+     /             /   |/|
+    /_____________/    |/|
+    |             |    ||
+    |             |    ||
+    |             |    ||
+    |             |    ||
+    |             |    ||
+    |             |   /|/
+    |             |  /|/
+    |             | /|/
+    |_____________|/|/
+
   ----------------8<-------------[ architecture exploration ]------------------
-  Feature-set for engine: font rendering that allows zooming in
-  closely, text-based VFX, cooperative 3D pathfinding upwards of 30
-  entities (and up to 60 for level editing zoomed out from a
-  distance), user-input typing in different languages and a mix of
-  different languages and custom glyphs, automatic detection of
-  keyboard layout, developer tools for art that are also user-facing
-  tools for semi-procedural authorship (ASCII art, animation, music
-  language creation, dialogue).
+  RESOURCE(): https://www.jeremyong.com/game%20engines/2023/09/15/how-i-evaluate-game-engines/
+  RESOURCE(): https://voxely.net/blog/the-perfect-voxel-engine/
+  Unique feature-set for engine:
+  - Non-uniform voxel grid, but large-sized voxels
+  - No procedural large terrain generation
+  - World streaming / large worlds with small file sizes
+    = Far-seeing camera + fog
+  - No voxel destruction, replaced for voxel surface editing
+    (only physical interaction on a per voxel level)
+  - Voxel animation smears (for dynamic objects)
+  - First person camera
+  - No voxel characters
+  - Little physics and networking
+  - No raytraced rendering for lighting
+  * Heavy simulation elements
+    = Entity: Cooperative 2D & 3D pathfinding upwards of 40 entities
+      (and up to 80 for level editing zoomed out from a distance)
+    = Rendering: Peeling voxel surfaces off via weather (wind + rain)
+      with Eulerian fluid dynamics (navier strokes)
+    = Alternate simulations for voxel data: vegetation growth,
+      door flipping responses, weather dependent motion
+  * Developer art tools/editor that are also user-facing tools for
+    semi-procedural content, all in-house but heavily restricted:
+      1. Voxel 3D modelling with texture painting and orbiting camera
+      2. Animation
+      3. Language conlang creation
+      4. Dialogue (no dialogue trees, just nodes and storylets)
+         > Text parser with classic markov chain output (with text tagging)
+           specialised for little input e.g. 4-5 words avg and 8 words max
+      5. Music mixer (needs import)
+  - User-input typing in different languages and a mix of
+    different languages and custom glyphs
+  - Automatic detection of keyboard layout
+  - Font rendering that allows zooming-in closely in 3D
+  - Some text-based VFX
 
   - Math
     = Rotors + Rational trig rotor paper + SLerp with >2 rotor
@@ -34,6 +93,55 @@
       > https://marc-b-reynolds.github.io/math/2022/01/28/RNGParity.html
         ~"u  |= 1; return u ^ (u >> 1);" = "return u ^ rotl(u,1)" // 3u
         ~"u <<= 1; return u ^ (u >> 1);" = "return u ^ rotl(u,1) ^ 1" // 3u + 1
+    = RESOURCE(): https://www.drmaciver.com/2017/05/a-hybrid-voting-system-for-scheduling/
+      Everyone selects 4-5 options e.g. times available
+
+      So for scheduling it seems like approval voting is in fact very
+      well suited. But is there a system that combines the benefits of
+      both?
+
+      There is! It’s in fact an extremely direct hybrid of the two,
+      but weirdly not one I’ve seen before.
+
+      1. Everyone casts a vote as in approval voting. That is, they
+      specify a list of acceptable options.
+
+      2. When tallying, you pick a random voter and restrict the set
+      of possible winners to the ones on their ballot.
+
+      3. Amongst that restricted set, votes are tallied as per normal
+      approval voting, picking the one that the largest number of
+      people approve of.
+
+      And that’s all there is to it. It satisfies the proportionality
+      criterion that any voting block will on average get an
+      acceptable answer at least in proportion to the size of the bloc
+      (they may get it much more than that, but that’s intrinsic to
+      the problem: e.g. the set of people who are happy with every
+      answer will get an acceptable answer 100% of the time), while
+      still being broadly majoritarian because of the approval voting
+      component.
+
+      You can also add a threshold if you like. Because each person
+      votes for multiple options, doing so is much simpler than in
+      normal random ballot, and much more reasonable, so you could
+      quite easily decide to e.g. exclude any options from the
+      schedule that fewer than half of the people can go to (or even
+      more complicated criterion like e.g. it being at least some
+      fixed fraction of the approval winning outcome). The result is
+      that you only end up excluding people who really can’t make any
+      day that most other people in the group can. Which is fair
+      enough really, though a bit unfortunate.
+
+      Is this applicable to non-scheduling problems? I don’t know. It
+      might be! I think it adds a strong centrist bias to random
+      ballot, which can be both good and bad.
+
+      The properties of scheduling which matter here are I think:
+
+      Every voter typically has many acceptable options
+      It’s something done often enough that the randomness tends to balance out
+      It’s something where despite that consensus is probably more important than true proportionality.
 
   - Memory
     = [Mr.4th dimensions'] Arenas
@@ -216,17 +324,132 @@
     = Try sort by colour to aid in memory when you can’t remember the names
       RESOURCE(): https://robertandrewspencer.com/sort-by-hue/
 
+  - Undo/Redo
+    = "I'd say this bug is elsewhere; eg. you shouldn't be responding
+       to keyboard shortcuts while you're dragging a thing (or have the
+       mouse down or a widget is hot); that's going to cause a bunch of
+       issues if you don't do it -- in general to solve these i'd just be
+       looking at aggressively disallowing the user to undo/redo in any
+       scenario besides everything being at "rest" " From Rxi
+    = RESOURCE(rxi): https://rxi.github.io/a_simple_undo_system.html
+    = "they're good for different scenarios; the one I wrote about I
+       used for a tilemap editor, and originally proof-of-concepted it on
+       a little bitmap editor thing, in both them scenarios its data
+       that's all in this fixed contiguous chunk of which you're changing
+       regions of. The thing we use at janga is more suited for the data
+       we're using it on. I think this holds for undo/redo in general
+       that it really depends on the data to define what makes the most
+       sense of the approach to use, there's no real
+       one-size-fits-all... neither approach would be well suited to a
+       text editor for example" " From Rxi
+    = "the tilemap editor was primarily working with a bitmap, so its
+       basically always just a big, fixed array where we can say ok
+       ranges X to Y of data has changed, commit that to the undo,
+       where as the janga stuff doesn't need to worry about its
+       runtime memory layout and is free to allocate its graph state
+       on the heap, eg. it isn't all in a contigious block of memory
+       where only predictable regions of it are changing" & "the janga
+       graph stuff is much smaller in serialized size too, so eg. that
+       approach wouldn't be suited for the bitmap stuff where every
+       undo state would end up being a full copy of the bitmap" From Rxi
+
   - Waypoint web, refer to HmH where we did made directed edges with sprite sorting and walked the graph with visted nodes
+    = Arity Node Data Structure - https://www.youtube.com/watch?v=gh2A7yFsBZ4
+    = Value Chains (Daniel Cook), Faucet-and-drain economics - https://lostgarden.com/2021/12/12/value-chains/
 
   - Particle Systems
     = RESOURCE(): https://cowboyprogramming.com/2007/01/05/multithreading-particle-sytems/
     = Rain serving as compass directions
     * Mesh to particle
     TODO(chowie): HmH search up mesh deformation! Different from mesh skinning?
-    = Vector/flow fields in gridded world for dynamic wind patterns. See (3D) perlin noise
-      RESOURCE(): https://cowboyprogramming.com/2008/04/01/practical-fluid-mechanics/
-      RESOURCE(): Fluidsim Base - https://www.shadertoy.com/view/MdSczK
     = 2D parallax mapping (pixel shader) RESOURCE(): https://cowboyprogramming.com/2007/01/05/parallax-mapped-bullet-holes/
+
+  - Eulerian vector/flow fields in gridded world for dynamic wind patterns. See (3D) perlin noise
+    RESOURCE(): https://cowboyprogramming.com/2008/04/01/practical-fluid-mechanics/
+    RESOURCE(): Fluidsim Base - https://www.shadertoy.com/view/MdSczK
+    RESOURCE(): https://www.youtube.com/watch?v=qsYE1wMEMPA
+    RESOURCE(): https://www.williamhalpin.com/blog/water-simulation
+    = TODO(chowie): Vector fields on walls for NPC and text movement!
+    = Jos Stam paper for games
+
+    = "The point around sources and sinks is very tricky. This paper
+       that you are referencing is very non physical and pretty much only
+       ment to be used in video games or places that need something that
+       roughly behaves like water. Turns out there is a lot of literature
+       about how to implement boundary conditions of various kinds and
+       its all very complicated and easily leads to exploding
+       things. Just imagine that if you accidentally keep pushing more
+       fluid to an eclosed space then eventually the pressure will blow
+       up. Simiarly if you suck out too much it will blow up the other
+       way. If you choose timestep too big, or too little relative to
+       speed of sound of your medium (water) you either get weird
+       oscilations or it will all turn to mush etc. (I have been messing
+       around with this for my masters project for a half a year and I
+       still dont fully grasph it). The best way to get around all of
+       this is to have all boundary condtions be neumann (that is the
+       natural wall conditions you have around the area) and just
+       perscribed velocities around them the same way as you are doing
+       when you when you move the mouse. The system is still perfectly
+       isolated so you dont need to worry about stuff blowing up and the
+       results look appealing." From Boostibot
+    = "how do you make the cursor move the fluid? Normally people just
+       set the pixels in its neighborhood to some velocity along the
+       cursor. I am suggesting you do exactly the same procedure around
+       sources/sinks. Yes the solver will try to remove those because
+       they indeed dont satisfy the incompressibility (zero divergece)
+       condition but that happens with your mouse movement too. You just
+       reapply it the next step or not and let it get smoothed out by the
+       solver. Still all of this is way simpler than messing with
+       boundary conditions" From Boostibot
+
+    = "Every in-game tile is made up of 36 simulation tiles in a 6x6
+       grid. That number just seemed like a good enough fidelity for
+       the game while still being managable to simulate.
+
+       I store a list of every vertical boundary and every horizontal
+       boundary and in the set bound function I loop over the
+       appropriate combination of boundaries and apply the appropriate
+       rule (negation of its horizontal/vertical neighbors or average
+       of all its neighbors)
+
+       3/4/6. By designating some tiles as 'source' tiles with a
+       certain amount of generated fluid per second and some tiles as
+       'sink' tiles which set the height of all the cells in the tile
+       to zero every frame. This causes a difference in heights
+       between the cells with cells near the sources being high and
+       cells near the sink being low. This difference in height can be
+       used to convert some of the potential energy of the water into
+       kinetic energy (using the standard equations for gravitational
+       potential energy and kinetic energy) causing a flow from high
+       water to low water. While I tried to stick to actual physical
+       principle when implementing new features, some of the
+       coefficients were eyeballed such as the coefficient for
+       gravity, density, and viscosity.
+
+       Inverting the flow was actually really easy, I just adjusted
+       the sources and sinks for the tilemap so that sources became
+       sinks and vice versa, then the simulation reacted accordingly
+       completely reverses direction eventually.
+
+       7 . Originally I thought I needed to make some changes because
+       the sources and sinks certainly do cause divergence, but no
+       changes were necessary surprisingly. Simply altering the height
+       values directly in order to enforce the sources and sinks.
+
+       8.The game is broken up into a bunch of tilemaps that are
+       roughly a screen large and each tilemap is simulated all at
+       once with tilemaps that are far away not being simulated at
+       all, the tilemaps don't interact with each other at all.
+
+       Not really, I converted like all of the functions to SIMD but
+       besides the source/sink stuff and potential/kinetic energy
+       stuff it stays pretty true to the jos stam paper Yeah you get
+       some nasty bugs every now and then, I remember getting a bunch
+       of flickering and stuff when the framerates get really high/low
+       From Doclobster
+
+       "With smaller forces I managed to get a flow and it looks quite
+       nice" From Pere
 
   - Collision Detection (only for player controllers)
     = CCD, SAT or similar
@@ -303,6 +526,22 @@
     = Include time as a 4d grid visualisation graph
     = Light word generation with Bigrams and markov chains with pairs
     of hooks that are not fixed length
+    = RESOURCE(): https://www.williamhalpin.com/blog/beyond-dijkstras
+      > Another way to handle entity of different sizes instead of
+        multi-grid and path finding traversables, store "distance from
+        closest wall > size of NPC" = contour graph, to store all in
+        one place and use it differently for each path computed
+        (only works for square or circle collision boxes).
+        _______________
+        | __________ 3|____
+        | | _____ 2|____  |
+        | | |  1| _____ | |
+        | | | # | |  1| | |
+        | | | # | | x | | |
+        | | |___| |___| | |
+        | |_____________| |
+        |_________________|
+
     RESOURCE(): https://linguistics.stackexchange.com/questions/4082/impossible-bigrams-in-the-english-language
     = Parser
       > Parse trees scanners - RESOURCE(): https://www.cs.binghamton.edu/~zdu/parsdemo/gramintro.html
@@ -375,6 +614,18 @@
     Dataviz for geographic walk data
 
   - Entity System (will come off concurrent with GAME - scalability)
+
+  - Simulation
+    = "Sorry, skipped over this. A good approach would be to
+      dynamically compress chunks where no simulation will occur,
+      probably with a fast compression algorithm like LZ4. A chunk
+      that's all stone and air, such as an underground cave, won't do
+      anything. This allows you to compress not only simple chunks,
+      but also ones with a more complex shape.  This does mean your
+      allocations will empirically vary a lot in size (in addition to
+      vertex buffers), but that's pretty much the name of the game in
+      voxel engines, despite what others would have you to believe."
+      From Meesedev
 
   * Surfaces peeling off in the wind (like a stack of papers)
     = RESOURCE(): https://mymodernmet.com/illuminated-paper-blowing-in-the-wind/
