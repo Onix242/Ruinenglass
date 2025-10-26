@@ -6,6 +6,16 @@
    $Notice: $
    ======================================================================== */
 
+GL_DEBUG_CALLBACK(OpenGLDebugCallback)
+{
+    // TODO(chowie): Check severity for medium/high messages?
+    if(severity == GL_DEBUG_SEVERITY_HIGH)
+    {
+        char *ErrorMessage = (char *)message;
+        Assert(!"OpenGL error encountered");
+    }
+}
+
 internal opengl_info
 OpenGLGetInfo(b32x ModernContext)
 {
@@ -72,6 +82,14 @@ OpenGLInit(b32x ModernContext, opengl_info Info, b32x FramebufferSupportsSRGB)
         glEnable(GL_FRAMEBUFFER_SRGB);
     }
     glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE); // NOTE(chowie): This wouldn't work for multi-texturing env!
+
+#if RUINENGLASS_INTERNAL
+    if(glDebugMessageCallbackARB)
+    {
+        glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+        glDebugMessageCallbackARB(OpenGLDebugCallback, 0);
+    }
+#endif
 }
 
 // RESOURCE(): https://ktstephano.github.io/rendering/opengl/prog_vtx_pulling

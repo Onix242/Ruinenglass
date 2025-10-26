@@ -1797,10 +1797,11 @@ Adjugate(m4x4 A)
 inline rect2
 InvertedInfinityRect2(void)
 {
-    rect2 Result {V2(F32Max), V2(-F32Max)};
+    rect2 Result = {V2(F32Max), V2(-F32Max)};
     return(Result);
 }
 
+// RESOURCE(fabian): https://fgiesen.wordpress.com/2013/01/14/min-max-under-negation-and-an-aabb-trick/
 inline rect2
 Union(rect2 A, rect2 B)
 {
@@ -1886,6 +1887,13 @@ inline rect2
 AddRadiusTo(rect2 A, v2 Radius)
 {
     rect2 Result = {A.Min - Radius, A.Max + Radius};
+    return(Result);
+}
+
+inline rect2
+SubtractRadiusTo(rect2 A, v2 Radius)
+{
+    rect2 Result = {A.Min + Radius, A.Max - Radius};
     return(Result);
 }
 
@@ -2196,6 +2204,13 @@ inline rect3
 AddRadiusTo(rect3 A, v3 Radius)
 {
     rect3 Result = {A.Min - Radius, A.Max + Radius};
+    return(Result);
+}
+
+inline rect3
+SubtractRadiusTo(rect3 A, v3 Radius)
+{
+    rect3 Result = {A.Min + Radius, A.Max - Radius};
     return(Result);
 }
 

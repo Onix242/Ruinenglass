@@ -12,6 +12,16 @@
 #define GL_MAJOR_VERSION                  0x821B
 #define GL_MINOR_VERSION                  0x821C
 
+#define GL_DEBUG_SEVERITY_HIGH            0x9146
+#define GL_DEBUG_SEVERITY_MEDIUM          0x9147
+#define GL_DEBUG_SEVERITY_LOW             0x9148
+#define GL_DEBUG_TYPE_MARKER              0x8268
+#define GL_DEBUG_TYPE_PUSH_GROUP          0x8269
+#define GL_DEBUG_TYPE_POP_GROUP           0x826A
+#define GL_DEBUG_SEVERITY_NOTIFICATION    0x826B
+
+#define GL_DEBUG_OUTPUT_SYNCHRONOUS       0x8242
+
 // RESOURCE: https://registry.khronos.org/OpenGL/extensions/ARB/ARB_framebuffer_sRGB.txt
 // or https://registry.khronos.org/OpenGL/extensions/EXT/EXT_framebuffer_sRGB.txt
 #define GL_FRAMEBUFFER_SRGB               0x8DB9
@@ -65,6 +75,7 @@ GlobalFunctionStub(wglChoosePixelFormatARB);
 GlobalFunctionStub(wglSwapIntervalEXT);
 GlobalFunctionStub(wglGetExtensionsStringEXT);
 GlobalFunctionStub(glGetStringi);
+GlobalFunctionStub(glDebugMessageCallbackARB);
 
 // TODO(chowie): IMPORTANT(chowie): Move all function stubs here!
 struct opengl

@@ -68,7 +68,7 @@ typedef uint64_t u64;
 // NOTE(chowie): Boolean in whatever size is comfortable for the
 // compiler but not less than 32 bits (where it could be more efficient).
 typedef int_least32_t b32x;
-// typedef s32 b32; // NOTE(chowie): Avoids C4800 in Wall
+typedef s32 b32; // NOTE(chowie): For file formats that requires exact size. (Avoids C4800 in Wall)
 
 // NOTE(chowie): On systems with segmented memory, size_t used as an
 // index would hold only an offset within a segment, but uintptr_t

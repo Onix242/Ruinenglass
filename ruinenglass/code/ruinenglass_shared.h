@@ -320,10 +320,10 @@ struct d7sam_concat
 
 // TODO(chowie): String To Float - https://gist.github.com/d7samurai/140807683843a06195c33494e3546a84
 /*
-r64 string_to_float(char* str)
+f64 string_to_float(char* str)
 {
-    r64 num = 0.0;
-    r64 mul = 1.0;
+    f64 num = 0.0;
+    f64 mul = 1.0;
     s32    len = 0;
     s32    dec = 0;
 

@@ -31,6 +31,11 @@ typedef BOOL WINAPI type_wglSwapIntervalEXT(int interval);
 typedef const char *WINAPI type_wglGetExtensionsStringEXT(void);
 typedef const GLubyte *WINAPI type_glGetStringi(GLenum name, GLuint index);
 
+// STUDY(chowie): This trick is to make platform independent
+#define GL_DEBUG_CALLBACK(Name) void WINAPI Name(GLenum source, GLenum type, GLuint id, GLenum severity, GLsizei length, const GLchar *message, const void *userParam)
+typedef GL_DEBUG_CALLBACK(GLDEBUGPROC);
+typedef void WINAPI type_glDebugMessageCallbackARB(GLDEBUGPROC callback, const void *userParam);
+
 global b32x OpenGLSupportsSRGBFramebuffer;
 
 #include "ruinenglass_renderer_opengl.h"
@@ -211,6 +216,7 @@ Win32InitOpenGL(HDC WindowDC, b32x EnableVsync)
     if(wglMakeCurrent(WindowDC, OpenGLRC))
     {
         Win32GetOpenGLFunctionProc(glGetStringi);
+        Win32GetOpenGLFunctionProc(glDebugMessageCallbackARB);
 
         opengl_info Info = OpenGLGetInfo(ModernContext);
 

@@ -14,6 +14,7 @@
 #include "ruinenglass_world.h"
 #include "ruinenglass_entity.h"
 #include "ruinenglass_audio.h"
+#include "ruinenglass_ui.h"
 
 //
 // NOTE(chowie): Services the platform layer provides to the game

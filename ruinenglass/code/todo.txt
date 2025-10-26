@@ -237,6 +237,27 @@
       Prediction drop-down menus triangle???
     = Radial menu + Spiral
     = Geologica (heading) + Hyperlegible (body -> 0.3f leading)
+    = Rendering UI - Render textured quads first -> then use an sdf
+    shader to round the edges,
+    "The main two things you would want to render are
+    axis-aligned-bounding-boxes, probably with rounded corner, (and
+    potentially drop shadow, gradient, borders) and text. For aabb use
+    SDF, and for text... if it's for a game than I guess you could
+    just use pre-rendered atlas, unless you need to do some operations
+    on the text like resizing, and rotating, then MSDF (multi-channel
+    SDF)
+    - Why SDF?
+    - For aabb? For the rounded corners
+    - I would have expected 1 quad per UI element to be the standard
+    approach. Oh, I have no intention of using rounded corners. But
+    I see. Boxes all the way. But wouldn't it still make sense to
+    render a quad for each element, and then to render the SDF within
+    each quad? yes
+    - I see. Thanks! Using SDFs to render borders might still make sense.
+    - I like to use instancing as well, it makes the api easier to
+    use, I don't need to send data that applies to the entire quad for
+    all vertices"
+    RESOURCE(): https://iquilezles.org/articles/distfunctions2d/
 
   - Debug Code
     = [Computer Enhance's] Simple Profiler set as a base

@@ -10,6 +10,7 @@
 #include "ruinenglass_renderer.cpp"
 #include "ruinenglass_audio.cpp"
 #include "ruinenglass_world.cpp"
+#include "ruinenglass_ui.cpp"
 
 // TODO(chowie): Buckle down entity "index"/ID!
 internal entity *
