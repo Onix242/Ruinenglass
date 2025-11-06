@@ -638,6 +638,7 @@ union rect3
     f32 E[9];
 };
 
+// STUDY(chowie): OpenGL expects COLUMN-MAJOR order! We'll transpose!
 // RESOURCE: Mat mult - https://gist.github.com/rygorous/4172889
 union m2x2
 {
@@ -678,6 +679,13 @@ struct m4x4
     };
     // NOTE(chowie): ROW-MAJOR order - E[Row][Column]
     f32 E[4][4];
+};
+
+// STUDY(chowie): HmH generates both the forward and inverse automatically!
+struct m4x4_inv
+{
+    m4x4 Forward;
+    m4x4 Inverse;
 };
 
 // TODO(chowie): Debug View

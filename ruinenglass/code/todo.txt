@@ -238,7 +238,7 @@
     = Radial menu + Spiral
     = Geologica (heading) + Hyperlegible (body -> 0.3f leading)
     = Rendering UI - Render textured quads first -> then use an sdf
-    shader to round the edges,
+    in a shader to round the edges for user-facing stuff see HmH,
     "The main two things you would want to render are
     axis-aligned-bounding-boxes, probably with rounded corner, (and
     potentially drop shadow, gradient, borders) and text. For aabb use

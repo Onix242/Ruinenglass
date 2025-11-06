@@ -6,6 +6,17 @@
    $Notice: $
    ======================================================================== */
 
+// TODO(chowie): Center cubes too?
+// TODO(chowie): Use for all dim!
+#define TileSide 1.0f
+#define HoneycombBox      0.8f*V3(TileSide, TileSide, TileSide)
+#define HoneycombBlock    0.2f*V3(TileSide, TileSide, TileSide)
+#define HoneycombTile     V3(0.8f*TileSide, 0.2f*TileSide, 0.8f*TileSide)
+#define HoneycombWebSlab  V3(0.8f*TileSide, 0.8f*TileSide, 0.2f*TileSide)
+#define HoneycombDrySlab  V3(0.2f*TileSide, 0.8f*TileSide, 0.8f*TileSide)
+#define HoneycombWebBlank V3(0.8f*TileSide, 0.2f*TileSide, 0.2f*TileSide)
+#define HoneycombDryBlank V3(0.2f*TileSide, 0.2f*TileSide, 0.8f*TileSide)
+
 #include "ruinenglass.h"
 #include "ruinenglass_renderer.cpp"
 #include "ruinenglass_audio.cpp"
@@ -229,6 +240,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     //
     // Play World
     //
+
+    // TODO: Use this!
+    v3 WorldChunkDimInMeters = V3(16.0f, 16.0f, 16.0f)*TileSideInMeters;
 
     f32 dt = Input->dtForFrame;
     for(u32 ControllerIndex = 0;

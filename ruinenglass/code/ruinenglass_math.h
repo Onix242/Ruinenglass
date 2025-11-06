@@ -343,8 +343,18 @@ ClampAboveZero(f32 Value)
     return(Result);
 }
 
+// STUDY(chowie): Inverval inclusion, 1D rect if point in between two bounds
+inline b32x
+IsInRange(f32 Min, f32 Value, f32 Max)
+{
+    b32x Result = ((Min <= Value) &&
+                   (Value <= Max));
+    return(Result);
+}
+
 // NOTE(chowie): It could be rewritten as "Square(Result) * (3.0f - 2.0f*Result)"
 // RESOURCE: https://handmade.network/p/64/geometer/blog/p/3048-1_year_of_geometer_-_lessons_learnt
+// NOTE(chowie): Smooth curve for blending (lerp)
 inline f32
 SmoothStep(f32 t)
 {
@@ -357,6 +367,7 @@ SmoothStep(f32 t)
 // RESOURCE: https://realtimecollisiondetection.net/blog/?p=95
 // RESOURCE: https://www.fundza.com/rman_shaders/smoothstep/
 // TODO(chowie): Test smooth-step and pulse for alpha tests?
+// NOTE(chowie): Smooth curve for blending (lerp)
 inline f32
 SmoothStep(f32 Min, f32 t, f32 Max)
 {
@@ -367,7 +378,7 @@ SmoothStep(f32 Min, f32 t, f32 Max)
 
 // RESOURCE(): https://iradicator.com/fast-inverse-smoothstep/
 // TODO(chowie): Find which one matches me!
-
+// NOTE(chowie): Hard edge for blending (lerp)
 inline f32
 Step(f32 t, f32 Value)
 {
@@ -1075,7 +1086,10 @@ Normalise(v3 A)
 // it would get higher as it gets further, but we would like the
 // opposite. 1 if directly pointed in the same direction, -1 if
 // opposite. 0 if perp.
-// NOTE(chowie): Normalise _or_ 0. Automatic epsilon check, becomes a zero vector. For Inner Product
+// NOTE(chowie): Normalise _or_ 0. Automatic epsilon check, becomes a
+// zero vector. For Inner Product
+// NOTE(chowie): Use this if you don't know how long the line could
+// be, and if degerate!
 inline v3
 NOZ(v3 A)
 {
@@ -1544,6 +1558,9 @@ Geo(v3 A, v3 B)
     return(Result);
 }
 
+// RESOURCE(): https://hero.handmade.network/forums/code-discussion/t/2305-dot_product_and_cross_product_as_quaternions
+// RESOURCE(): https://and-what-happened.blogspot.com/2013/03/basic-linear-algebra-for-3d-graphics.html?view=sidebar
+// STUDY(chowie): Rotor/Quaternion can be made by cross + inner/dot product
 // TODO(chowie): Is this the correct order? I'm assuming A = P, B = Q
 // TODO(chowie): Marc Ten Bosch suggests this can be optimised
 // TODO(chowie): Replace with geometric product?
@@ -1790,6 +1807,330 @@ Adjugate(m4x4 A)
 // IMPORTANT(chowie): TODO(chowie): Projection!
 
 //
+// NOTE(chowie): Matrix
+//
+
+// STUDY(chowie): This is the instructive version, not optimised!
+// Compiler should be smart to unroll constants in loops
+inline m4x4
+operator*(m4x4 A, m4x4 B)
+{
+    m4x4 Result = {};
+
+    // NOTE(chowie): Rows of A
+    for(s32 r = 0;
+        r <= 3;
+        ++r)
+    {
+        // NOTE(chowie): Columns of B
+        for(s32 c = 0;
+            c <= 3;
+            ++c)
+        {
+            // NOTE(chowie): Columns of A, Rows of B
+            for(s32 i = 0; // COULDDO(chowie): Pull out A.E[r][i], i = 1 to be optimal
+                i <= 3;
+                ++i)
+            {
+                // STUDY(chowie): A is free to have as many col and B as many
+                // rows, notice how r(ow) c(ol) are dependent
+                // respectively. A.E[r][i] r only exists in
+                // "A". B.E[i][c] only exists in "B". i appears in both
+                Result.E[r][c] += A.E[r][i]*B.E[i][c];
+            }
+        }
+    }
+
+    return(Result);
+}
+
+// IMPORTANT(chowie): STUDY(chowie): This is the instructive version, not optimised!
+inline v4
+Transform(m4x4 A, v4 P) // STUDY(chowie): Can specify .w if necessary
+{
+    v4 Result
+    {
+        P.x*A.E[0][0] + P.y*A.E[0][1] + P.z*A.E[0][2] + P.w*A.E[0][3],
+        P.x*A.E[1][0] + P.y*A.E[1][1] + P.z*A.E[1][2] + P.w*A.E[1][3],
+        P.x*A.E[2][0] + P.y*A.E[2][1] + P.z*A.E[2][2] + P.w*A.E[2][3],
+        P.x*A.E[3][0] + P.y*A.E[3][1] + P.z*A.E[3][2] + P.w*A.E[3][3],
+    };
+
+    return(Result);
+}
+
+inline v3
+operator*(m4x4 A, v3 P)
+{
+    v3 Result = Transform(A, V4(P, 1.0f)).xyz;
+    return(Result);
+}
+
+inline v4
+operator*(m4x4 A, v4 P)
+{
+    v4 Result = Transform(A, P);
+    return(Result);
+}
+
+// IMPORTANT(chowie): STUDY(chowie): This is the instructive version, not optimised!
+inline m4x4
+Identity(void)
+{
+    m4x4 Result =
+    {
+        {{1, 0, 0, 0},
+         {0, 1, 0, 0},
+         {0, 0, 1, 0},
+         {0, 0, 0, 1}}
+    };
+
+    return(Result);
+}
+
+// IMPORTANT(chowie): STUDY(chowie): This is the instructive version, not optimised!
+inline m4x4
+XRotation(f32 Angle)
+{
+    f32 c = Cos(Angle);
+    f32 s = Sin(Angle);
+
+    m4x4 Result =
+    {
+        {{1, 0, 0, 0},
+         {0, c,-s, 0},
+         {0, s, c, 0},
+         {0, 0, 0, 1}}
+    };
+
+    return(Result);
+}
+
+// IMPORTANT(chowie): STUDY(chowie): This is the instructive version, not optimised!
+inline m4x4
+YRotation(f32 Angle)
+{
+    f32 c = Cos(Angle);
+    f32 s = Sin(Angle);
+
+    m4x4 Result =
+    {
+        {{ c, 0, s, 0},
+         { 0, 1, 0, 0},
+         {-s, 0, c, 0},
+         { 0, 0, 0, 1}}
+    };
+
+    return(Result);
+}
+
+// IMPORTANT(chowie): STUDY(chowie): This is the instructive version, not optimised!
+inline m4x4
+ZRotation(f32 Angle)
+{
+    f32 c = Cos(Angle);
+    f32 s = Sin(Angle);
+
+    m4x4 Result =
+    {
+        {{c,-s, 0, 0},
+         {s, c, 0, 0},
+         {0, 0, 1, 0},
+         {0, 0, 0, 1}}
+    };
+
+    return(Result);
+}
+
+// NOTE(chowie): A transpose op for m4x4 may not be that useful. Since OpenGL
+// should handle it. Maybe for smaller matrices or other reasons?
+inline m4x4
+Transpose(m4x4 A)
+{
+    m4x4 Result = {};
+
+    for(int j = 0;
+        j <= 3;
+        ++j)
+    {
+        for(int i = 0;
+            i <= 3;
+            ++i)
+        {
+            Result.E[j][i] = A.E[i][j];
+        }
+    }
+
+    return(Result);
+}
+
+// RESOURCE(): https://unspecified.wordpress.com/2012/06/21/calculating-the-gluperspective-matrix-and-other-opengl-matrix-maths/
+// NOTE(chowie): Outputs -1 to 1, not in pixel coords
+inline m4x4_inv
+PerspectiveProj(f32 AspectWidthOverHeight, f32 FocalLength,
+                f32 NearClipPlane, f32 FarClipPlane)
+{
+    f32 a = 1.0f;
+    f32 b = AspectWidthOverHeight; // STUDY(chowie): HmH 363, puts Aspect in {2,2} of the matrix Y-correction instead of {1, 1} X-correction (X requires inversion 1/aspect, but Y doesn't need to)
+    f32 c = FocalLength; // STUDY(chowie): People take the Z directly (as -1) and not modify by the focal length
+
+    f32 n = NearClipPlane; // NOTE(chowie): Near clip plane dist = OpenGL map to -1
+    f32 f = FarClipPlane; // NOTE(chowie): Far clip plane dist = OpenGL map to 1
+
+    // NOTE(chowie): These are perspective corrected terms, when you divide by -z
+    f32 d = (n+f)/(n-f);
+    f32 e = (2*f*n) / (n-f);
+
+    m4x4_inv Result =
+    {
+        // NOTE(chowie): Forward
+        {{{a*c,   0,  0, 0},
+          {  0, b*c,  0, 0},
+          {  0,   0,  d, e},
+          {  0,   0, -1, 0}}}, // NOTE(chowie): -1 to get negated, right-handed coord independent
+
+        // NOTE(chowie): Inverse
+        {{{1/(a*c),       0,   0,   0},
+          {      0, 1/(b*c),   0,   0},
+          {      0,       0,   0,  -1},
+          {      0,       0, 1/e, d/e}}},
+    };
+
+#if RUINENGLASS_SLOW
+    m4x4 I = Result.Inverse*Result.Forward;
+    v4 Test0 = Result.Forward*V4(0, 0, -n, 1);
+    Test0.xyz /= Test0.w;
+    v4 Test1 = Result.Forward*V4(0, 0, -f, 1);
+    Test1.xyz /= Test1.w;
+#endif
+
+    return(Result);
+}
+
+// NOTE(chowie): Outputs -1 to 1, not in pixel coords
+// TODO(chowie): Pass in the near and far clip plane?
+inline m4x4_inv
+OrthographicProj(f32 AspectWidthOverHeight,
+                 f32 NearClipPlane, f32 FarClipPlane)
+{
+    f32 a = 1.0f;
+    f32 b = AspectWidthOverHeight; // STUDY(chowie): Should take care of width + height, the caller of SetCameraTransform only needs width!
+
+    // STUDY(chowie): Since everything can be proj on a sheet with no
+    // foreshortening in orthographic, you can draw in front like behind.
+    f32 n = NearClipPlane; // NOTE(chowie): Near clip plane dist = OpenGL map to -1
+    f32 f = FarClipPlane; // NOTE(chowie): Far clip plane dist = OpenGL map to 1
+
+    f32 d = 2.0f / (n - f); // NOTE(chowie): Near clip plane
+    f32 e = (n + f) / (n - f); // NOTE(chowie): Far clip plane
+
+    m4x4_inv Result =
+    {
+        {{{a, 0, 0, 0},
+          {0, b, 0, 0},
+          {0, 0, d, e},
+          {0, 0, 0, 1}}},
+
+        {{{1/a,   0,   0, 0},
+          {  0, 1/b,   0, 0},
+          {  0,   0, 1/d, -e/d},
+          {  0,   0,   0, 1}}},
+    };
+
+#if RUINENGLASS_SLOW
+    m4x4 I = Result.Inverse*Result.Forward;
+    v3 Test0 = Result.Forward*V3(0, 0, -n);
+    v3 Test1 = Result.Forward*V3(0, 0, -f);
+#endif
+
+    return(Result);
+}
+
+internal m4x4
+Columns3x3(v3 X, v3 Y, v3 Z)
+{
+    m4x4 Result =
+    {
+        {{X.x, Y.x, Z.x, 0},
+         {X.y, Y.y, Z.y, 0},
+         {X.z, Y.z, Z.z, 0},
+         {  0,   0,   0, 1}
+        },
+    };
+
+    return(Result);
+}
+
+internal m4x4
+Rows3x3(v3 X, v3 Y, v3 Z)
+{
+    m4x4 Result =
+    {
+        {{X.x, X.y, X.z, 0},
+         {Y.x, Y.y, Y.z, 0},
+         {Z.x, Z.y, Z.z, 0},
+         {  0,   0,   0, 1}
+        },
+    };
+
+    return(Result);
+}
+
+internal m4x4
+Translate(m4x4 A, v3 T)
+{
+    m4x4 Result = A;
+    Result.E[0][3] += T.x;
+    Result.E[1][3] += T.y;
+    Result.E[2][3] += T.z;
+
+    return(Result);
+}
+
+internal v3
+GetColumn(m4x4 A, u32 Column)
+{
+    v3 Result = {A.E[0][Column], A.E[1][Column], A.E[2][Column]};
+    return(Result);
+}
+
+internal v3
+GetRow(m4x4 A, u32 Row)
+{
+    v3 Result = {A.E[Row][0], A.E[Row][1], A.E[Row][2]};
+    return(Result);
+}
+
+internal m4x4_inv
+CameraTransform(v3 X, v3 Y, v3 Z, v3 P)
+{
+    m4x4_inv Result;
+
+    m4x4 A = Rows3x3(X, Y, Z);
+    v3 AP = -(A*P);
+    A = Translate(A, AP); // TODO(chowie): Math would notate as "-Result*P", but needs an operator overload
+    Result.Forward = A;
+
+    v3 InvX = X/LengthSq(X);
+    v3 InvY = Y/LengthSq(Y);
+    v3 InvZ = Z/LengthSq(Z);
+    v3 InvP = V3(AP.x*InvX.x + AP.y*InvY.x + AP.z*InvZ.x,
+                 AP.x*InvX.y + AP.y*InvY.y + AP.z*InvZ.y,
+                 AP.x*InvX.z + AP.y*InvY.z + AP.z*InvZ.z);
+
+    // STUDY(chowie): Not the most efficient way to build!
+    m4x4 B = Columns3x3(InvX, InvY, InvZ);
+    B = Translate(B, -InvP);
+    Result.Inverse = B;
+
+#if RUINENGLASS_SLOW
+    m4x4 I = Result.Inverse*Result.Forward;
+#endif
+
+    return(Result);
+}
+
+//
 // NOTE(chowie): Rect2
 //
 
@@ -1919,6 +2260,7 @@ RectCenterDim(v2 Center, v2 Dim)
     return(Result);
 }
 
+// STUDY: More like is "PointInRect"
 inline b32x
 IsInRect(rect2 Rect, v2 Test)
 {
@@ -1984,11 +2326,22 @@ GetHeight(rect2i A)
 inline rect2i
 Offset(rect2i A, v2s Offset)
 {
-    rect2i Result = A;
+    rect2i Result = {A.Min + Offset, A.Max + Offset};
+    return(Result);
+}
 
-    Result.Min = A.Min + Offset;
-    Result.Max = A.Max + Offset;
+inline rect2i
+RectMinMax(v2s Min, v2s Max)
+{
+    rect2i Result = {Min, Max};
+    return(Result);
+}
 
+// NOTE(chowie): Min is the corner
+inline rect2i
+RectMinDim(v2s Min, v2s Dim)
+{
+    rect2i Result = {Min, Min + Dim};
     return(Result);
 }
 
@@ -2153,6 +2506,61 @@ UnionRects(rect2i *Rects, s32 Amount) // NOTE(chowie): Amount >= 1
 }
 #endif
 
+// TODO(chowie): Reposition clipping region in OpenGL viewport instead!
+internal rect2i
+AspectRatioFit(v2u Render, v2u Window)
+{
+    rect2i Result = {};
+
+    v2 OptimalWindow =
+    {
+        (f32)(Window.Height * (Render.Width / Render.Height)),
+        (f32)(Window.Width  * (Render.Height / Render.Width)),
+    };
+
+    Result.Min.x = 0;
+    Result.Max.x = RoundF32ToS32(OptimalWindow.Width);
+    Result.Min.y = 0;
+    Result.Max.y = RoundF32ToS32(OptimalWindow.Height);
+
+#if 0
+    if((Render.Width > 0) &&
+       (Render.Height > 0) &&
+       (Window.Width > 0) &&
+       (Window.Height > 0))
+    {
+        if(OptimalWindow.Width > (f32)Window.Width)
+        {
+            // NOTE(chowie): Width-constrained display - top and bottom black bars
+            Result.Min.x = 0;
+            Result.Max.x = Window.Width;
+
+            f32 Empty = Window.Height - OptimalWindow.Height;
+            s32 HalfEmpty = RoundF32ToS32(0.5f*Empty); // NOTE(chowie): Rounding to not be on a bogus boundary
+            s32 UseHeight = RoundF32ToS32(OptimalWindow.Height);
+
+            Result.Min.y = HalfEmpty;
+            Result.Max.y = Result.Min.y + UseHeight;
+        }
+        else
+        {
+            // NOTE(chowie): Height-constrained display - left and right black bars
+            Result.Min.y = 0;
+            Result.Max.y = Window.Height;
+
+            f32 Empty = Window.Width - OptimalWindow.Width;
+            s32 HalfEmpty = RoundF32ToS32(0.5f*Empty); // NOTE(chowie): Rounding to not be on a bogus boundary
+            s32 UseWidth  = RoundF32ToS32(OptimalWindow.Width);
+
+            Result.Min.x = HalfEmpty;
+            Result.Max.x = Result.Min.x + UseWidth;
+        }
+    }
+#endif
+
+    return(Result);
+}
+
 //
 // NOTE(chowie): Rect3
 //
@@ -2221,6 +2629,13 @@ Offset(rect3 A, v3 Offset)
     return(Result);
 }
 
+inline b32x
+HasArea(rect3 A)
+{
+    b32x Result = ((A.Min.x < A.Max.x) && (A.Min.y < A.Max.y) && (A.Min.z < A.Max.z));
+    return(Result);
+}
+
 // NOTE(chowie): Dim stores half-width and half-height
 inline rect3
 RectCenterHalfDim(v3 Center, v3 HalfDim)
@@ -2282,11 +2697,15 @@ ToRectXY(rect3 A)
     return(Result);
 }
 
+//
+// Colour
+//
+
 // STUDY: Convert to linear colours e.g. SRGB255ToLinear1(V4(0.0f, 0.6f, 0.3f, 1))
 // Approximation of un-srgb to srgb input
 // TODO: Do a real srgb curve, not square. Use graphics hardware!
 inline v4
-SRGBToLinear(v4 C)
+sRGBToLinear(v4 C)
 {
     v4 Result;
 
@@ -2299,10 +2718,10 @@ SRGBToLinear(v4 C)
 }
 
 inline v4
-SRGBToLinear(f32 R, f32 G, f32 B, f32 A)
+sRGBToLinear(f32 R, f32 G, f32 B, f32 A)
 {
     v4 Input = {R, G, B, A};
-    v4 Result = SRGBToLinear(Input);
+    v4 Result = sRGBToLinear(Input);
 
     return(Result);
 }
@@ -2315,7 +2734,7 @@ SRGBToLinear(f32 R, f32 G, f32 B, f32 A)
 // alpha (but who knows really depending on the program).
 // NOTE(chowie): Alpha channels are not converted to sRGB, is linear.
 inline v4
-SRGB255ToLinear1(v4 C)
+sRGB255ToLinear1(v4 C)
 {
 #define Inv255 (1.0f / 255.0f)
     v4 Result = {Square(Inv255*C.r), Square(Inv255*C.g), Square(Inv255*C.b), Inv255*C.a};
@@ -2323,12 +2742,58 @@ SRGB255ToLinear1(v4 C)
 }
 
 inline v4
-Linear1ToSRGB255(v4 C)
+Linear1TosRGB255(v4 C)
 {
 #define One255 255.0f
     v4 Result = {One255*SquareRoot(C.r), One255*SquareRoot(C.g), One255*SquareRoot(C.b), One255*C.a};
     return(Result);
 }
+
+inline v4
+BGRAUnpack4x8(u32 Packed)
+{
+    v4 Result = {(f32)((Packed >> 16) & 0xFF),
+                 (f32)((Packed >> 8) & 0xFF),
+                 (f32)((Packed >> 0) & 0xFF),
+                 (f32)((Packed >> 24) & 0xFF)};
+    return(Result);
+}
+
+// NOTE(chowie): Requires multiply 255.0f with Unpacked outside function
+inline u32
+BGRAPack4x8(v4 Unpacked)
+{
+    u32 Result = ((RoundF32ToU32(Unpacked.a) << 24) |
+                  (RoundF32ToU32(Unpacked.r) << 16) |
+                  (RoundF32ToU32(Unpacked.g) << 8) |
+                  (RoundF32ToU32(Unpacked.b) << 0));
+    return(Result);
+}
+
+inline v4
+RGBAUnpack4x8(u32 Packed)
+{
+    v4 Result = {(f32)((Packed >> 0) & 0xFF),
+                 (f32)((Packed >> 8) & 0xFF),
+                 (f32)((Packed >> 16) & 0xFF),
+                 (f32)((Packed >> 24) & 0xFF)};
+    return(Result);
+}
+
+// NOTE(chowie): Requires multiply 255.0f with Unpacked outside function
+inline u32
+RGBAPack4x8(v4 Unpacked)
+{
+    u32 Result = ((RoundF32ToU32(Unpacked.a) << 24) |
+                  (RoundF32ToU32(Unpacked.b) << 16) |
+                  (RoundF32ToU32(Unpacked.g) << 8) |
+                  (RoundF32ToU32(Unpacked.r) << 0));
+    return(Result);
+}
+
+//
+//
+//
 
 // RESOURCE(): https://www.flipcode.com/archives/Little_Math_Trick.shtml
 // STUDY(chowie): For loop accumulator e.g. raycasting to += rather

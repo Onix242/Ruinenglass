@@ -38,147 +38,161 @@
 
 // NOTE(chowie): Cuts smaller rectangle of input rect
 inline rect2
-RectCutSide_Left(rect2 Rect, f32 A)
+RectCutSide_Left(rect2 *Rect, f32 A)
 {
-    f32 CutLeft = Rect.Min.x;
-    Rect.Min.x = Minimum(Rect.Max.x, Rect.Min.x + A);
+    f32 CutLeft = Rect->Min.x;
+    Rect->Min.x = Minimum(Rect->Max.x, Rect->Min.x + A);
 
-    rect2 Result = RectMinMax(V2(CutLeft, Rect.Min.y), V2(Rect.Min.x, Rect.Max.y));
+    rect2 Result = RectMinMax(V2(CutLeft, Rect->Min.y), V2(Rect->Min.x, Rect->Max.y));
     return(Result);
 }
 
 inline rect2
-RectCutSide_Right(rect2 Rect, f32 A)
+RectCutSide_Right(rect2 *Rect, f32 A)
 {
-    f32 CutRight = Rect.Max.x;
-    Rect.Max.x = Maximum(Rect.Min.x, Rect.Max.x - A);
+    f32 CutRight = Rect->Max.x;
+    Rect->Max.x = Maximum(Rect->Min.x, Rect->Max.x - A);
 
-    rect2 Result = RectMinMax(V2(Rect.Max.x, Rect.Min.y), V2(CutRight, Rect.Max.y));
+    rect2 Result = RectMinMax(V2(Rect->Max.x, Rect->Min.y), V2(CutRight, Rect->Max.y));
     return(Result);
 }
 
 inline rect2
-RectCutSide_Top(rect2 Rect, f32 A)
+RectCutSide_Top(rect2 *Rect, f32 A)
 {
-    f32 CutTop = Rect.Min.y;
-    Rect.Min.y = Minimum(Rect.Max.y, Rect.Min.y + A);
+    f32 CutTop = Rect->Min.y;
+    Rect->Min.y = Minimum(Rect->Max.y, Rect->Min.y + A);
 
-    rect2 Result = RectMinMax(V2(Rect.Min.x, CutTop), V2(Rect.Max.x, Rect.Min.y));
+    rect2 Result = RectMinMax(V2(Rect->Min.x, CutTop), V2(Rect->Max.x, Rect->Min.y));
     return(Result);
 }
 
 inline rect2
-RectCutSide_Bottom(rect2 Rect, f32 A)
+RectCutSide_Bottom(rect2 *Rect, f32 A)
 {
-    f32 CutBottom = Rect.Max.y;
-    Rect.Max.y = Maximum(Rect.Min.y, Rect.Max.y - A);
+    f32 CutBottom = Rect->Max.y;
+    Rect->Max.y = Maximum(Rect->Min.y, Rect->Max.y - A);
 
-    rect2 Result = RectMinMax(V2(Rect.Min.x, Rect.Max.y), V2(Rect.Max.x, CutBottom));
+    rect2 Result = RectMinMax(V2(Rect->Min.x, Rect->Max.y), V2(Rect->Max.x, CutBottom));
     return(Result);
 }
 
 inline rect_cut
-GetRectCut(rect2 Rect, rect_cut_side_type Type)
+GetRectCut(rect2 *Rect, rect_cut_side_type Type)
 {
     rect_cut Result = {Rect, Type};
     return(Result);
 }
 
 inline rect2
-GetRectCutType(rect_cut RectCut, f32 A)
+RectCutFitToSize(rect_cut *RectCut, f32 A)
 {
 #define RectCase(Cut, a) case a: {return RectCut##a(Cut, a);}
-    switch(RectCut.Type)
+    switch(RectCut->Type)
     {
-        RectCase(RectCut.Rect, Side_Left);
-        RectCase(RectCut.Rect, Side_Right);
-        RectCase(RectCut.Rect, Side_Top);
-        RectCase(RectCut.Rect, Side_Bottom);
+        RectCase(RectCut->Rect, Side_Left);
+        RectCase(RectCut->Rect, Side_Right);
+        RectCase(RectCut->Rect, Side_Top);
+        RectCase(RectCut->Rect, Side_Bottom);
         default: InvalidCodePath;
     }
 }
 
+// TODO(chowie): Button's size is by the label
+// b32x Button(rect_cut Layout, char *Label)
+// {
+//    f32 Size = MeasureText(Label)
+//    rect2 Rect = RectCutFitToSize(Layout, Size)
+//    - Interactions
+//    - Draw
+// }
+//
+// From caller,
+// rect2 Toolbar = {, , , ,};
+// Button(GetRectCut(&Toolbar, Side_Left), "Left");
+// Button(GetRectCut(&Toolbar, Side_Right), "Right");
+
 // NOTE(chowie): Leaves rect unmodified = good for adding 9-patch UI or decorations?
 inline rect2
-GetRectCutSide_Left(rect2 Rect, f32 A)
+GetRectCutSide_Left(rect2 *Rect, f32 A)
 {
-    f32 Left = Minimum(Rect.Max.x, Rect.Min.x + A);
+    f32 Left = Minimum(Rect->Max.x, Rect->Min.x + A);
 
-    rect2 Result = RectMinMax(V2(Rect.Min.x, Rect.Min.y), V2(Left, Rect.Max.y));
+    rect2 Result = RectMinMax(V2(Rect->Min.x, Rect->Min.y), V2(Left, Rect->Max.y));
     return(Result);
 }
 
 inline rect2
-GetRectCutSide_Right(rect2 Rect, f32 A)
+GetRectCutSide_Right(rect2 *Rect, f32 A)
 {
-    f32 Right = Maximum(Rect.Min.x, Rect.Max.x - A);
+    f32 Right = Maximum(Rect->Min.x, Rect->Max.x - A);
 
-    rect2 Result = RectMinMax(V2(Right, Rect.Min.y), V2(Rect.Max.x, Rect.Max.y));
+    rect2 Result = RectMinMax(V2(Right, Rect->Min.y), V2(Rect->Max.x, Rect->Max.y));
     return(Result);
 }
 
 inline rect2
-GetRectCutSide_Top(rect2 Rect, f32 A)
+GetRectCutSide_Top(rect2 *Rect, f32 A)
 {
-    f32 Top = Minimum(Rect.Max.y, Rect.Min.y + A);
+    f32 Top = Minimum(Rect->Max.y, Rect->Min.y + A);
 
-    rect2 Result = RectMinMax(V2(Rect.Min.x, Rect.Min.y), V2(Rect.Max.x, Top));
+    rect2 Result = RectMinMax(V2(Rect->Min.x, Rect->Min.y), V2(Rect->Max.x, Top));
     return(Result);
 }
 
 inline rect2
-GetRectCutSide_Bottom(rect2 Rect, f32 A)
+GetRectCutSide_Bottom(rect2 *Rect, f32 A)
 {
-    f32 Bottom = Maximum(Rect.Min.y, Rect.Max.y - A);
+    f32 Bottom = Maximum(Rect->Min.y, Rect->Max.y - A);
 
-    rect2 Result = RectMinMax(V2(Rect.Min.x, Bottom), V2(Rect.Max.x, Rect.Max.y));
+    rect2 Result = RectMinMax(V2(Rect->Min.x, Bottom), V2(Rect->Max.x, Rect->Max.y));
     return(Result);
 }
 
 // NOTE(chowie): Useful for adding tooltips or other overlay elements!
 inline rect2
-AddRectCutSide_Left(rect2 Rect, f32 A)
+AddRectCutSide_Left(rect2 *Rect, f32 A)
 {
-    f32 AddLeft = Rect.Min.x - A;
-    rect2 Result = RectMinMax(V2(AddLeft, Rect.Min.y), V2(Rect.Min.x, Rect.Max.y));
+    f32 AddLeft = Rect->Min.x - A;
+    rect2 Result = RectMinMax(V2(AddLeft, Rect->Min.y), V2(Rect->Min.x, Rect->Max.y));
     return(Result);
 }
 
 inline rect2
-AddRectCutSide_Right(rect2 Rect, f32 A)
+AddRectCutSide_Right(rect2 *Rect, f32 A)
 {
-    f32 AddRight = Rect.Max.x + A;
-    rect2 Result = RectMinMax(V2(Rect.Max.x, Rect.Min.y), V2(AddRight, Rect.Max.y));
+    f32 AddRight = Rect->Max.x + A;
+    rect2 Result = RectMinMax(V2(Rect->Max.x, Rect->Min.y), V2(AddRight, Rect->Max.y));
     return(Result);
 }
 
 inline rect2
-AddRectCutSide_Top(rect2 Rect, f32 A)
+AddRectCutSide_Top(rect2 *Rect, f32 A)
 {
-    f32 AddTop = Rect.Min.y - A;
-    rect2 Result = RectMinMax(V2(Rect.Min.x, AddTop), V2(Rect.Max.x, Rect.Min.y));
+    f32 AddTop = Rect->Min.y - A;
+    rect2 Result = RectMinMax(V2(Rect->Min.x, AddTop), V2(Rect->Max.x, Rect->Min.y));
     return(Result);
 }
 
 inline rect2
-AddRectCutSide_Bottom(rect2 Rect, f32 A)
+AddRectCutSide_Bottom(rect2 *Rect, f32 A)
 {
-    f32 AddBottom = Rect.Max.y + A;
-    rect2 Result = RectMinMax(V2(Rect.Min.x, Rect.Max.y), V2(Rect.Max.x, AddBottom));
+    f32 AddBottom = Rect->Max.y + A;
+    rect2 Result = RectMinMax(V2(Rect->Min.x, Rect->Max.y), V2(Rect->Max.x, AddBottom));
     return(Result);
 }
 
 inline rect2
-RectCutExtendBorder(rect2 Rect, v2 Radius)
+RectCutExtendBorder(rect2 *Rect, v2 Radius)
 {
-    rect2 Result = AddRadiusTo(Rect, Radius);
+    rect2 Result = AddRadiusTo(*Rect, Radius);
     return(Result);
 }
 
 inline rect2
-RectCutContractBorder(rect2 Rect, v2 Radius)
+RectCutContractBorder(rect2 *Rect, v2 Radius)
 {
-    rect2 Result = SubtractRadiusTo(Rect, Radius);
+    rect2 Result = SubtractRadiusTo(*Rect, Radius);
     return(Result);
 }
 
