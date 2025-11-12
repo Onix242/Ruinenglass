@@ -7,10 +7,13 @@
    $Notice: $
    ======================================================================== */
 
-//
-// IMPORTANT(chowie): Remember renderer is bottom-up / Y-is-up
-// rendered. Consider this when reading world data on disk!
-//
+/* IMPORTANT(chowie):
+
+   - Renderer is bottom-up / Y-is-up rendered, X is to the right.
+     Consider this when reading world data on disk!
+
+   - V4 Colours specified to the renderer are non-premultiplied alpha.
+*/
 
 // TODO(chowie): Textures?
 
@@ -20,6 +23,7 @@ enum render_group_entry_type
     RenderGroupEntryType_render_entry_clear,
     RenderGroupEntryType_render_entry_rect,
     RenderGroupEntryType_render_entry_circle,
+    RenderGroupEntryType_render_entry_bitmap, // TODO(chowie): Temporary, remove for a generic quad!
 };
 struct render_group_entry_header
 {
@@ -29,6 +33,11 @@ struct render_group_entry_header
 //
 // NOTE(chowie): Render hooks
 //
+
+struct render_entry_clear
+{
+    v4 Colour;
+};
 
 struct render_entry_circle
 {
@@ -44,6 +53,13 @@ struct render_entry_rect
     v4 Colour;
     v3 P;
     v2 Dim;
+};
+
+struct render_entry_bitmap
+{
+    loaded_bitmap *Bitmap;
+    v4 PremulColour;
+    v3 P;
 };
 
 /*
@@ -63,11 +79,6 @@ struct plain_shape
 };
 */
 
-struct render_entry_clear
-{
-    v4 Colour;
-};
-
 struct game_render_commands
 {
     v2u Dim;
@@ -79,6 +90,8 @@ struct game_render_commands
 
 struct render_group
 {
+    struct game_assets *GameAssets;
+
     v2 ScreenDim;
     game_render_commands *Commands;
 };

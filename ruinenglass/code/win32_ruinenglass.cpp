@@ -24,8 +24,15 @@
 
 #include "win32_ruinenglass.h"
 
-// TODO(chowie): These are global for now!
-global platform_api Platform; // TODO(chowie): Remove? For moving code between renderer and win32
+//
+// NOTE(chowie): Externs
+//
+
+platform_api Platform;
+
+//
+//
+//
 
 global b32x GlobalRunning;
 global b32x GlobalPause;
@@ -39,6 +46,10 @@ global u64 GlobalPerfCountFrequency; // TODO(chowie): Time with this?
 
 global GLuint OpenGLDefaultInternalTextureFormat;
 
+// TODO(chowie): Remove asset from here! Separate out the renderer!
+// #include "ruinenglass_asset.h"
+
+#include "ruinenglass_renderer.h"
 #include "ruinenglass_renderer.cpp"
 #include "win32_ruinenglass_renderer_opengl.cpp"
 
@@ -144,6 +155,63 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
 }
 
 #endif
+
+struct win32_platform_file_handle
+{
+    HANDLE Handle;
+};
+struct win32_platform_file_group
+{
+    HANDLE FindHandle;
+    WIN32_FIND_DATAW FindData;
+};
+
+internal
+PLATFORM_OPEN_FILE(Win32OpenNextFile)
+{
+    platform_file_handle Result = {};
+
+    win32_platform_file_group *Win32FileGroup = (win32_platform_file_group *)FileGroup->Platform;
+    if(Win32FileGroup->FindHandle != INVALID_HANDLE_VALUE)
+    {
+        // TODO(chowie): Maybe make an actual arena used by Win32 someday.
+        // NOTE(chowie): Typically you would not use virtual alloc for something
+        // so tiny (prefer heap alloc), but the file handle takes up a ton of memory.
+        win32_platform_file_handle *Win32Handle = (win32_platform_file_handle *)VirtualAlloc(
+            0, sizeof(win32_platform_file_handle),
+            MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+        Result.Platform = Win32Handle;
+
+        if(Win32Handle)
+        {
+            wchar_t *FileName = Win32FileGroup->FindData.cFileName;
+            // NOTE(chowie): Assume there are errors, then set to no errors if read is successful!
+            Win32Handle->Handle = CreateFileW(FileName, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+            Result.NoErrors = (Win32Handle->Handle != INVALID_HANDLE_VALUE);
+        }
+
+        if(!FindNextFileW(Win32FileGroup->FindHandle, &Win32FileGroup->FindData))
+        {
+            FindClose(Win32FileGroup->FindHandle);
+            Win32FileGroup->FindHandle = INVALID_HANDLE_VALUE;
+        }
+    }
+    
+    return(Result);
+}
+
+internal
+PLATFORM_READ_DATA_FROM_FILE(Win32ReadDataFromFile)
+{
+    // NOTE(chowie): Ignore on bad handles!
+    if(PlatformNoFileErrors(Source))
+    {
+    }
+}
+
+//
+//
+//
 
 PLATFORM_ALLOCATE_MEMORY(Win32AllocateMemory)
 {
@@ -426,6 +494,10 @@ Win32FillSoundBuffer(win32_sound_output *SoundOutput, u32 SamplesToWrite,
     }
 }
 
+//
+//
+//
+
 internal b32x
 Win32ProcessNextWorkQueueEntry(platform_work_queue *Queue)
 {
@@ -481,6 +553,33 @@ ThreadProc(LPVOID lpParameter)
     }
 }
 
+internal void
+Win32MakeWorkQueue(platform_work_queue *Queue, u32 ThreadCount, win32_thread_startup *Startups)
+{
+    Queue->CompletionGoal = 0;
+    Queue->CompletionCount = 0;
+    Queue->NextEntryToWrite = 0;
+    Queue->NextEntryToRead = 0;
+
+    u32 InitialCount = 0;
+    Queue->SemaphoreHandle =
+        CreateSemaphoreExA(0, InitialCount, ThreadCount,
+                           0, 0, SEMAPHORE_ALL_ACCESS);
+
+    for(u32 ThreadIndex = 0;
+        ThreadIndex < ThreadCount;
+        ++ThreadIndex)
+    {
+        win32_thread_startup *Startup = Startups + ThreadIndex;
+        Startups->Queue = Queue;
+
+        DWORD ThreadID;
+        HANDLE ThreadHandle = CreateThread(0, 0, ThreadProc,
+                                           Startup, 0, &ThreadID);
+        CloseHandle(ThreadHandle);
+    }
+}
+
 // TODO(chowie): For MPMC, switch to using InterlockCompareExchange on
 // EntryCount eventually so any thread can add?
 internal
@@ -519,32 +618,9 @@ PLATFORM_COMPLETE_ALL_WORK_QUEUE(Win32CompleteAllWorkQueue)
     Queue->CompletionCount = 0;
 }
 
-internal void
-Win32MakeWorkQueue(platform_work_queue *Queue, u32 ThreadCount, win32_thread_startup *Startups)
-{
-    Queue->CompletionGoal = 0;
-    Queue->CompletionCount = 0;
-    Queue->NextEntryToWrite = 0;
-    Queue->NextEntryToRead = 0;
-
-    u32 InitialCount = 0;
-    Queue->SemaphoreHandle =
-        CreateSemaphoreExA(0, InitialCount, ThreadCount,
-                           0, 0, SEMAPHORE_ALL_ACCESS);
-
-    for(u32 ThreadIndex = 0;
-        ThreadIndex < ThreadCount;
-        ++ThreadIndex)
-    {
-        win32_thread_startup *Startup = Startups + ThreadIndex;
-        Startups->Queue = Queue;
-
-        DWORD ThreadID;
-        HANDLE ThreadHandle = CreateThread(0, 0, ThreadProc,
-                                           Startup, 0, &ThreadID);
-        CloseHandle(ThreadHandle);
-    }
-}
+//
+//
+//
 
 inline u64
 Win32GetWallClock(void)
@@ -1338,22 +1414,20 @@ WinMain(HINSTANCE Instance,
 #endif
 
             game_memory GameMemory = {};
+            Platform = GameMemory.PlatformAPI;
 
 #if RUINENGLASS_INTERNAL
-            GameMemory.PlatformAPI.DEBUGFreeFileMemory = DEBUGPlatformFreeFileMemory;
-            GameMemory.PlatformAPI.DEBUGReadEntireFile = DEBUGPlatformReadEntireFile;
-            GameMemory.PlatformAPI.DEBUGWriteEntireFile = DEBUGPlatformWriteEntireFile;
+            Platform.DEBUGFreeFileMemory = DEBUGPlatformFreeFileMemory;
+            Platform.DEBUGReadEntireFile = DEBUGPlatformReadEntireFile;
+            Platform.DEBUGWriteEntireFile = DEBUGPlatformWriteEntireFile;
 #endif
-            GameMemory.PlatformAPI.AllocateMemory = Win32AllocateMemory;
-            GameMemory.PlatformAPI.DeallocateMemory = Win32DeallocateMemory;
+            Platform.AllocateMemory = Win32AllocateMemory;
+            Platform.DeallocateMemory = Win32DeallocateMemory;
 
+            Platform.AddWorkQueueEntry = Win32AddWorkQueueEntry;
+            Platform.CompleteAllWorkQueue = Win32CompleteAllWorkQueue;
 //            GameMemory.HighPriorityQueue = &HighPriorityQueue;
 //            GameMemory.LowPriorityQueue = &LowPriorityQueue;
-
-            GameMemory.PlatformAPI.AddWorkQueueEntry = Win32AddWorkQueueEntry;
-            GameMemory.PlatformAPI.CompleteAllWorkQueue = Win32CompleteAllWorkQueue;
-
-            Platform = GameMemory.PlatformAPI;
 
             memory_arena *PermanentArena = &GameMemory.Permanent;
             PermanentArena->Size = Megabytes(64);

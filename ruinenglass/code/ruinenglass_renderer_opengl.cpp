@@ -92,6 +92,30 @@ OpenGLInit(b32x ModernContext, opengl_info Info, b32x FramebufferSupportsSRGB)
 #endif
 }
 
+// TODO(chowie): Remove this (in HmH 359), use 3D coord (set up depth buffer!)
+inline void
+OpenGLSetScreenSpace(v2u Dim)
+{
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+
+    // TODO(chowie): Matrix with rotation?
+    // STUDY(chowie): Identity Matrix (similar to glOrtho),
+    // fix-function pipeline by column vectors (see placement of -1)
+    glMatrixMode(GL_PROJECTION);
+    f32 a = SafeRatio1(2.0f, (f32)Dim.Width);
+    f32 b = SafeRatio1(2.0f, (f32)Dim.Height);
+    f32 Proj[] =
+    {
+         a,  0,  0,  0,
+         0,  b,  0,  0,
+         0,  0,  1,  0,
+        -1, -1,  0,  1,
+    }; // TODO(chowie): Convert "-1, -1,  0,  1," to "0, 0, 0, 1", needs basis points!
+    glLoadMatrixf(Proj); // COULDDO: Replace glLoadMatrixf with glLoadTransposedMatrix for row-major matrices. But don't care when get out of fixed function pipeline!
+}
+
+// TODO(chowie): Pull this out to Ruinenglass_renderer
 // RESOURCE(): https://ktstephano.github.io/rendering/opengl/prog_vtx_pulling
 // RESOURCE(): https://voxel.wiki/wiki/vertex-pulling/
 // TODO(chowie): Vertex pulling?
@@ -121,6 +145,45 @@ OpenGLRect(v3 MinP, v3 MaxP, v4 Colour, v2 MinUV = V2(0, 0), v2 MaxUV = V2(1, 1)
     glVertex3f(MinP.x, MaxP.y, 0.0f);
 
     glEnd();
+}
+
+// TODO(chowie): Remove!
+inline void
+OpenGLBitmap(void *Memory, v2u Dim, s32 Pitch,
+             v2u WindowDim, GLuint BlitTexture)
+{
+    Assert(Pitch == ((s32)Dim.Width*4));
+    glViewport(0, 0, Dim.Width, Dim.Height);
+
+    glDisable(GL_SCISSOR_TEST);
+    glBindTexture(GL_TEXTURE_2D, BlitTexture);
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB8_ALPHA8, Dim.Width, Dim.Height, 0,
+                 GL_BGRA_EXT, GL_UNSIGNED_BYTE, Memory);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);    
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);    
+    glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+
+    glEnable(GL_TEXTURE_2D);
+
+    glClearColor(1.0f, 0.0f, 1.0f, 0.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    glMatrixMode(GL_TEXTURE);
+    glLoadIdentity();
+
+
+    OpenGLSetScreenSpace(Dim);
+
+    v3 MinP = V3(0, 0, 0);
+    v3 MaxP = V3((f32)WindowDim.Width, (f32)WindowDim.Height, 0.0f);
+    v4 Colour = V4(1, 1, 1, 0);
+    OpenGLRect(MinP, MaxP, Colour);
+
+    glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 // RESOURCE(): https://www.humus.name/index.php?page=Comments&ID=228&start=24
@@ -191,29 +254,6 @@ OpenGLCircle(v3 CentreP, f32 Radius, u32 TriCount,
     glEnd();
 }
 
-// TODO(chowie): Change in HmH 359 and actually use 3D coord (set up depth buffer!)
-inline void
-OpenGLSetScreenSpace(v2u Dim)
-{
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-
-    // TODO(chowie): Matrix with rotation?
-    // STUDY(chowie): Identity Matrix (similar to glOrtho),
-    // fix-function pipeline by column vectors (see placement of -1)
-    glMatrixMode(GL_PROJECTION);
-    f32 a = SafeRatio1(2.0f, (f32)Dim.Width);
-    f32 b = SafeRatio1(2.0f, (f32)Dim.Height);
-    f32 Proj[] =
-    {
-         a,  0,  0,  0,
-         0,  b,  0,  0,
-         0,  0,  1,  0,
-        -1, -1,  0,  1,
-    }; // TODO(chowie): Convert "-1, -1,  0,  1," to "0, 0, 0, 1", needs basis points!
-    glLoadMatrixf(Proj); // COULDDO: Replace glLoadMatrixf with glLoadTransposedMatrix for row-major matrices. But don't care when get out of fixed function pipeline!
-}
-
 // RESOURCE(): https://ktstephano.github.io/rendering/opengl/dsa
 // TODO(chowie): Replace bind/unbind with DSA? Assumes OpenGL 4.6
 // RESOURCE(): https://ktstephano.github.io/rendering/opengl/ssbos
@@ -268,6 +308,25 @@ OpenGLRenderCommands(game_render_commands *Commands, v2u WindowDim)
 
                 BaseAddress += sizeof(render_entry_rect);
             } break;
+
+            case RenderGroupEntryType_render_entry_bitmap: // TODO(chowie): Temporary, replace for a generic quad later
+            {
+                render_entry_bitmap *Entry = (render_entry_bitmap *)Data;
+                Assert(Entry->Bitmap)
+
+                glBindTexture(GL_TEXTURE_2D, (GLuint)U32FromPointer(Entry->Bitmap->TextureHandle));
+
+                if(Entry->Bitmap->Dim.E)
+                {
+                    f32 OneTexelU = 1.0f / (f32)Entry->Bitmap->Dim.Width;
+                    f32 OneTexelV = 1.0f / (f32)Entry->Bitmap->Dim.Height;
+                    v2 MinUV = V2(OneTexelU, OneTexelV);
+                    v2 MaxUV = V2(1.0f - OneTexelU, 1.0f - OneTexelV);
+                    v2 BitmapDim = V2((f32)Entry->Bitmap->Dim.x, (f32)Entry->Bitmap->Dim.y);
+
+                    OpenGLRect(Entry->P, Entry->P + V3(BitmapDim, 0), Entry->PremulColour, MinUV, MaxUV);
+                }
+            };
 
             case RenderGroupEntryType_render_entry_circle:
             {

@@ -31,8 +31,21 @@ CExternStart
 #include "ruinenglass_types.h"
 #include "ruinenglass_memory.h"
 
+struct bitmap_id
+{
+    u32 Value;
+};
+struct font_id
+{
+    u32 Value;
+};
+
 //
 // NOTE: Services that the platform layer provides to game
+//
+
+//
+//
 //
 
 #if RUINENGLASS_INTERNAL
@@ -71,6 +84,42 @@ typedef DEBUG_PLATFORM_FREE_FILE_MEMORY(debug_platform_free_file_memory);
 
 #endif
 
+typedef struct platform_file_handle
+{
+    b32x NoErrors;
+    void *Platform;
+    // STUDY(chowie): Store to platform specific portion to force the error
+    // check and file count to always exist and be correct when null'd
+} platform_file_handle;
+
+typedef struct platform_file_group
+{
+    u32 FileCount;
+    void *Platform;
+    // STUDY(chowie): Store to platform specific portion to force the error
+    // check and file count to always exist and be correct when null'd
+} platform_file_group;
+
+typedef enum platform_file_type
+{
+    PlatformFileType_AssetFile,
+    PlatformFileType_SavedGameFile,
+
+    PlatformFileType_Count,
+} platform_file_type;
+
+#define PlatformNoFileErrors(Handle) ((Handle)->NoErrors)
+
+#define PLATFORM_OPEN_FILE(name) platform_file_handle name(platform_file_group *FileGroup)
+typedef PLATFORM_OPEN_FILE(platform_open_next_file);
+
+#define PLATFORM_READ_DATA_FROM_FILE(name) void name(platform_file_handle *Source, u64 Offset, u64 Size, void *Dest)
+typedef PLATFORM_READ_DATA_FROM_FILE(platform_read_data_from_file);
+
+//
+//
+//
+
 #define PLATFORM_ALLOCATE_MEMORY(name) void *name(umm Size)
 typedef PLATFORM_ALLOCATE_MEMORY(platform_allocate_memory);
 
@@ -92,16 +141,40 @@ typedef struct platform_api
 {
     platform_add_work_queue_entry *AddWorkQueueEntry;
     platform_complete_all_work_queue *CompleteAllWorkQueue;
-    
-    platform_allocate_memory *AllocateMemory;
-    platform_deallocate_memory *DeallocateMemory;
+
+    //
+    //
+    //
 
 #if RUINENGLASS_INTERNAL
     debug_platform_free_file_memory *DEBUGFreeFileMemory;
     debug_platform_read_entire_file *DEBUGReadEntireFile;
     debug_platform_write_entire_file *DEBUGWriteEntireFile;
 #endif
+    platform_open_next_file *OpenNextFile;
+    platform_read_data_from_file *ReadDataFromFile;
+
+    //
+    //
+    //
+
+    platform_allocate_memory *AllocateMemory;
+    platform_deallocate_memory *DeallocateMemory;
+
 } platform_api;
+
+//
+//
+//
+
+extern platform_api Platform;
+// STUDY(chowie): Remember resolve 'extern' symbols by adding a call
+// in all the different layers. So Win32 & Game layer. It should
+// always be visible in dll too!
+
+//
+//
+//
 
 typedef struct game_memory
 {
@@ -222,6 +295,18 @@ GetController(game_input *Input, u32 ControllerIndex)
     game_controller_input *Result = &Input->Controllers[ControllerIndex];
     return(Result);
 }
+
+// TODO(chowie): Temporary. Remove later!
+struct loaded_bitmap
+{
+    void *Memory;
+    void *TextureHandle;
+
+    v2s Dim;
+    f32 WidthOverHeight;
+    s32 Pitch;
+    // AlignPercentage?
+};
 
 //
 // NOTE(chowie): Exported Functions

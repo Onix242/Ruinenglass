@@ -403,6 +403,10 @@ union v2s
     {
         s32 Min, Max;
     };
+    struct
+    {
+        s32 Width, Height;
+    };
     s32 E[2];
 };
 
@@ -687,6 +691,16 @@ struct m4x4_inv
     m4x4 Forward;
     m4x4 Inverse;
 };
+
+//
+//
+//
+
+#define FILE_FORMAT_CODE(a, b, c, d) (((u32)(a) << 0) | ((u32)(b) << 8) | ((u32)(c) << 16) | ((u32)(d) << 24))
+
+//
+//
+//
 
 // TODO(chowie): Debug View
 #define FILE_AND_LINE__(A, B) A "|" #B

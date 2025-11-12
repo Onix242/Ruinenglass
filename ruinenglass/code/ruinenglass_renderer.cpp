@@ -6,12 +6,12 @@
    $Notice: $
    ======================================================================== */
 
-#include "ruinenglass_renderer.h"
-
 inline render_group
-BeginRenderGroup(game_render_commands *Commands)
+BeginRenderGroup(game_assets *GameAssets, game_render_commands *Commands)
 {
     render_group Result = {};
+
+    Result.GameAssets = GameAssets;
     Result.Commands = Commands;
     Result.ScreenDim = V2i(Commands->Dim);
 
@@ -36,10 +36,10 @@ PushRenderElement_(render_group *RenderGroup, umm Size, render_group_entry_type 
 inline void
 PushClear(render_group *RenderGroup, v4 Colour)
 {
-    render_entry_clear *Clear = PushRenderElement(RenderGroup, render_entry_clear);
-    if(Clear)
+    render_entry_clear *Entry = PushRenderElement(RenderGroup, render_entry_clear);
+    if(Entry)
     {
-        Clear->Colour = Colour;
+        Entry->Colour = Colour;
     }
 }
 
@@ -56,14 +56,14 @@ inline void
 PushCircle(render_group *RenderGroup,
            v3 Offset, f32 Radius, u32 TriCount, v4 Colour = V4(1, 1, 1, 1), f32 Circumference = Tau32)
 {
-    render_entry_circle *Circle = PushRenderElement(RenderGroup, render_entry_circle);
-    if(Circle)
+    render_entry_circle *Entry = PushRenderElement(RenderGroup, render_entry_circle);
+    if(Entry)
     {
-        Circle->P = Offset;
-        Circle->Radius = Radius;
-        Circle->Tris = TriCount;
-        Circle->Colour = Colour;
-        Circle->Circumference = Circumference;
+        Entry->P = Offset;
+        Entry->Radius = Radius;
+        Entry->Tris = TriCount;
+        Entry->Colour = Colour;
+        Entry->Circumference = Circumference;
     }
 }
 
@@ -83,13 +83,13 @@ inline void
 PushRect(render_group *RenderGroup,
          v3 Offset, v2 Dim, v4 Colour = V4(1, 1, 1, 1))
 {
-    render_entry_rect *Rect = PushRenderElement(RenderGroup, render_entry_rect);
-    if(Rect)
+    render_entry_rect *Entry = PushRenderElement(RenderGroup, render_entry_rect);
+    if(Entry)
     {
         v3 P = (Offset - V3(0.5f*Dim, 0));
-        Rect->P = P;
-        Rect->Dim = Dim;
-        Rect->Colour = Colour;
+        Entry->P = P;
+        Entry->Dim = Dim;
+        Entry->Colour = Colour;
     }
 }
 

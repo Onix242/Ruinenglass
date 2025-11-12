@@ -6,6 +6,25 @@
    $Notice: $
    ======================================================================== */
 
+#include "ruinenglass.h"
+#include "ruinenglass_renderer.cpp"
+#include "ruinenglass_asset_rendering.cpp"
+#include "ruinenglass_asset.cpp"
+
+#include "ruinenglass_audio.cpp"
+#include "ruinenglass_world.cpp"
+#include "ruinenglass_ui.cpp"
+
+//
+// NOTE(chowie): Externs
+//
+
+platform_api Platform;
+
+//
+//
+//
+
 // TODO(chowie): Center cubes too?
 // TODO(chowie): Use for all dim!
 #define TileSide 1.0f
@@ -16,12 +35,6 @@
 #define HoneycombDrySlab  V3(0.2f*TileSide, 0.8f*TileSide, 0.8f*TileSide)
 #define HoneycombWebBlank V3(0.8f*TileSide, 0.2f*TileSide, 0.2f*TileSide)
 #define HoneycombDryBlank V3(0.2f*TileSide, 0.2f*TileSide, 0.8f*TileSide)
-
-#include "ruinenglass.h"
-#include "ruinenglass_renderer.cpp"
-#include "ruinenglass_audio.cpp"
-#include "ruinenglass_world.cpp"
-#include "ruinenglass_ui.cpp"
 
 // TODO(chowie): Buckle down entity "index"/ID!
 internal entity *
@@ -177,6 +190,8 @@ SetCamera(game_state *GameState, world_pos NewCameraP, v3 TileSideInMeters)
 
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
+    Platform = Memory->PlatformAPI;
+
     Assert(sizeof(game_state) <= Memory->Permanent.Size);
     game_state *GameState = (game_state *)Memory->Permanent.Base; // STUDY(chowie): Cold-cast
     if(!GameState->IsInitialised)
@@ -202,6 +217,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         world *World = GameState->World;
         InitialiseWorld(World, WorldChunkDimInMeters);
 
+        GameState->HighPriorityQueue = Memory->HighPriorityQueue;
+        GameState->LowPriorityQueue  = Memory->LowPriorityQueue;
+
         // STUDY(chowie): One less thing the platform layer has to do; the game would always.
         GameState->IsInitialised = true;
     }
@@ -222,7 +240,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     //
 
     // STUDY(chowie): Shortcut to avoid call with "&" all of the time
-    render_group RenderGroup_ = BeginRenderGroup(RenderCommands);
+    render_group RenderGroup_ = BeginRenderGroup(TranState->GameAssets, RenderCommands);
     render_group *RenderGroup = &RenderGroup_;
 
     PushClear(RenderGroup, V4(0.25f, 0.25f, 0.25f, 0.0f));

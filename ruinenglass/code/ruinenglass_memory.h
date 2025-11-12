@@ -322,5 +322,29 @@ PushSize_(memory_arena *Arena, umm Size)
 }
 */
 
+// TODO(chowie): Memory Blocks?
+/*
+struct arena_bootstrap_params
+{
+    u64 AllocFlags;
+    umm MinBlockSize;
+};
+
+inline arena_bootstrap_params
+DefaultBootStrapParams(void)
+{
+    arena_bootstrap_params Result = {};
+    return(Result);
+}
+
+inline arena_bootstrap_params
+NonRestoredArea(void)
+{
+    arena_bootstrap_params Result = DefaultBootStrapParams();
+    Result.AllocFlags = ;
+    return(Result);
+}
+*/
+
 #define RUINENGLASS_MEMORY_H
 #endif

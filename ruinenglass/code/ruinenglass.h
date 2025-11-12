@@ -10,7 +10,10 @@
 #include "ruinenglass_platform.h"
 #include "ruinenglass_shared.h"
 #include "ruinenglass_random.h"
+#include "ruinenglass_file_formats.h"
+#include "ruinenglass_asset.h"
 
+#include "ruinenglass_renderer.h"
 #include "ruinenglass_world.h"
 #include "ruinenglass_entity.h"
 #include "ruinenglass_audio.h"
@@ -38,6 +41,14 @@ struct controlled_player
     u32 EntityIndex;
 };
 
+struct task_memory
+{
+    b32x BeingUsed;
+    memory_arena Arena;
+
+    temporary_memory TempMemory;
+};
+
 // TODO(chowie): Different modes? game_mode_adventure? _creative?
 struct game_state
 {
@@ -58,17 +69,64 @@ struct game_state
     v2 dP;
     v2 Offset; // TODO(chowie): Remove! Offset into the chunk
 
+    task_memory Tasks[4]; // TODO(chowie): Remove from asset system
+    platform_work_queue *HighPriorityQueue;
+    platform_work_queue *LowPriorityQueue;
+
     b32x IsInitialised;
 };
+
+//
+//
+//
 
 struct transient_state
 {
     memory_arena TranArena;
-
     b32x IsInitialised;
+
+//    task_memory Tasks[4]; // TODO(chowie): Remove from asset system
+//    platform_work_queue *HighPriorityQueue;
+//    platform_work_queue *LowPriorityQueue;
+    u32 AssetOpLock; // COULDDO(chowie): Remove from asset system, only for asset locking
+
+    struct game_assets *GameAssets;
 };
 
-global platform_api Platform;
+internal task_memory *
+BeginTaskMemory(game_state *GameState)
+{
+    task_memory *Result = 0;
+
+    for(u32 TaskIndex = 0;
+        TaskIndex < ArrayCount(GameState->Tasks);
+        ++TaskIndex)
+    {
+        task_memory *TaskMemory = GameState->Tasks + TaskIndex;
+        if(!TaskMemory->BeingUsed)
+        {
+            Result = TaskMemory;
+            TaskMemory->BeingUsed = true;
+            TaskMemory->TempMemory = BeginTemporaryMemory(&TaskMemory->Arena);
+            break;
+        }
+    }
+
+    return(Result);
+}
+
+internal void
+EndTaskMemory(task_memory *Task)
+{
+    EndTemporaryMemory(Task->TempMemory);
+
+    CompletePrevWritesBeforeFutureWrites;
+    Task->BeingUsed = false;
+}
+
+//
+//
+//
 
 // STUDY(chowie): Accessors Get/Set allows for bounds-checking for an
 // array-like format (passed in however you like).

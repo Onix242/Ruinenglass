@@ -80,6 +80,7 @@ GlobalFunctionStub(glDebugMessageCallbackARB);
 // TODO(chowie): IMPORTANT(chowie): Move all function stubs here!
 struct opengl
 {
+//    loaded_bitmap BlankBitmap;
 };
 
 // RESOURCE(): https://hero.handmade.network/forums/code-discussion/t/1011-opengl_srgb__assets
