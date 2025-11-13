@@ -115,6 +115,13 @@ V3(f32 X, f32 Y, f32 Z)
 }
 
 inline v3
+V3(f32 Value)
+{
+    v3 Result = {Value, Value, Value};
+    return(Result);
+}
+
+inline v3
 V3(v2 XY, f32 Z)
 {
     v3 Result = {XY.x, XY.y, Z};
@@ -198,6 +205,13 @@ inline f32
 Square(f32 A)
 {
     f32 Result = QUADRATIC(A);
+    return(Result);
+}
+
+inline v3
+Square(v3 A)
+{
+    v3 Result = {QUADRATIC(A.r), QUADRATIC(A.g), QUADRATIC(A.b)};
     return(Result);
 }
 
@@ -2700,29 +2714,46 @@ ToRectXY(rect3 A)
 //
 // Colour
 //
-
-// STUDY: Convert to linear colours e.g. SRGB255ToLinear1(V4(0.0f, 0.6f, 0.3f, 1))
-// Approximation of un-srgb to srgb input
-// TODO: Do a real srgb curve, not square. Use graphics hardware!
-inline v4
-sRGBToLinear(v4 C)
+// RESOURCE(): https://www.leadwerks.com/community/blogs/entry/2844-srgb-and-linear-color-spaces/
+// TODO(chowie): Check if I need more heavy-duty pow() -> test with stdlib
+inline v3
+Pow(v3 A, v3 B)
 {
-    v4 Result;
+    v3 Result = {Pow(A.r, B.r), Pow(A.g, B.g), Pow(A.b, B.b)};
+    return(Result);
+}
 
-    Result.r = Square(C.r);
-    Result.g = Square(C.g);
-    Result.b = Square(C.b);
-    Result.a = C.a;
+#define sRGB_GAMMA 2.2f
+#define sRGB_INVGAMMA (1.0f / sRGB_GAMMA)
 
+// STUDY(chowie): Convert to linear colours e.g. SRGB255ToLinear1(V4(0.0f, 0.6f, 0.3f, 1))
+// Approximation of un-srgb to srgb input
+// TODO(chowie): Use graphics hardware or in shader!
+inline v3
+sRGBToLinear(v3 Colour)
+{
+    v3 Result = Pow(Colour, V3(sRGB_GAMMA));
+    return(Result);
+}
+
+inline v3
+LinearTosRGB(v3 Colour)
+{
+    v3 Result = Pow(Colour, V3(sRGB_INVGAMMA));
     return(Result);
 }
 
 inline v4
-sRGBToLinear(f32 R, f32 G, f32 B, f32 A)
+sRGBToLinear(v4 Colour)
 {
-    v4 Input = {R, G, B, A};
-    v4 Result = sRGBToLinear(Input);
+    v4 Result = {Pow(Colour.rgb, V3(sRGB_GAMMA)), Colour.a};
+    return(Result);
+}
 
+inline v4
+LinearTosRGB(v4 Colour)
+{
+    v4 Result = {Pow(Colour.rgb, V3(sRGB_INVGAMMA)), Colour.a};
     return(Result);
 }
 
@@ -2733,21 +2764,40 @@ sRGBToLinear(f32 R, f32 G, f32 B, f32 A)
 // that linear space anyway, assume inputs are in linearly encoded
 // alpha (but who knows really depending on the program).
 // NOTE(chowie): Alpha channels are not converted to sRGB, is linear.
+
+#define sRGB_255 255.0f
+#define sRGB_INV255 (1.0f / sRGB_255)
+
 inline v4
-sRGB255ToLinear1(v4 C)
+sRGB255ToLinear1(v4 Colour)
 {
-#define Inv255 (1.0f / 255.0f)
-    v4 Result = {Square(Inv255*C.r), Square(Inv255*C.g), Square(Inv255*C.b), Inv255*C.a};
+    v4 Result = sRGBToLinear(sRGB_INV255*Colour);
     return(Result);
 }
 
 inline v4
-Linear1TosRGB255(v4 C)
+Linear1TosRGB255(v4 Colour)
 {
-#define One255 255.0f
-    v4 Result = {One255*SquareRoot(C.r), One255*SquareRoot(C.g), One255*SquareRoot(C.b), One255*C.a};
+    v4 Result = sRGB_255*LinearTosRGB(Colour);
     return(Result);
 }
+
+// #define One255 = 255.0f;
+// #define Inv255 = 1.0f / One255;
+
+// inline v4
+// sRGB255ToLinear1(v4 C)
+// {
+//     v4 Result = {Square(Inv255*C.r), Square(Inv255*C.g), Square(Inv255*C.b), Inv255*C.a};
+//     return(Result);
+// }
+
+// inline v4
+// Linear1TosRGB255(v4 C)
+// {
+//     v4 Result = {One255*SquareRoot(C.r), One255*SquareRoot(C.g), One255*SquareRoot(C.b), One255*C.a};
+//     return(Result);
+// }
 
 inline v4
 BGRAUnpack4x8(u32 Packed)
