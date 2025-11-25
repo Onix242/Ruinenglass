@@ -208,6 +208,20 @@ struct win32_thread_startup
 };
 
 //
+// NOTE: File Access
+//
+
+struct win32_platform_file_handle
+{
+    HANDLE Handle;
+};
+struct win32_platform_file_group
+{
+    HANDLE FindHandle;
+    WIN32_FIND_DATAW FindData;
+};
+
+//
 // NOTE: Late bindings (manually calls GetProcAddress)
 //
 

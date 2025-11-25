@@ -210,6 +210,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
                         Memory->Permanent.Size - sizeof(game_state),
                         Memory->Permanent.Base + sizeof(game_state));
 
+        //
+        //
+        //
+
         f32 PixelsToMeters = 1.0f / 42.0f;
         v3 WorldChunkDimInMeters = V3(PixelsToMeters*256.0f, PixelsToMeters*256.0f, PixelsToMeters*256.0f);
 
@@ -217,8 +221,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         world *World = GameState->World;
         InitialiseWorld(World, WorldChunkDimInMeters);
 
-        GameState->HighPriorityQueue = Memory->HighPriorityQueue;
-        GameState->LowPriorityQueue  = Memory->LowPriorityQueue;
+        //
+        //
+        //
 
         // STUDY(chowie): One less thing the platform layer has to do; the game would always.
         GameState->IsInitialised = true;
@@ -231,6 +236,19 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         InitialiseArena(&TranState->TranArena,
                         Memory->Transient.Size - sizeof(transient_state),
                         Memory->Transient.Base + sizeof(transient_state));
+
+        TranState->HighPriorityQueue = Memory->HighPriorityQueue;
+        TranState->LowPriorityQueue  = Memory->LowPriorityQueue;
+
+        for(u32 TaskIndex = 0;
+            TaskIndex < ArrayCount(TranState->Tasks);
+            ++TaskIndex)
+        {
+            task_memory *Task = TranState->Tasks + TaskIndex;
+            Task->BeingUsed = false;
+        }
+
+        TranState->GameAssets = AllocGameAssets(TranState, &TranState->TranArena, Megabytes(256));
 
         TranState->IsInitialised = true;
     }

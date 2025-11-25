@@ -44,8 +44,8 @@ struct controlled_player
 struct task_memory
 {
     b32x BeingUsed;
-    memory_arena Arena;
 
+    memory_arena Arena;
     temporary_memory TempMemory;
 };
 
@@ -69,10 +69,6 @@ struct game_state
     v2 dP;
     v2 Offset; // TODO(chowie): Remove! Offset into the chunk
 
-    task_memory Tasks[4]; // TODO(chowie): Remove from asset system
-    platform_work_queue *HighPriorityQueue;
-    platform_work_queue *LowPriorityQueue;
-
     b32x IsInitialised;
 };
 
@@ -89,20 +85,25 @@ struct transient_state
 //    platform_work_queue *HighPriorityQueue;
 //    platform_work_queue *LowPriorityQueue;
     u32 AssetOpLock; // COULDDO(chowie): Remove from asset system, only for asset locking
+    task_memory Tasks[4]; // TODO(chowie): Remove from asset system
+
+    platform_work_queue *HighPriorityQueue;
+    platform_work_queue *LowPriorityQueue;
 
     struct game_assets *GameAssets;
 };
 
+// TODO(chowie): Change to game_state later!
 internal task_memory *
-BeginTaskMemory(game_state *GameState)
+BeginTaskMemory(transient_state *TranState)
 {
     task_memory *Result = 0;
 
     for(u32 TaskIndex = 0;
-        TaskIndex < ArrayCount(GameState->Tasks);
+        TaskIndex < ArrayCount(TranState->Tasks);
         ++TaskIndex)
     {
-        task_memory *TaskMemory = GameState->Tasks + TaskIndex;
+        task_memory *TaskMemory = TranState->Tasks + TaskIndex;
         if(!TaskMemory->BeingUsed)
         {
             Result = TaskMemory;

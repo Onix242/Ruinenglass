@@ -110,6 +110,15 @@ typedef enum platform_file_type
 
 #define PlatformNoFileErrors(Handle) ((Handle)->NoErrors)
 
+#define PLATFORM_FILE_ERROR(name) void name(platform_file_handle *Handle, char *Message)
+typedef PLATFORM_FILE_ERROR(platform_file_error);
+
+#define PLATFORM_GET_ALL_FILES_OF_TYPE_BEGIN(name) platform_file_group name(platform_file_type Type)
+typedef PLATFORM_GET_ALL_FILES_OF_TYPE_BEGIN(platform_get_all_files_of_type_begin);
+
+#define PLATFORM_GET_ALL_FILES_OF_TYPE_END(name) void name(platform_file_group *FileGroup)
+typedef PLATFORM_GET_ALL_FILES_OF_TYPE_END(platform_get_all_files_of_type_end);
+
 #define PLATFORM_OPEN_FILE(name) platform_file_handle name(platform_file_group *FileGroup)
 typedef PLATFORM_OPEN_FILE(platform_open_next_file);
 
@@ -139,6 +148,13 @@ typedef PLATFORM_COMPLETE_ALL_WORK_QUEUE(platform_complete_all_work_queue);
 // STUDY(chowie): Custom dispatch as if a visible V-table
 typedef struct platform_api
 {
+    platform_allocate_memory *AllocateMemory;
+    platform_deallocate_memory *DeallocateMemory;
+
+    //
+    //
+    //
+
     platform_add_work_queue_entry *AddWorkQueueEntry;
     platform_complete_all_work_queue *CompleteAllWorkQueue;
 
@@ -146,21 +162,17 @@ typedef struct platform_api
     //
     //
 
-#if RUINENGLASS_INTERNAL
-    debug_platform_free_file_memory *DEBUGFreeFileMemory;
-    debug_platform_read_entire_file *DEBUGReadEntireFile;
-    debug_platform_write_entire_file *DEBUGWriteEntireFile;
-#endif
+    platform_file_error *FileError;
+    platform_get_all_files_of_type_begin *GetAllFilesOfTypeBegin;
+    platform_get_all_files_of_type_end *GetAllFilesOfTypeEnd;
     platform_open_next_file *OpenNextFile;
     platform_read_data_from_file *ReadDataFromFile;
 
-    //
-    //
-    //
-
-    platform_allocate_memory *AllocateMemory;
-    platform_deallocate_memory *DeallocateMemory;
-
+#if RUINENGLASS_INTERNAL
+    debug_platform_free_file_memory  *DEBUGFreeFileMemory;
+    debug_platform_read_entire_file  *DEBUGReadEntireFile;
+    debug_platform_write_entire_file *DEBUGWriteEntireFile;
+#endif
 } platform_api;
 
 //

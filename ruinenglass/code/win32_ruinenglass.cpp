@@ -6,22 +6,19 @@
    $Notice: $
    ======================================================================== */
 
-// NOTE(chowie): Win32/Compiler defines. Must be above windows.h!!!!
+#include "ruinenglass_platform.h"
+#include "ruinenglass_shared.h"
+
+// NOTE(chowie): Win32 compiler defines must be above windows.h
 #define WIN32_LEAN_AND_MEAN
 #define VC_EXTRA_LEAN
 #define COBJMACROS
 #define NOMINMAX
-
-#include "ruinenglass_platform.h"
-#include "ruinenglass_shared.h"
-
-// IMPORTANT(chowie): I want to make sure #include <stdio.h> is gone for sn_printf
 #include <windows.h>
 #include <xinput.h>
 #include <mmdeviceapi.h>
 #include <audioclient.h>
 #include <gl/gl.h>
-
 #include "win32_ruinenglass.h"
 
 //
@@ -46,12 +43,13 @@ global u64 GlobalPerfCountFrequency; // TODO(chowie): Time with this?
 
 global GLuint OpenGLDefaultInternalTextureFormat;
 
-// TODO(chowie): Remove asset from here! Separate out the renderer!
-// #include "ruinenglass_asset.h"
-
 #include "ruinenglass_renderer.h"
 #include "ruinenglass_renderer.cpp"
 #include "win32_ruinenglass_renderer_opengl.cpp"
+
+//
+//
+//
 
 // NOTE(chowie): This is the only round trip allowed atm.
 // STUDY(chowie): Alternatively, Allocating/reserve and Read memory
@@ -61,6 +59,7 @@ global GLuint OpenGLDefaultInternalTextureFormat;
 // type. Writing to a queue to be processed async.
 // TODO(chowie): Memory mapped files for performance (on the backing
 // store) reads/writes?
+
 #if RUINENGLASS_INTERNAL
 
 DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGPlatformFreeFileMemory)
@@ -156,15 +155,79 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
 
 #endif
 
-struct win32_platform_file_handle
+internal
+PLATFORM_FILE_ERROR(Win32FileError)
 {
-    HANDLE Handle;
-};
-struct win32_platform_file_group
+#if RUINENGLASS_INTERNAL
+    OutputDebugString("Win32 File Error:");
+    OutputDebugString(Message);
+    OutputDebugString("\n");
+#endif
+
+    Handle->NoErrors = false;
+}
+
+internal
+PLATFORM_GET_ALL_FILES_OF_TYPE_BEGIN(Win32GetAllFilesOfTypeBegin)
 {
-    HANDLE FindHandle;
+    platform_file_group Result = {};
+
+    win32_platform_file_group *Win32FileGroup =
+        (win32_platform_file_group *)VirtualAlloc(0, sizeof(win32_platform_file_handle),
+                                                  MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+    Result.Platform = Win32FileGroup;
+
+    w16 *WildCard = L"*.*";
+    switch(Type)
+    {
+        case PlatformFileType_AssetFile:
+        {
+            WildCard = L"*.rui";
+        } break;
+
+        case PlatformFileType_SavedGameFile:
+        {
+            WildCard = L"*.sgf";
+        } break;
+
+        InvalidDefaultCase;
+    }
+
+    Result.FileCount = 0;
+
+    // STUDY(chowie): Loop is written this way to process the file in
+    // one place, rather than in two different places with a for loop
+    // because of how this Windows API works.
     WIN32_FIND_DATAW FindData;
-};
+    HANDLE FindHandle = FindFirstFileW(WildCard, &FindData);
+    while(FindHandle != INVALID_HANDLE_VALUE)
+    {
+        // NOTE(chowie): Process the file (Does not need to be random access)!
+        ++Result.FileCount;
+
+        if(!FindNextFileW(FindHandle, &FindData))
+        {
+            break;
+        }
+    }
+    FindClose(FindHandle);
+
+    Win32FileGroup->FindHandle = FindFirstFileW(WildCard, &Win32FileGroup->FindData);
+
+    return(Result);
+}
+
+internal
+PLATFORM_GET_ALL_FILES_OF_TYPE_END(Win32GetAllFilesOfTypeEnd)
+{
+    win32_platform_file_group *Win32FileGroup = (win32_platform_file_group *)FileGroup->Platform;
+    if(Win32FileGroup)
+    {
+        FindClose(Win32FileGroup->FindHandle);
+
+        VirtualFree(Win32FileGroup, 0, MEM_RELEASE);
+    }
+}
 
 internal
 PLATFORM_OPEN_FILE(Win32OpenNextFile)
@@ -177,14 +240,14 @@ PLATFORM_OPEN_FILE(Win32OpenNextFile)
         // TODO(chowie): Maybe make an actual arena used by Win32 someday.
         // NOTE(chowie): Typically you would not use virtual alloc for something
         // so tiny (prefer heap alloc), but the file handle takes up a ton of memory.
-        win32_platform_file_handle *Win32Handle = (win32_platform_file_handle *)VirtualAlloc(
-            0, sizeof(win32_platform_file_handle),
-            MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+        win32_platform_file_handle *Win32Handle =
+            (win32_platform_file_handle *)VirtualAlloc(0, sizeof(win32_platform_file_handle),
+                                                       MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
         Result.Platform = Win32Handle;
 
         if(Win32Handle)
         {
-            wchar_t *FileName = Win32FileGroup->FindData.cFileName;
+            w16 *FileName = Win32FileGroup->FindData.cFileName;
             // NOTE(chowie): Assume there are errors, then set to no errors if read is successful!
             Win32Handle->Handle = CreateFileW(FileName, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
             Result.NoErrors = (Win32Handle->Handle != INVALID_HANDLE_VALUE);
@@ -203,9 +266,26 @@ PLATFORM_OPEN_FILE(Win32OpenNextFile)
 internal
 PLATFORM_READ_DATA_FROM_FILE(Win32ReadDataFromFile)
 {
-    // NOTE(chowie): Ignore on bad handles!
     if(PlatformNoFileErrors(Source))
     {
+        win32_platform_file_handle *FileHandle = (win32_platform_file_handle *)Source->Platform;
+
+        OVERLAPPED Overlapped = {};
+        Overlapped.Offset = (u32)((Offset >> 0) & 0xFFFFFFFF);
+        Overlapped.OffsetHigh = (u32)((Offset >> 32) & 0xFFFFFFFF);
+
+        u32 FileSize32 = SafeTruncateU64(Size);
+
+        DWORD BytesRead;
+        if(ReadFile(FileHandle->Handle, Dest, FileSize32, &BytesRead, &Overlapped) &&
+           (FileSize32 == BytesRead))
+        {
+            // NOTE(chowie): File read succeeded!
+        }
+        else
+        {
+            Win32FileError(Source, "Read file failed.");
+        }
     }
 }
 
@@ -226,6 +306,10 @@ PLATFORM_DEALLOCATE_MEMORY(Win32DeallocateMemory)
         VirtualFree(Memory, 0, MEM_RELEASE);
     }
 }
+
+//
+//
+//
 
 // TODO(chowie): Fix this with OpenGL!
 internal void
@@ -345,6 +429,10 @@ Win32LoadCode(win32_loaded_code *Loaded)
         // TODO(chowie): Display error message here?
     }
 }
+
+//
+//
+//
 
 internal void
 Win32LoadXInput(void)
@@ -682,6 +770,10 @@ Win32GetSecondsElapsed(u64 LastCounter, u64 EndCounter)
     return(Result);
 }
 
+//
+//
+//
+
 internal v2u
 Win32GetWindowDim(HWND Window)
 {
@@ -791,6 +883,10 @@ ToggleFullscreen(HWND Window)
                      SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
     }
 }
+
+//
+//
+//
 
 internal void
 Win32GetInputFileLocation(win32_state *State, u32 SlotIndex,
@@ -955,6 +1051,10 @@ Win32PlaybackInput(win32_state *State, game_input *NewInput)
         State->CurrentRecordSize += BytesToRead;
     }
 }
+
+//
+//
+//
 
 // TODO(chowie): Better controller support?
 internal void
@@ -1290,6 +1390,10 @@ Win32MainWindowCallback(HWND   Window,
     return(Result);
 }
 
+//
+//
+//
+
 // NOTE(chowie): wWinMain is the newer version and not necessary!
 int CALLBACK
 WinMain(HINSTANCE Instance,
@@ -1416,11 +1520,6 @@ WinMain(HINSTANCE Instance,
             game_memory GameMemory = {};
             Platform = GameMemory.PlatformAPI;
 
-#if RUINENGLASS_INTERNAL
-            Platform.DEBUGFreeFileMemory = DEBUGPlatformFreeFileMemory;
-            Platform.DEBUGReadEntireFile = DEBUGPlatformReadEntireFile;
-            Platform.DEBUGWriteEntireFile = DEBUGPlatformWriteEntireFile;
-#endif
             Platform.AllocateMemory = Win32AllocateMemory;
             Platform.DeallocateMemory = Win32DeallocateMemory;
 
@@ -1428,6 +1527,22 @@ WinMain(HINSTANCE Instance,
             Platform.CompleteAllWorkQueue = Win32CompleteAllWorkQueue;
 //            GameMemory.HighPriorityQueue = &HighPriorityQueue;
 //            GameMemory.LowPriorityQueue = &LowPriorityQueue;
+
+#if RUINENGLASS_INTERNAL
+            Platform.DEBUGFreeFileMemory = DEBUGPlatformFreeFileMemory;
+            Platform.DEBUGReadEntireFile = DEBUGPlatformReadEntireFile;
+            Platform.DEBUGWriteEntireFile = DEBUGPlatformWriteEntireFile;
+#endif
+
+            Platform.FileError = Win32FileError;
+            Platform.GetAllFilesOfTypeBegin = Win32GetAllFilesOfTypeBegin;
+            Platform.GetAllFilesOfTypeEnd = Win32GetAllFilesOfTypeEnd;
+            Platform.OpenNextFile = Win32OpenNextFile;
+            Platform.ReadDataFromFile = Win32ReadDataFromFile;
+
+            //
+            //
+            //
 
             memory_arena *PermanentArena = &GameMemory.Permanent;
             PermanentArena->Size = Megabytes(64);

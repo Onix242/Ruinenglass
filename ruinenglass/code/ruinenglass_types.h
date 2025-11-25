@@ -64,6 +64,8 @@ typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
 
+typedef wchar_t w16;
+
 // RESOURCE: https://hero.handmade.network/forums/code-discussion/t/1449-b32x%252C_memory_index%252C_umm%252C_smm
 // NOTE(chowie): Boolean in whatever size is comfortable for the
 // compiler but not less than 32 bits (where it could be more efficient).

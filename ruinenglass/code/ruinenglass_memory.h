@@ -174,7 +174,7 @@ GetEffectiveSizeFor(memory_arena *Arena, umm SizeInit, arena_push_params Params 
 }
 
 #define PushStruct(Arena, type, ...) (type *)PushSize_(Arena, sizeof(type), ## __VA_ARGS__)
-#define PushArray(Arena, Count, type, ...) (type *)PushSize_(Arena, (Count)*sizeof(type), ## __VA_ARGS__)
+#define PushArray(Arena, type, Count, ...) (type *)PushSize_(Arena, (Count)*sizeof(type), ## __VA_ARGS__) // NOTE(chowie): Swapped arg type/Count compared to learning
 #define PushSize(Arena, Size, ...) PushSize_(Arena, Size, ## __VA_ARGS__)
 #define PushCopy(Arena, Size, Source, ...) Copy(Size, Source, PushSize_(Arena, Size, ## __VA_ARGS__))
 inline void *
@@ -266,6 +266,15 @@ BeginTemporaryMemory(memory_arena *Arena)
     ++Arena->TempCount;
 
     return(Result);
+}
+
+inline void
+KeepTemporaryMemory(temporary_memory TempMemory)
+{
+    memory_arena *Arena = TempMemory.Arena;
+    
+    Assert(Arena->TempCount > 0);
+    --Arena->TempCount;
 }
 
 inline void
