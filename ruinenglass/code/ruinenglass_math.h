@@ -149,6 +149,13 @@ V4U(u32 X, u32 Y, u32 Z, u32 W)
     return(Result);
 }
 
+inline v4
+V4(f32 Value)
+{
+    v4 Result = {Value, Value, Value, Value};
+    return(Result);
+}
+
 // NOTE(chowie): Use SafeRatio where you are less concerned about
 // performance and more concerned about robustness. Guard from dividing by 0
 inline f32
@@ -2714,6 +2721,7 @@ ToRectXY(rect3 A)
 //
 // Colour
 //
+
 // RESOURCE(): https://www.leadwerks.com/community/blogs/entry/2844-srgb-and-linear-color-spaces/
 // TODO(chowie): Check if I need more heavy-duty pow() -> test with stdlib
 inline v3
@@ -2798,6 +2806,28 @@ Linear1TosRGB255(v4 Colour)
 //     v4 Result = {One255*SquareRoot(C.r), One255*SquareRoot(C.g), One255*SquareRoot(C.b), One255*C.a};
 //     return(Result);
 // }
+
+// TODO(chowie): To implement fading to modulating/changing fog
+// colours, you would have to set up directly in the renderer. You
+// would have to set up a separate texture unit or shader with
+// procedural-ness and specify blend per pixel with graphics API
+// instead of colour. Adding another layer of complexity; another
+// source of screen space data. However, the storecolour code runs
+// once at push time.
+// STUDY(chowie): Module allows alpha blending & fog effects! Only
+// works if fading to black. Then, you would need a concept of a fog
+// value to _blend to_ - more flexible than our purposes.
+inline v4
+PremultipliedStoreColour(v4 Source)
+{
+    v4 Dest;
+    Dest.a = Source.a;
+    // STUDY(chowie): We can reverse the sense; inv modulation =
+    // higher you go, more you blend in the colour. Can init to 0
+    Dest.rgb = Dest.a*Source.rgb;
+
+    return(Dest);
+}
 
 inline v4
 BGRAUnpack4x8(u32 Packed)

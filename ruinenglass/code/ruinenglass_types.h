@@ -440,6 +440,10 @@ union v3u
     {
         u32 x, y, z;
     };
+    struct
+    {
+        u32 r, g, b;
+    };
     u32 E[3];
 };
 
