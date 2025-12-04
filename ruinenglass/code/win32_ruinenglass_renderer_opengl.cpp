@@ -181,7 +181,7 @@ Win32OpenGLAttribs[] =
     WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
     WGL_CONTEXT_MINOR_VERSION_ARB, 3,
     WGL_CONTEXT_FLAGS_ARB, WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB
-#if HANDMADE_INTERNAL
+#if RUINENGLASS_INTERNAL
     | WGL_CONTEXT_DEBUG_BIT_ARB // NOTE(chowie): Enable this for testing (cannot use this flag with deprecated OpenGL calls)
 #endif
     ,

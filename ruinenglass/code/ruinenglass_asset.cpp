@@ -325,7 +325,7 @@ LoadFont(game_assets *GameAssets, font_id ID)
         rui_font *Info = &Asset->RUI.Font;
         u32 HorizontalAdvanceSize = sizeof(f32)*Info->GlyphCount*Info->GlyphCount;
         u32 GlyphsSize = Info->GlyphCount*sizeof(rui_font_glyph);
-        u32 UnicodeMapSize = sizeof(u16)*Info->OnePastHighestCodepoint;
+        u32 UnicodeMapSize = sizeof(u16)*Info->OnePastMaxCodepoint;
         u32 SizeData = GlyphsSize + HorizontalAdvanceSize;
         u32 SizeTotal = SizeData + UnicodeMapSize;
 
@@ -351,6 +351,10 @@ LoadFont(game_assets *GameAssets, font_id ID)
 //            Work->TextureOpQueue = Assets->TextureOpQueue;
 
             Platform.AddWorkQueueEntry(GameAssets->TranState->LowPriorityQueue, LoadAssetWork, Work);
+        }
+        else
+        {
+            Asset->AtomicState = AssetState_Unloaded;
         }
     }
     else
@@ -427,7 +431,7 @@ internal u32
 GetGlyphFromCodePoint(rui_font *Info, loaded_font *Font, u32 CodePoint)
 {
     u32 Result = 0;
-    if(CodePoint < Info->OnePastHighestCodepoint)
+    if(CodePoint < Info->OnePastMaxCodepoint)
     {
         Result = Font->UnicodeMap[CodePoint];
         Assert(Result < Info->GlyphCount);

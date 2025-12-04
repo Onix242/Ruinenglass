@@ -7,19 +7,44 @@
    $Notice: $
    ======================================================================== */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <memory.h>
+// TODO(chowie): Compress this offline builder to be run with
+// hotreloading and RUINENGLASS_INTERNAL for offline
+
+// TODO(chowie): Store strings in here?
+
 #include "ruinenglass_platform.h"
 #include "ruinenglass_file_formats.h"
 #include "ruinenglass_intrinsics.h"
 #include "ruinenglass_math.h"
+#include "ruinenglass_shared.h"
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <memory.h>
 // TODO(chowie): Am I able to remove Windows for stb_truetype?
 #include <windows.h>
 
-// TODO(chowie): Compress this offline builder to be run with
-// hotreloading and RUINENGLASS_INTERNAL for offline
+#pragma pack(push, 1)
+struct bitmap_header
+{
+    u16 FileType;
+    u32 FileSize;
+    u16 Reserved1;
+    u16 Reserved2;
+    u32 BitmapOffset;
+    u32 Size;
+    v2s Dim;
+    u16 Planes;
+    u16 BitsPerPixel;
+    u32 Compression;
+    u32 SizeOfBitmap;
+    v2s DimResolution;
+    u32 ColoursUsed;
+    u32 ColoursImportant;
+
+    v3u ColourMasks;
+};
+#pragma pack(pop)
 
 #define BITMAP_BYTES_PER_PIXEL 4
 struct builder_loaded_bitmap
@@ -33,27 +58,21 @@ struct builder_loaded_bitmap
 
 struct builder_loaded_font
 {
-    HFONT Win32Handle;
-    TEXTMETRIC TextMetric;
-
     // NOTE(chowie): Dense
     rui_font_glyph *Glyphs;
     // NOTE(chowie): It is sparse and dense in 1D; don't know how many
     // glyphs the user will add.
     f32 *HorizontalAdvance;
 
-    // NOTE(chowie): Contiguous lookup in table!
-    v2u CodePoint;
-
     // NOTE(chowie): Sparse
     u32 MaxGlyphCount;
-    u32 GlyphCount;
 
     // NOTE(chowie): It is sparse and not dense; Unicode -> Index to
     // font; this is translation table. (Instead of array of null
     // pointers to save space).
-    u32 *GlyphIndexFromCodePoint;
-    u32 OnePastHighestCodePoint;
+    u32 OnePastMaxCodePoint;
+    u32 GlyphCount;
+    u32 *CodePointFromGlyph;
 };
 
 //
@@ -101,7 +120,7 @@ struct builder_asset_source
 
 #define BUILDER_MAX_SIZE 4096
 
-struct builder_game_assets
+struct loaded_rui
 {
     u32 AssetCount;
     rui_asset Assets[BUILDER_MAX_SIZE];

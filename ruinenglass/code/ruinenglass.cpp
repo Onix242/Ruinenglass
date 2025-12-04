@@ -248,7 +248,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             Task->BeingUsed = false;
         }
 
-        TranState->GameAssets = AllocGameAssets(TranState, &TranState->TranArena, Megabytes(256));
+//        TranState->GameAssets = AllocGameAssets(TranState, &TranState->TranArena, Megabytes(256));
 
         TranState->IsInitialised = true;
     }

@@ -31,6 +31,23 @@
 //                                                  |                                                |
 // | Audio (TBD)                                 -->|                                --------------->|
 
+// NOTE(chowie):
+// Game Code    | Asset Table
+// - categories | - bitmaps
+// - tags       |
+
+// Asset Table has:
+// enums | Asset Type  | ->       | Asset Table         | ->  | Tags
+//   0   | First Range | First  0 | Tags  Info/Metadata | tag | s32 f32 
+//   1   |   4     3   |        1 |                     |     |
+//                              2 |
+//                              3 |
+//                              4 | -1-
+//                              5 | -1-
+//                              6 | -1-
+// enum = assets like shadow, head, body
+// NOTE(chowie): Merge enum on load (load, interpret, compression). On disc will be stored differently + help with incremental linking
+
 // IMPORTANT(chowie): For font files, based on how these assets are
 // constructed (with overlapping geometry/contours in the font
 // file). OTF intersects font glyphs, and programs don't play nice
@@ -50,26 +67,18 @@ struct rui_header
     u32 Version;
 
     u32 TagCount;
-
     u32 AssetCount;
     u32 AssetTypeCount;
 
-    u64 Tags;
-    u64 Assets;
-    u64 AssetTypes;
+    u64 Tags; // rui_tag[TagCount]
+    u64 Assets; // rui_asset[AssetCount]
+    u64 AssetTypes; // rui_asset_type[AssetTypeCount]
 };
 
 struct rui_tag
 {
     u32 ID;
     f32 Value;
-};
-
-struct rui_asset_type
-{
-    u32 TypeID;
-    u32 FirstAssetIndex;
-    u32 OnePastLastAssetIndex;
 };
 
 struct rui_bitmap
@@ -85,11 +94,20 @@ struct rui_font_glyph
 };
 struct rui_font
 {
-    u32 OnePastHighestCodepoint;
+    u32 OnePastMaxCodepoint;
     u32 GlyphCount;
     f32 AscenderHeight;
     f32 DescenderHeight;
     f32 ExternalLeading;
+};
+
+// NOTE(chowie): References continguous range in a separate table
+// (array). Allows multiple asset files to be merged contiguously.
+struct rui_asset_type
+{
+    u32 TypeID;
+    u32 FirstAssetIndex;
+    u32 OnePastLastAssetIndex;
 };
 
 struct rui_asset
@@ -132,12 +150,13 @@ enum asset_font_typeface
 
     // NOTE(chowie): Eastern Font
     // NOTE(chowie): Figtree has no Asian characters, for English titles left untranslated
-    FontTypeface_Figtree, // NOTE(chowie): Header + UI
+    FontTypeface_Figtree,  // NOTE(chowie): Header + UI
     FontTypeface_LINESeed, // NOTE(chowie): Body
-    // TODO(chowie): LINESeed doesn't support Simplified Chinese, only Traditional.
+    // TODO(chowie): Find a new font, LINESeed doesn't support Simplified Chinese, only Traditional.
 
-    // NOTE(chowie): Special Font to leave untranslated
-    FontTypeface_Kalnia, // NOTE(chowie): Header
+    // NOTE(chowie): Special header fonts to be left untranslated
+    FontTypeface_Kalnia,
+    FontTypeface_Fraunces,
 
     //
     // NOTE(chowie): Strictly for gameplay (world space text)

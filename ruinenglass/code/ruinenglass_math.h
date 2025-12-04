@@ -20,10 +20,24 @@ V2U(u32 X, u32 Y)
     return(Result);
 }
 
+inline v2u
+V2U(v2s Value)
+{
+    v2u Result = {(u32)Value.x, (u32)Value.y};
+    return(Result);
+}
+
 inline v2s
 V2S(s32 X, s32 Y)
 {
     v2s Result = {X, Y};
+    return(Result);
+}
+
+inline v2s
+V2S(v2u Value)
+{
+    v2s Result = {(s32)Value.x, (s32)Value.y};
     return(Result);
 }
 
@@ -3043,15 +3057,6 @@ TriangleNumber2D(v2u Value)
 {
     v2u Offset = V2U(Value.x, Value.x + Value.y);
     u32 Result = 2*TriangleNumber(Offset) + 1;
-    return(Result);
-}
-
-// RESOURCE(): https://theartincode.stanis.me/008-djb2/
-inline u32
-DJB2Hash(char *Scan)
-{
-    u32 MagicNumber = 5381;
-    u32 Result = ((MagicNumber << 5) + MagicNumber) + *Scan;
     return(Result);
 }
 

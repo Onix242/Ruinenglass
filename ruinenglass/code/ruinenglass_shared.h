@@ -104,6 +104,93 @@ StringsAreEqual(umm ALength, char *A, umm BLength, char *B)
     return(Result);
 }
 
+internal char
+ToLowercase(char Char)
+{
+    char Result = Char;
+
+    if((Result >= 'A') && (Result <= 'Z'))
+    {
+        Result += 'a' - 'A';
+    }
+
+    return(Result);
+}
+
+inline b32x
+StringsAreEqualLowercase(umm ALength, char *A, umm BLength, char *B)
+{
+    // NOTE: To pass in null pointers!
+    b32x Result = (ALength == BLength);
+
+    if(Result)
+    {
+        Result = true;
+        for(u32 Index = 0;
+            Index < ALength;
+            ++Index)
+        {
+            if(ToLowercase(A[Index]) != ToLowercase(B[Index]))
+            {
+                Result = false;
+                break;
+            }
+        }
+    }
+
+    return(Result);
+}
+
+internal b32x
+StringsAreEqual(string A, char *B)
+{
+    b32x Result = StringsAreEqual(A.Size, (char *)A.Data, B);
+    return(Result);
+}
+
+internal b32x
+StringsAreEqual(string A, string B)
+{
+    b32x Result = StringsAreEqual(A.Size, (char *)A.Data, B.Size, (char *)B.Data);
+    return(Result);
+}
+
+// RESOURCE(): https://theartincode.stanis.me/008-djb2/
+inline u32
+DJB2Hash(char Scan)
+{
+    u32 MagicNumber = 5381;
+    u32 Result = ((MagicNumber << 5) + MagicNumber) + Scan;
+    return(Result);
+}
+
+internal u32
+StringHashOf(char *Z)
+{
+    u32 Result = 0;
+    while(*Z)
+    {
+        Result = DJB2Hash(*Z++);
+    }
+
+    return(Result);
+}
+
+internal u32
+StringHashOf(string String)
+{
+    u32 HashValue = 0;
+    
+    for(umm Index = 0;
+        Index < String.Size;
+        ++Index)
+    {
+        HashValue = DJB2Hash(String.Data[Index]);
+    }
+    
+    return(HashValue);
+}
+
 // NOTE(chowie): atoi
 internal s32
 S32FromZ(char *At)

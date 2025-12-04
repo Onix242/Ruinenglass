@@ -8,48 +8,21 @@
 
 #include "test_asset_builder.h"
 
-#pragma pack(push, 1)
-struct bitmap_header
-{
-    u16 FileType;
-    u32 FileSize;
-    u16 Reserved1;
-    u16 Reserved2;
-    u32 BitmapOffset;
-    u32 Size;
-    v2s Dim;
-    u16 Planes;
-    u16 BitsPerPixel;
-    u32 Compression;
-    u32 SizeOfBitmap;
-    v2s DimResolution;
-    u32 ColoursUsed;
-    u32 ColoursImportant;
-
-    v3u ColourMasks;
-};
-#pragma pack(pop)
-
-struct entire_file
-{
-    u32 ContentsSize;
-    void *Contents;
-};
-entire_file
+internal string
 ReadEntireFile(char *FileName)
 {
-    entire_file Result = {};
+    string Result = {};
 
     FILE *In = fopen(FileName, "rb");
     if(In)
     {
-        // NOTE(chowie): Hacky way to get the entire file!
+        // NOTE: Hacky way to get the entire file!
         fseek(In, 0, SEEK_END);
-        Result.ContentsSize = ftell(In);
+        Result.Size = ftell(In);
         fseek(In, 0, SEEK_SET);
 
-        Result.Contents = malloc(Result.ContentsSize);
-        fread(Result.Contents, Result.ContentsSize, 1, In);
+        Result.Data = (u8 *)malloc(Result.Size);
+        fread(Result.Data, Result.Size, 1, In);
         fclose(In);
     }
     else
@@ -60,19 +33,23 @@ ReadEntireFile(char *FileName)
     return(Result);
 }
 
+//
+//
+//
+
 internal builder_loaded_bitmap
-LoadBMP(char *FileName)
+LoadBitmap(char *FileName)
 {
     builder_loaded_bitmap Result = {};
 
-    entire_file ReadResult = ReadEntireFile(FileName);
-    if(ReadResult.ContentsSize != 0)
+    string ReadResult = ReadEntireFile(FileName);
+    if(ReadResult.Size != 0)
     {
-        Result.Free = ReadResult.Contents;
+        Result.Free = ReadResult.Data;
 
         // NOTE: Cold-cast
-        bitmap_header *Header = (bitmap_header *)ReadResult.Contents;
-        u32 *Pixels = (u32 *)((u8 *)ReadResult.Contents + Header->BitmapOffset);
+        bitmap_header *Header = (bitmap_header *)ReadResult.Data;
+        u32 *Pixels = (u32 *)((u8 *)ReadResult.Data + Header->BitmapOffset);
         Result.Memory = Pixels;
         Result.Dim = Header->Dim;
 
@@ -141,64 +118,91 @@ LoadBMP(char *FileName)
 //
 //
 
+internal void
+BeginAssetType(loaded_rui *RUI, asset_tag_id ID)
+{
+    Assert(RUI->AssetType == 0); // NOTE(chowie): Assumes not multithreaded for now!
+
+    RUI->AssetType = RUI->AssetType + ID;
+    RUI->AssetType->TypeID = ID;
+    RUI->AssetType->FirstAssetIndex = RUI->AssetCount;
+    RUI->AssetType->OnePastLastAssetIndex = RUI->AssetType->FirstAssetIndex;
+}
+
+internal void
+EndAssetType(loaded_rui *RUI)
+{
+    Assert(RUI->AssetType);
+    RUI->AssetCount = RUI->AssetType->OnePastLastAssetIndex;
+    RUI->AssetType = 0;
+    RUI->AssetTypeIndex = 0;
+}
+
 struct added_asset
 {
     u32 ID;
-    rui_asset *RUI;
+    rui_asset *Asset;
     builder_asset_source *Source;
 };
 internal added_asset
-AddAsset(builder_game_assets *GameAssets)
+AddAsset(loaded_rui *RUI)
 {
-    Assert(GameAssets->AssetType);
-    Assert(GameAssets->AssetType->OnePastLastAssetIndex < ArrayCount(GameAssets->Assets));
+    Assert(RUI->AssetType);
+    Assert(RUI->AssetType->OnePastLastAssetIndex < ArrayCount(RUI->Assets));
 
-    u32 Index = GameAssets->AssetType->OnePastLastAssetIndex++;
-    builder_asset_source *Source = GameAssets->AssetSources + Index;
-    rui_asset *RUI = GameAssets->Assets + Index;
-    RUI->FirstTagIndex = GameAssets->TagCount;
-    RUI->OnePastLastTagIndex = RUI->FirstTagIndex;
+    u32 Index = RUI->AssetType->OnePastLastAssetIndex++;
+    builder_asset_source *Source = RUI->AssetSources + Index;
 
-    GameAssets->AssetTypeIndex = Index;
+    rui_asset *Asset = RUI->Assets + Index;
+    Asset->FirstTagIndex = RUI->TagCount;
+    Asset->OnePastLastTagIndex = Asset->FirstTagIndex;
+
+    RUI->AssetTypeIndex = Index;
 
     added_asset Result;
     Result.ID = Index;
-    Result.RUI = RUI;
+    Result.Asset = Asset;
     Result.Source = Source;
 
     return(Result);
 }
 
-internal void
-BeginAssetType(builder_game_assets *GameAssets, asset_tag_id TagID)
-{
-    Assert(GameAssets->AssetType == 0); // NOTE(chowie): Assumes not multithreaded for now!
-
-    GameAssets->AssetType = GameAssets->AssetType + TagID;
-    GameAssets->AssetType->TypeID = TagID;
-    GameAssets->AssetType->FirstAssetIndex = GameAssets->AssetCount;
-    GameAssets->AssetType->OnePastLastAssetIndex = GameAssets->AssetType->FirstAssetIndex;
-}
-
-internal void
-EndAssetType(builder_game_assets *GameAssets)
-{
-    Assert(GameAssets->AssetType);
-    GameAssets->AssetCount = GameAssets->AssetType->OnePastLastAssetIndex;
-    GameAssets->AssetType = 0;
-    GameAssets->AssetTypeIndex = 0;
-}
-
 internal bitmap_id
-AddBitmapAsset(builder_game_assets *GameAssets, char *FileName, v2 AlignPercentage = {0.5f, 0.5f})
+AddBitmapAsset(loaded_rui *RUI, char *FileName, v2 AlignPercentage = {0.5f, 0.5f})
 {
-    added_asset Asset = AddAsset(GameAssets);
-    Asset.RUI->Bitmap.AlignPercentage = AlignPercentage;
-    Asset.Source->Type = AssetType_Bitmap;
-    Asset.Source->Bitmap.FileName = FileName;
+    added_asset Added = AddAsset(RUI);
+    Added.Asset->Bitmap.AlignPercentage = AlignPercentage;
+    Added.Source->Type = AssetType_Bitmap;
+    Added.Source->Bitmap.FileName = FileName;
 
-    bitmap_id Result = {Asset.ID};
+    bitmap_id Result = {Added.ID};
     return(Result);
+}
+
+internal void
+AddTag(loaded_rui *RUI, asset_tag_id ID, f32 Value)
+{
+    Assert(RUI->AssetTypeIndex != 0);
+
+    rui_asset *Asset = RUI->Assets + RUI->AssetTypeIndex;
+    ++Asset->OnePastLastTagIndex;
+
+    rui_tag *Tag = RUI->Tags + RUI->TagCount++;
+    Tag->ID = ID;
+    Tag->Value = Value;
+}
+
+//
+//
+//
+
+internal void
+WriteRUI(loaded_rui *RUI, char *FileName)
+{
+    FILE *Out = fopen(FileName, "wb");
+    if(Out)
+    {
+    }
 }
 
 //

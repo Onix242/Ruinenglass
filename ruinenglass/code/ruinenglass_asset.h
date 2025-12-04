@@ -86,7 +86,6 @@ struct game_assets
 
     u32 TagCount;
     rui_tag *Tags;
-    f32 AssetsByTag[Tag_Count];
 
     //
     //

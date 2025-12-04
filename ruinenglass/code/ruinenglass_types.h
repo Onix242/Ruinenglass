@@ -792,6 +792,29 @@ BufferAreEqual(buffer A, buffer B)
     return(Result);
 }
 
+internal string
+WrapZ(char *Z)
+{
+    string Result;
+
+    Result.Size = StringLength(Z);
+    Result.Data = (u8 *)Z;
+
+    return(Result);
+}
+
+internal string
+BundleString(umm Size, char *Z)
+{
+    string Result;
+
+    Result.Size = Size;
+    Result.Data = (u8 *)Z;
+
+    return(Result);
+}
+
+
 //
 // NOTE(chowie): Multi-threading
 //
