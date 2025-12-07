@@ -59,82 +59,6 @@
 //
 //
 
-#define RUI_MAGIC_VALUE FILE_FORMAT_CODE('r', 'u', 'i', 'f')
-#define RUI_VERSION 1
-struct rui_header
-{
-    u32 MagicValue;
-    u32 Version;
-
-    u32 TagCount;
-    u32 AssetCount;
-    u32 AssetTypeCount;
-
-    u64 Tags; // rui_tag[TagCount]
-    u64 Assets; // rui_asset[AssetCount]
-    u64 AssetTypes; // rui_asset_type[AssetTypeCount]
-};
-
-struct rui_tag
-{
-    u32 ID;
-    f32 Value;
-};
-
-struct rui_bitmap
-{
-    v2u Dim;
-    v2 AlignPercentage;
-};
-
-struct rui_font_glyph
-{
-    u32 UnicodeCodepoint;
-    bitmap_id ID;
-};
-struct rui_font
-{
-    u32 OnePastMaxCodepoint;
-    u32 GlyphCount;
-    f32 AscenderHeight;
-    f32 DescenderHeight;
-    f32 ExternalLeading;
-};
-
-// NOTE(chowie): References continguous range in a separate table
-// (array). Allows multiple asset files to be merged contiguously.
-struct rui_asset_type
-{
-    u32 TypeID;
-    u32 FirstAssetIndex;
-    u32 OnePastLastAssetIndex;
-};
-
-struct rui_asset
-{
-    u64 DataOffset;
-    u32 FirstTagIndex;
-    u32 OnePastLastTagIndex;
-    union
-    {
-        rui_bitmap Bitmap;
-        rui_font Font;
-    };
-};
-
-// TODO(chowie): What to do with rui_font?
-struct loaded_font
-{
-    rui_font_glyph *Glyphs;
-    f32 *HorizontalAdvance;
-    u32 BitmapIDOffset;
-    u16 *UnicodeMap;
-};
-
-//
-//
-//
-
 enum asset_font_weight
 {
     FontWeight_Semibold, // NOTE(chowie): Asian fonts don't typically support semibold
@@ -173,17 +97,30 @@ enum asset_font_typeface
     FontTypeface_PunctSlab, // NOTE(chowie): Includes animated eyes/faces
 };
 
+// TODO(chowie): IMPORTANT(chowie): Combine type_id into tag_id!
+
 enum asset_tag_id
 {
     Tag_None,
+
+    Tag_FacingDirection,
+
+    Tag_Count,
+};
+
+enum asset_type_id
+{
+    Asset_None,
 
     //
     // Fonts
     //
 
-    Tag_UnicodeCodepoint,
-    Tag_FontTypeface,
-    Tag_FontWeight,
+    Asset_UnicodeCodepoint,
+    Asset_FontTypeface,
+    Asset_FontWeight,
+
+    Asset_BasicCategory, // NOTE(chowie): Null category
 
     //
     // Character Expression
@@ -191,35 +128,144 @@ enum asset_tag_id
 
     // RESOURCE(): https://www.reddit.com/r/coolguides/comments/1e21slu/a_cool_guide_to_japanese_emoticons/
     // RESOURCE(): https://en.wikipedia.org/wiki/List_of_emoticons
-    Tag_Neutral, // IxI
+    Asset_Neutral, // IxI
 
-    Tag_Happy, // ^x^
-    Tag_Amazed, // *x*
-    Tag_Relaxed, // .~x~.
+    Asset_Happy, // ^x^
+    Asset_Amazed, // *x*
+    Asset_Relaxed, // .~x~.
 
-    Tag_Alarmed, // ¡x!
-    Tag_Confused, // ¿x?
-    Tag_Dizzy, // @x@
+    Asset_Alarmed, // ¡x!
+    Asset_Confused, // ¿x?
+    Asset_Dizzy, // @x@
 
-    Tag_Sad, // .x.
-    Tag_Tears, // ;x;
-    Tag_Crying, // »x«
+    Asset_Sad, // .x.
+    Asset_Tears, // ;x;
+    Asset_Crying, // »x«
 
-    Tag_SleepyTired, // =x= or -x-zzz or animate between them
-    Tag_Ouch, // >x< or annoyed
-    Tag_Guilty, // ¬x¬
+    Asset_SleepyTired, // =x= or -x-zzz or animate between them
+    Asset_Ouch, // >x< or annoyed
+    Asset_Guilty, // ¬x¬
 
     //
-    //
+    // Non-Character
     //
 
-    Tag_Count,
+    Asset_DEBUG_Bush,
+    Asset_DEBUG_Lilypad,
+    Asset_DEBUG_Lotus,
+
+    Asset_Count,
 };
+
+/* NOTE: Move Asset_id to here
+enum asset_basic_category
+{
+    Category_None,
+
+    Category_Expressions,
+    Category_Teeth,
+
+    Category_Font,
+    Category_FontGlyph,
+
+    Category_DEBUG,
+
+    Category_Count,
+};
+*/
 
 struct asset_match_vector
 {
-    f32 E[Tag_Count];
+    f32 E[Asset_Count];
 };
+
+//
+//
+//
+
+#pragma pack(push, 1)
+
+#define RUI_MAGIC_VALUE FILE_FORMAT_CODE('r', 'u', 'i', 'f')
+#define RUI_VERSION 1
+struct rui_header
+{
+    u32 MagicValue;
+    u32 Version;
+
+    u32 TagCount;
+    u32 AssetCount;
+
+    u32 AssetTypeCount;
+
+    u64 TagsOffset; // rui_tag[TagCount]
+    u64 AssetsOffset; // rui_asset[AssetCount]
+
+    u64 AssetTypesOffset; // rui_asset_type[AssetTypeCount]
+};
+
+struct rui_tag
+{
+    enum32(asset_tag_id) ID;
+    f32 Value;
+};
+
+struct rui_bitmap
+{
+    v2u Dim;
+    v2 AlignPercentage;
+};
+
+struct rui_font_glyph
+{
+    u32 UnicodeCodepoint;
+    bitmap_id ID;
+};
+struct rui_font
+{
+    u32 OnePastMaxCodepoint;
+    u32 GlyphCount;
+    f32 AscenderHeight;
+    f32 DescenderHeight;
+    f32 ExternalLeading;
+};
+
+// NOTE(chowie): References continguous range in a separate table
+// (array). Allows multiple asset files to be merged contiguously.
+struct rui_asset_type
+{
+    u32 TypeID;
+    u32 FirstAssetIndex;
+    u32 OnePastLastAssetIndex;
+};
+
+enum asset_header_type // TODO(chowie): Use?
+{
+    HeaderType_None,
+
+    HeaderType_Bitmap,
+    HeaderType_Font,
+
+    HeaderType_Count,
+};
+
+struct rui_asset
+{
+    u64 DataOffset;
+    u32 FirstTagIndex;
+    u32 OnePastLastTagIndex;
+    enum32(asset_header_type) Type; // TODO(chowie): Use?
+    union
+    {
+        rui_bitmap Bitmap;
+        rui_font Font;
+    };
+};
+
+#pragma pack(pop)
+
+//
+//
+//
 
 #define RUINENGLASS_FILE_FORMATS_H
 #endif

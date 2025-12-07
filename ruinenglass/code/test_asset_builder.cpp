@@ -16,7 +16,8 @@ ReadEntireFile(char *FileName)
     FILE *In = fopen(FileName, "rb");
     if(In)
     {
-        // NOTE: Hacky way to get the entire file!
+        // STUDY(chowie): Hacky way to get location of the entire
+        // file! Seek = location.
         fseek(In, 0, SEEK_END);
         Result.Size = ftell(In);
         fseek(In, 0, SEEK_SET);
@@ -119,7 +120,7 @@ LoadBitmap(char *FileName)
 //
 
 internal void
-BeginAssetType(loaded_rui *RUI, asset_tag_id ID)
+BeginAssetType(loaded_rui *RUI, asset_type_id ID)
 {
     Assert(RUI->AssetType == 0); // NOTE(chowie): Assumes not multithreaded for now!
 
@@ -127,6 +128,19 @@ BeginAssetType(loaded_rui *RUI, asset_tag_id ID)
     RUI->AssetType->TypeID = ID;
     RUI->AssetType->FirstAssetIndex = RUI->AssetCount;
     RUI->AssetType->OnePastLastAssetIndex = RUI->AssetType->FirstAssetIndex;
+}
+
+internal void
+AddTag(loaded_rui *RUI, asset_type_id ID, f32 Value)
+{
+    Assert(RUI->AssetTypeIndex != 0);
+
+    rui_asset *Asset = RUI->Assets + RUI->AssetTypeIndex;
+    ++Asset->OnePastLastTagIndex;
+
+    rui_tag *Tag = RUI->Tags + RUI->TagCount++;
+    Tag->ID = ID;
+    Tag->Value = Value;
 }
 
 internal void
@@ -179,35 +193,154 @@ AddBitmapAsset(loaded_rui *RUI, char *FileName, v2 AlignPercentage = {0.5f, 0.5f
     return(Result);
 }
 
-internal void
-AddTag(loaded_rui *RUI, asset_tag_id ID, f32 Value)
-{
-    Assert(RUI->AssetTypeIndex != 0);
+//
+//
+//
 
-    rui_asset *Asset = RUI->Assets + RUI->AssetTypeIndex;
-    ++Asset->OnePastLastTagIndex;
-
-    rui_tag *Tag = RUI->Tags + RUI->TagCount++;
-    Tag->ID = ID;
-    Tag->Value = Value;
-}
+// struct import_grid_tag
+// {
+//     u32 FirstTagIndex;
+//     u32 OnePastLastTagIndex;
+// };
+// 
+// struct tag_builder
+// {
+//     loaded_rui *RUI;
+//     u32 FirstTagIndex;
+//     b32x Error;
+// };
+// 
+// internal void
+// AddTag(tag_builder *TagBuilder, asset_tag_id ID, f32 Value)
+// {
+//     if(TagBuilder->RUI->TagCount < BUILDER_MAX_SIZE)
+//     {
+//         rui_tag *Tag = TagBuilder->RUI->Tags + TagBuilder->RUI->TagCount++;
+//         Tag->ID = ID;
+//         Tag->Value = Value;
+//     }
+//     else
+//     {
+//         TagBuilder->Error = true;
+//     }
+// }
+// 
+// internal tag_builder
+// BeginTags(loaded_rui *RUI)
+// {
+//     tag_builder Result = {};
+//     Result.RUI = RUI;
+//     Result.FirstTagIndex = RUI->TagCount;
+//     
+//     return(Result);
+// }
+// 
+// internal import_grid_tag
+// EndTags(tag_builder *TagBuilder, asset_basic_category Category)
+// {
+//     import_grid_tag Result = {};
+//     if(Category != Category_None)
+//     {
+//         AddTag(TagBuilder, Tag_BasicCategory, (f32)Category);
+//     }
+// 
+//     Result.FirstTagIndex = TagBuilder->FirstTagIndex;
+//     Result.OnePastLastTagIndex = TagBuilder->RUI->TagCount;
+//     
+//     return(Result);
+// }
 
 //
 //
 //
 
+// STUDY(chowie): Position for a stream in fwrite is a bad idea
+// since it's hidden state. Would rather design it to be queued
+// and allows out-of-order queue (doesn't need multithreading):
+// (HmH 148)
+// Write LocationA sizeof(A)
+// Write LocationB sizeof(B)
+// And not (only works for single threaded, no queue or force FIFO):
+// Write sizeof(A)
+// Write sizeof(B)
+// Also working around this by (is broken by multithreading). Seeks
+// must be bundled with write _always_:
+// Seek A -> Write A
+// Seek B -> Write B
+// Basic streaming could look like in a struct
+// u64 Location
+// FILE *Handle
 internal void
 WriteRUI(loaded_rui *RUI, char *FileName)
 {
     FILE *Out = fopen(FileName, "wb");
     if(Out)
     {
+        rui_header Header = {};
+        Header.MagicValue = RUI_MAGIC_VALUE;
+        Header.Version = RUI_VERSION;
+        Header.TagCount = RUI->TagCount;
+        Header.AssetCount = RUI->AssetCount;
+        Header.AssetTypeCount = Asset_Count; // TODO(chowie): Sparseness?
+        Header.TagsOffset = sizeof(Header);
+        Header.AssetTypesOffset = Header.TagsOffset + Header.TagCount*sizeof(rui_tag);
+        Header.AssetsOffset = Header.AssetTypesOffset + Header.AssetTypeCount*sizeof(rui_asset_type);
+
+        fwrite(&Header, sizeof(Header), 1, Out);
+
+        fclose(Out);
+    }
+    else
+    {
+        printf("ERROR: Couldn't open file :(\n");
     }
 }
 
 //
 //
 //
+
+internal void
+InitRUI(loaded_rui *RUI)
+{
+    RUI->AssetCount = 1;
+    RUI->TagCount = 1;
+    RUI->AssetTypeIndex = 0;
+
+    memset(RUI->Tags, 0, sizeof(RUI->Tags));
+}
+
+internal void
+WriteFonts(void)
+{
+    loaded_rui RUI_;
+    loaded_rui *RUI = &RUI_;
+    InitRUI(RUI);
+
+    WriteRUI(RUI, "Fonts.rui");
+}
+
+internal void
+WriteNonPlayer(void)
+{
+    loaded_rui RUI_;
+    loaded_rui *RUI = &RUI_;
+    InitRUI(RUI);
+
+    BeginAssetType(RUI, Asset_DEBUG_Bush);
+    AddBitmapAsset(RUI, "bush_00.bmp");
+    EndAssetType(RUI);
+
+    BeginAssetType(RUI, Asset_DEBUG_Lilypad);
+    AddBitmapAsset(RUI, "lilypad_00.bmp");
+    EndAssetType(RUI);
+
+    BeginAssetType(RUI, Asset_DEBUG_Lotus);
+    AddBitmapAsset(RUI, "lotus_00.bmp");
+    EndAssetType(RUI);
+
+    WriteRUI(RUI, "DEBUG_NonPlayer.rui");
+}
 
 int
 main(int ArgCount, char **Args)

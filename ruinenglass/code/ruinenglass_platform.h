@@ -308,6 +308,7 @@ GetController(game_input *Input, u32 ControllerIndex)
     return(Result);
 }
 
+#define BITMAP_BYTES_PER_PIXEL 4
 // TODO(chowie): Temporary. Remove later!
 struct loaded_bitmap
 {

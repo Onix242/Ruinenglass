@@ -82,6 +82,16 @@ typedef uintptr_t umm; // NOTE(chowie): Memory-sized uint
 typedef float f32;
 typedef double f64;
 
+#define flag8(type) u8
+#define flag16(type) u16
+#define flag32(type) u32
+#define flag64(type) u64
+
+#define enum8(type) u8
+#define enum16(type) u16
+#define enum32(type) u32
+#define enum64(type) u64
+
 #define U32FromPointer(Pointer) ((u32)(umm)(Pointer))
 #define PointerFromU32(type, Value) (type *)((umm)Value)
 
@@ -430,6 +440,10 @@ union v2
     struct
     {
         f32 Min, Max;
+    };
+    struct
+    {
+        f32 Avg, t; // NOTE(chowie): For incremental averaging
     };
     f32 E[2];
 };

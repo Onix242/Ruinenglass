@@ -328,6 +328,23 @@ Eerp(f32 A, f32 Value, f32 B)
     return(Result);
 }
 
+inline s32
+Clamp(s32 Min, s32 Value, s32 Max)
+{
+    s32 Result = Value;
+
+    if(Result < Min)
+    {
+        Result = Min;
+    }
+    else if(Result > Max)
+    {
+        Result = Max;
+    }
+
+    return(Result);
+}
+
 inline f32
 Clamp(f32 Min, f32 Value, f32 Max)
 {
@@ -717,9 +734,23 @@ Clamp01(v2 Value)
 }
 
 inline v2
+Clamp01MapToRange(f32 A, v2 Value, f32 B)
+{
+    v2 Result = {Clamp01MapToRange(A, Value.x, B), Clamp01MapToRange(A, Value.y, B)};
+    return(Result);
+}
+
+inline v2
 Lerp(v2 A, f32 t, v2 B)
 {
     v2 Result = {Lerp(A.x, t, B.x), Lerp(A.y, t, B.y)};
+    return(Result);
+}
+
+inline v2
+Round(v2 Value)
+{
+    v2 Result = {Round(Value.x), Round(Value.y)};
     return(Result);
 }
 
@@ -902,6 +933,45 @@ AreEqual(v3s A, v3s B)
                    (A.y == B.y) &&
                    (A.z == B.z));
     return(Result);
+}
+
+internal v3s
+FloorToV3S(v3 A)
+{
+    v3s Result =
+    {
+        FloorF32ToS32(A.x),
+        FloorF32ToS32(A.y),
+        FloorF32ToS32(A.z),
+    };
+
+    return(Result);
+}
+
+internal v3s
+RoundToV3S(v3 A)
+{
+    v3s Result =
+    {
+        RoundF32ToS32(A.x),
+        RoundF32ToS32(A.y),
+        RoundF32ToS32(A.z),
+    };
+
+    return(Result);
+}
+
+internal v3s
+Clamp(v3s Min, v3s Value, v3s Max)
+{
+    v3s Result =
+    {
+        Clamp(Min.x, Value.x, Max.x),
+        Clamp(Min.y, Value.y, Max.y),
+        Clamp(Min.z, Value.z, Max.z),
+    };
+
+    return Result;
 }
 
 //
@@ -2884,6 +2954,188 @@ RGBAPack4x8(v4 Unpacked)
                   (RoundF32ToU32(Unpacked.r) << 0));
     return(Result);
 }
+
+//
+// NOTE(chowie): Stats Averaging
+//
+
+// RESOURCE(): https://www.reddit.com/r/choiceofgames/comments/k92tbs/survey_that_no_one_asked_for/
+// NOTE(from emshort): Not a good way if you want a system that
+// rewards the extremes to define a character's personality. Averaging
+// systems tends to moderates themselves (but could appropriate for others).
+// NOTE(chowie): Example use-case is each action is less effective
+// than the previous action using the same trait/ability. In other
+// words, diminishing returns for repeat actions and prevents min/max
+// of stats.
+
+// RESOURCE(): https://web.archive.org/web/20150815012902/http://community.failbettergames.com/topic20369-favours-and-renown.aspx
+// RESOURCE(inkle): https://gdcvault.com/play/1021774/Adventures-in-Text-Innovating-in
+// COULDDO(chowie): Don't need sub if you're using an always using an
+// increasing system like Inkle (choice for impact + easier to debug):
+// Tension-Up and Tension-Down are always saved. A renown system is
+// always increasing, favours can decrease = exchanging currency.
+
+// RESOURCE(): https://blog.demofox.org/2016/08/23/incremental-averaging/
+inline f32
+IncrementalAvg(f32 Avg, f32 tNewSampleCount, f32 NewValue)
+{
+    f32 Result = Lerp(Avg, 1.0f/tNewSampleCount, NewValue);
+    return(Result);
+}
+
+// RESOURCE(): https://choicescriptdev.fandom.com/wiki/Arithmetic_operators
+// RESOURCE(): https://emshort.blog/2016/02/15/set-check-or-gate-a-problem-in-personality-stats/
+// NOTE(from cvaneseltine): "The idea of fairmath is the closer to 100
+// (the higher it is), the harder it is to increase. The closer to 0
+// (the lower it is), the harder it is to decrease." Outputs values
+// heavily towards the center! (Never increases past 100 or decreases
+// past 1 unless if either are set as the starting value)
+struct fairmath
+{
+    // NOTE(chowie): These are split to lerp if you want to visualise as a bar
+    v2 Norm;
+};
+
+enum fairmath_op
+{
+    Op_Add,
+    Op_Sub,
+};
+
+// COULDDO(chowie): Optional subgating/clamp in lerp if you don't want
+// the stat gains to be too dramatic e.g. t = max of 20%
+enum fairmath_stat_outcome
+{
+    StatOutcome_Punchy, // Against Enemies = Lerp(A, B, 1)   for add or A - B*A for sub
+    StatOutcome_Large,  // Protect Players = Eerp(A, B, 1)   for add or Eerp(A, -B, 1) for sub
+    StatOutcome_Medium, // Protect Players = Eerp(A, B*A, 1) for add or Eerp(A, -B*A, 1) for sub
+    StatOutcome_Small,  // Protect Players = Eerp(A, B*B, 1) for add or Eerp(A, -B*B, 1) for sub
+};
+
+inline f32
+FairmathLerp01(f32 Avg, f32 t)
+{
+    f32 Result = Lerp(Avg, t, 1);
+    return(Result);
+}
+
+// NOTE(chowie): Multiplicative scaling for slow starts (hard
+// mode). Large gains (t) at <50 avg are tougher/smaller, evens
+// out on ~50+ base. More resilient losses overall.
+inline f32
+FairmathEerp01(f32 Avg, f32 t)
+{
+    f32 Result = Eerp(Avg, t, 1);
+    return(Result);
+}
+
+inline f32
+FairmathFma(f32 Avg, f32 t)
+{
+    // Default FNMA = "f32 Result = Avg - t*Avg;"
+    f32 Result = Avg + t*Avg;
+    return(Result);
+}
+
+// RESOURCE(): Averaging with Lerp - https://blog.demofox.org/2016/08/23/incremental-averaging/
+// IMPORTANT(chowie): Weave in the types of gains you're looking for
+inline fairmath
+FairmathOp01(fairmath_op Op, v2 Value, fairmath_stat_outcome StatOutcome = StatOutcome_Punchy)
+{
+    fairmath Result = {};
+
+    Result.Norm.Avg = Value.Avg;
+    b32x Negative = (Op == Op_Sub) ? -1 : 1;
+    switch(StatOutcome)
+    {
+        case StatOutcome_Punchy:
+        {
+            if(Op == Op_Add)
+            {
+                // A = Avg | t = tNewSampleCount | NewValue = 1
+                // Step 1: A + ((1 - A)*(B/1))
+                // Step 2: A + (1 - A)/(1/B)
+                // Step 3: A + B*(1 - A) is the same as lerp eq "A + t*(B - A)"
+                Result.Norm.t = FairmathLerp01(Value.Avg, Value.t);
+            }
+            else if(Op == Op_Sub)
+            {
+                // A = Avg | t = tNewSampleCount | NewValue = 1
+                // Step 1: A - (A*(B/1))
+                // Step 2: A - (A/(1/B))
+                // Step 3: A - B*A
+                Result.Norm.t = FairmathFma(Value.Avg, Negative*Value.t);
+            }
+            else
+            {
+                InvalidCodePath;
+            }
+        } break;
+
+        // NOTE(chowie): Good for impactful negative values, not as debilitating as Punchy
+        case StatOutcome_Large:
+        {
+            Result.Norm.t = FairmathEerp01(Value.Avg, Negative*Value.t);
+        } break;
+
+        // NOTE(chowie): Medium/Small have similar values sometimes
+        case StatOutcome_Medium:
+        {
+            Result.Norm.t = FairmathEerp01(Value.Avg, Negative*Square(Value.t));
+        } break;
+
+        case StatOutcome_Small:
+        {
+            Result.Norm.t = FairmathEerp01(Value.Avg, Negative*Value.t*Value.Avg);
+        } break;
+
+        InvalidDefaultCase;
+    }
+
+    return(Result);
+}
+
+inline fairmath
+FairmathOp(fairmath_op Op, v2 Value, fairmath_stat_outcome StatOutcome = StatOutcome_Punchy)
+{
+    fairmath Result = FairmathOp01(Op, Clamp01MapToRange(0, Value, 100), StatOutcome);
+    return(Result);
+}
+
+inline fairmath
+FairmathOpPercent(fairmath_op Op, v2 Value, fairmath_stat_outcome StatOutcome = StatOutcome_Punchy)
+{
+    fairmath Result = FairmathOp(Op, Value, StatOutcome);
+    Result.Norm = Round(100.0f*Result.Norm);
+    return(Result);
+}
+
+inline fairmath
+FairmathOpPercentTo01(v2 Value)
+{
+    fairmath Result = {};
+    Result.Norm = Value/100.0f;
+    return(Result);
+}
+
+//  NOTE(chowie): Fairmath Usage:
+//  v2 StrengthStatPercentage = {60, 20};
+//  printf("Lerp  Add: %.f%%\n", FairmathOpPercent(Op_Add, StrengthStatPercentage, StatOutcome_Punchy).Norm.t);
+//  printf("Eerp1 Add: %.f%%\n", FairmathOpPercent(Op_Add, StrengthStatPercentage, StatOutcome_Large).Norm.t);
+//  printf("Eerp2 Add: %.f%%\n", FairmathOpPercent(Op_Add, StrengthStatPercentage, StatOutcome_Medium).Norm.t);
+//  printf("Eerp3 Add: %.f%%\n", FairmathOpPercent(Op_Add, StrengthStatPercentage, StatOutcome_Small).Norm.t);
+//  printf("Lerp  Sub: %.f%%\n", FairmathOpPercent(Op_Sub, StrengthStatPercentage, StatOutcome_Punchy).Norm.t);
+//  printf("Eerp1 Sub: %.f%%\n", FairmathOpPercent(Op_Sub, StrengthStatPercentage, StatOutcome_Large).Norm.t);
+//  printf("Eerp2 Sub: %.f%%\n", FairmathOpPercent(Op_Sub, StrengthStatPercentage, StatOutcome_Medium).Norm.t);
+//  printf("Eerp3 Sub: %.f%%\n", FairmathOpPercent(Op_Sub, StrengthStatPercentage, StatOutcome_Small).Norm.t);
+//  Lerp  Add: 68%
+//  Eerp1 Add: 68%
+//  Eerp2 Add: 65%
+//  Eerp3 Add: 62%
+//  Lerp  Sub: 48%
+//  Eerp1 Sub: 52%
+//  Eerp2 Sub: 55%
+//  Eerp3 Sub: 58%
 
 //
 //

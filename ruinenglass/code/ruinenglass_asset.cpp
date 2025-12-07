@@ -42,7 +42,7 @@ AllocGameAssets(transient_state *TranState, memory_arena *Arena, umm Size)
 
             u32 AssetTypeArraySize = File->Header.AssetTypeCount*sizeof(rui_asset_type);
             File->AssetTypeArray = (rui_asset_type *)PushSize(Arena, AssetTypeArraySize);
-            Platform.ReadDataFromFile(&File->FileHandle, File->Header.AssetTypes,
+            Platform.ReadDataFromFile(&File->FileHandle, File->Header.AssetTypesOffset,
                                       AssetTypeArraySize, File->AssetTypeArray);
 
             // NOTE(chowie): All we care about is getting back a
@@ -102,7 +102,7 @@ AllocGameAssets(transient_state *TranState, memory_arena *Arena, umm Size)
             {
                 // NOTE(chowie): Skip the first tag, since it is null!
                 u32 TagArraySize = sizeof(rui_tag)*(File->Header.TagCount - 1);
-                Platform.ReadDataFromFile(&File->FileHandle, File->Header.Tags + sizeof(rui_tag),
+                Platform.ReadDataFromFile(&File->FileHandle, File->Header.TagsOffset + sizeof(rui_tag),
                                           TagArraySize, GameAssets->Tags + File->TagBase);
                 // NOTE(chowie): Tags don't really reference anything that needs
                 // to be moved really! It is flat-loaded in this case.
@@ -116,7 +116,7 @@ AllocGameAssets(transient_state *TranState, memory_arena *Arena, umm Size)
                 rui_asset *AssetArray = PushArray(&TranState->TranArena,
                                                   rui_asset, FileAssetCount);
                 Platform.ReadDataFromFile(&File->FileHandle,
-                                          File->Header.Assets + 1*sizeof(rui_asset),
+                                          File->Header.AssetsOffset + 1*sizeof(rui_asset),
                                           FileAssetCount*sizeof(rui_asset),
                                           AssetArray);
 
@@ -286,7 +286,7 @@ LoadBitmap(game_assets *GameAssets, bitmap_id ID)
     {
         rui_bitmap *Info = &Asset->RUI.Bitmap;
         v2u Dim = Info->Dim;
-        u32 TextureSize = Dim.Width*Dim.Height*4;
+        u32 TextureSize = Dim.Width*Dim.Height*BITMAP_BYTES_PER_PIXEL;
 
         task_memory *TaskMemory = BeginTaskMemory(GameAssets->TranState);
         if(TaskMemory)
@@ -368,7 +368,7 @@ LoadFont(game_assets *GameAssets, font_id ID)
 //
 
 internal u32
-GetAssetMatch(game_assets *GameAssets, asset_tag_id ID, asset_match_vector MatchVector)
+GetAssetMatch(game_assets *GameAssets, asset_type_id ID, asset_match_vector MatchVector)
 {
     u32 Result = 0;
 
@@ -410,14 +410,14 @@ GetAssetMatch(game_assets *GameAssets, asset_tag_id ID, asset_match_vector Match
 }
 
 inline bitmap_id
-GetBestBitmapMatch(game_assets *GameAssets, asset_tag_id ID, asset_match_vector MatchVector = {})
+GetBestBitmapMatch(game_assets *GameAssets, asset_type_id ID, asset_match_vector MatchVector = {})
 {
     bitmap_id Result = {GetAssetMatch(GameAssets, ID, MatchVector)};
     return(Result);
 }
 
 inline font_id
-GetBestFontMatch(game_assets *GameAssets, asset_tag_id ID, asset_match_vector MatchVector = {})
+GetBestFontMatch(game_assets *GameAssets, asset_type_id ID, asset_match_vector MatchVector = {})
 {
     font_id Result = {GetAssetMatch(GameAssets, ID, MatchVector)};
     return(Result);

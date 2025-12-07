@@ -46,7 +46,6 @@ struct bitmap_header
 };
 #pragma pack(pop)
 
-#define BITMAP_BYTES_PER_PIXEL 4
 struct builder_loaded_bitmap
 {
     v2s Dim;

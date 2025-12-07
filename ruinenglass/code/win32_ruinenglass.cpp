@@ -789,7 +789,6 @@ Win32GetWindowDim(HWND Window)
     return(Result);
 }
 
-#define BITMAP_BYTES_PER_PIXEL 4
 internal void
 Win32ResizeDIBSection(win32_offscreen_buffer *Buffer, v2u WindowDim)
 {

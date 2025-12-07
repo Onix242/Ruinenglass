@@ -17,6 +17,15 @@
 //     HeaderType_Font,
 // };
 
+// TODO(chowie): What to do with rui_font?
+struct loaded_font
+{
+    rui_font_glyph *Glyphs;
+    f32 *HorizontalAdvance;
+    u32 BitmapIDOffset;
+    u16 *UnicodeMap;
+};
+
 // TODO(chowie): Streamline by using header pointer as an indicator of unloaded status?
 enum asset_state
 {
@@ -98,7 +107,7 @@ struct game_assets
     //
     //
 
-    asset_type AssetTypes[Tag_Count];
+    asset_type AssetTypes[Asset_Count];
 };
 
 struct task_memory;

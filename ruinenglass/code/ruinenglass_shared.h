@@ -257,6 +257,15 @@ StringReverse(char *String)
    }
 */
 
+// RESOURCE(): Not that good - https://stackoverflow.com/questions/497018/is-there-a-function-to-round-a-float-in-c-or-do-i-need-to-write-my-own#comment312776_497037
+inline f32
+RoundDecimal(f32 Value, u8 Decimals = 2)
+{
+    s32 Log10 = (s32)Powi(10, Decimals);
+    f32 Result = Round(Log10*Value) / Log10;
+    return(Result);
+}
+
 // NOTE(chowie): Log10 should really start from 0
 inline s32
 NumDigitsLog10(u32 Value)

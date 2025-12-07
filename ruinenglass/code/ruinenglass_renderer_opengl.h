@@ -28,7 +28,7 @@
 #define GL_SRGB8_ALPHA8                   0x8C43
 
 #define GL_SHADING_LANGUAGE_VERSION       0x8B8C
-#define GL_MULTISAMPLE_ARB                0x809D
+#define GL_MULTISAMPLE                    0x809D
 
 // NOTE(chowie): Windows-specific
 #define WGL_CONTEXT_MAJOR_VERSION_ARB           0x2091

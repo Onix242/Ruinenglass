@@ -172,14 +172,16 @@ Win32LoadWGLExtensions(void)
     }
 }
 
+// IMPORTANT(chowie): TODO(chowie): Nvidia doesn't like 3.0+, but was working fine on AMD.
+// probably should take out some old calls!
 // TODO(chowie): Doesn't OpenGL 3.2+ Core Profile require VAO? For RenderDoc's minimum spec.
 // RESOURCE(martins): https://git.handmade.network/hmn/gitlab_snippets/src/branch/master/mmozeiko/win32_opengl.c
 // NOTE(chowie): Modern OpenGL version.
 global int
 Win32OpenGLAttribs[] =
 {
-    WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
-    WGL_CONTEXT_MINOR_VERSION_ARB, 3,
+    WGL_CONTEXT_MAJOR_VERSION_ARB, 2,
+    WGL_CONTEXT_MINOR_VERSION_ARB, 9,
     WGL_CONTEXT_FLAGS_ARB, WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB
 #if RUINENGLASS_INTERNAL
     | WGL_CONTEXT_DEBUG_BIT_ARB // NOTE(chowie): Enable this for testing (cannot use this flag with deprecated OpenGL calls)

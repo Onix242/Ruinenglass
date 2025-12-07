@@ -152,7 +152,7 @@ inline void
 OpenGLBitmap(void *Memory, v2u Dim, s32 Pitch,
              v2u WindowDim, GLuint BlitTexture)
 {
-    Assert(Pitch == ((s32)Dim.Width*4));
+    Assert(Pitch == ((s32)Dim.Width*BITMAP_BYTES_PER_PIXEL));
     glViewport(0, 0, Dim.Width, Dim.Height);
 
     glDisable(GL_SCISSOR_TEST);
@@ -263,10 +263,9 @@ OpenGLCircle(v3 CentreP, f32 Radius, u32 TriCount,
 internal void
 OpenGLRenderCommands(game_render_commands *Commands, v2u WindowDim)
 {
-    glViewport(0, 0, WindowDim.Width, WindowDim.Height);
-
     glEnable(GL_TEXTURE_2D);
-    glEnable(GL_MULTISAMPLE_ARB);
+    glEnable(GL_MULTISAMPLE);
+
     glEnable(GL_SCISSOR_TEST);
     glEnable(GL_BLEND); // STUDY(chowie): Blends still remains in fixed-function pipeline
     glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
@@ -342,6 +341,8 @@ OpenGLRenderCommands(game_render_commands *Commands, v2u WindowDim)
             InvalidDefaultCase;
         }
     }
+
+    glViewport(0, 0, WindowDim.Width, WindowDim.Height);
 }
 
 // TODO(chowie): Textures (with multithreading) & scissor
