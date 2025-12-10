@@ -9,6 +9,9 @@
 
 #include "ruinenglass_intrinsics.h"
 #include "ruinenglass_math.h"
+#include "ruinenglass_random.h"
+#include "ruinenglass_hash.h"
+#include "ruinenglass_stats.h"
 
 inline b32x
 IsEndOfLine(char C)

@@ -220,6 +220,13 @@ FloorF32ToU32(f32 F32)
     return(Result);
 }
 
+inline u16
+FloorF32ToU16(f32 F32)
+{
+    u16 Result = (u16)FloorPositive(F32);
+    return(Result);
+}
+
 inline f32
 Ceil(f32 F32)
 {

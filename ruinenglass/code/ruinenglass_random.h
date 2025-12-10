@@ -7,8 +7,8 @@
    $Notice: $
    ======================================================================== */
 
-// STUDY(chowie): RNG used to use a LUT (Lookup Table), but it's a lot
-// harder to fully SIMD. Thus, less favourable.
+// STUDY(chowie): RNG used to use a LUT (Lookup Table), LUT are less
+// favourable for RNG because it's a lot harder to fully SIMD.
 
 // RESOURCE(): https://www.flipcode.com/archives/Random_Unit_Vectors.shtml
 // TODO(chowie): Lot more useful than you would think to test
