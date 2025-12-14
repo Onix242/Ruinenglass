@@ -28,6 +28,15 @@ PCGHash(u32 Value)
 // String
 //
 
+// RESOURCE(): https://theartincode.stanis.me/008-djb2/
+inline u32
+DJB2Hash(char Scan)
+{
+    u32 MagicNumber = 5381;
+    u32 Result = ((MagicNumber << 5) + MagicNumber) + Scan;
+    return(Result);
+}
+
 // NOTE(chowie): Compact implementation that balances processor cache usage against speed.
 // RESOURCE(schelling): https://github.com/schellingb/ZIPValidateCRC/blob/main/ZIPValidateCRC.cpp
 // RESOURCE(karl malbrain): http://www.geocities.ws/malbrain/
@@ -226,8 +235,11 @@ DecodeMorton3(u32 Value)
 }
 
 //
-// Pairwise
+// Pairwise (reversible)
 //
+
+// IMPORTANT(chowie): TODO(chowie): I don't know how to use this info
+// yet, "adding two adjacent triangle numbers = square number"!
 
 // COULDDO(chowie): Where to take these next:
 // - Hash this?
@@ -237,41 +249,38 @@ DecodeMorton3(u32 Value)
 // RESOURCE(): https://en.wikipedia.org/wiki/Triangular_number
 // Technically more correct to process the largest int with binary OR (, branchless), too niche for me
 
-// RESOURCE(mason remaley): https://gamesbymason.com/2020/03/30/symmetric-matrices/
-// f(x,y) = (x + (y)(y+1)/2), x = low/column, y = high/triangle
-// NOTE(chowie): For symmetric tables
 inline u32
 TriangleNumber(u32 Value)
 {
-    u32 Result = Value + (Value*(Value + 1))/2;
+    u32 Result = (Value*(Value + 1))/2;
     return(Result);
 }
 
-// NOTE(chowie): For asymmetric tables
+// RESOURCE(mason remaley): https://gamesbymason.com/2020/03/30/symmetric-matrices/
+// f(x,y) = (x + (y)(y+1)/2), x = low/column, y = high/triangle
+// NOTE(chowie): For symmetric tables/matrix
 inline u32
-TriangleNumber(v2u Value)
+TriangleNumberMat(u32 Value)
 {
-    u32 Result = Value.x + ((Value.y)*(Value.y + 1))/2;
+    u32 Result = Value + TriangleNumber(Value);
     return(Result);
 }
 
-// NOTE(chowie): Non-pairwise, must be used with hierarchical trees
-// RESOURCE(alex fink & jorg rhiemeier): https://listserv.brown.edu/archives/cgi-bin/wa?A2=ind0907B&L=CONLANG&P=R12478
-// P.S. Original concept from 1999 amazingly! It's not even your main point??
-// f(x,y) = 1 + 2(x + (x+y)(x+y+1)/2)
+// NOTE(chowie): For asymmetric tables/matrix
 inline u32
-NonPairwiseHierarchicalTriangleNumber(v2u Value)
+TriangleNumberMat(v2u Value)
 {
-    v2u Offset = V2U(Value.x, Value.x + Value.y);
-    u32 Result = 2*TriangleNumber(Offset) + 1;
+    u32 Result = Value.x + TriangleNumber(Value.y);
     return(Result);
 }
 
 // RESOURCE(): https://stackoverflow.com/questions/2913215/fastest-method-to-define-whether-a-number-is-a-triangular-number
-inline u32
-IsTriangleNumber(u32 Value)
+// NOTE(chowie): Uses quadratic formula
+inline u16
+TriangleNumberPrevPerfectSquare(u32 Value)
 {
-    u32 Result = (u32)((SquareRoot(8*(f32)Value + 1) - 1)/2);
+    f32 PrevPerfectSquare = (SquareRoot(8*(f32)Value + 1) - 1)/2;
+    u16 Result = FloorF32ToU16(PrevPerfectSquare); // STUDY(chowie): New technique I observed to quickly get the row!
     return(Result);
 }
 
@@ -279,21 +288,13 @@ IsTriangleNumber(u32 Value)
 internal u32
 MapPairToPairwise(u16 A, u16 B)
 {
-    v2u Pair = V2U((u32)B, (u32)A);
-    if(A < B)
+    v2u Pair = {(u32)B, (u32)A};
+    if(A < B) // NOTE(chowie): In general, most will automatically write A > B
     {
         Swap(u32, Pair.x, Pair.y);
     }
 
-    u32 Result = TriangleNumber(Pair);
-    return(Result);
-}
-
-inline u16
-GetPairwiseRow(u32 Ordinal)
-{
-    f32 Row = (f32)IsTriangleNumber(Ordinal);
-    u16 Result = FloorF32ToU16(Row); // STUDY(chowie): New technique I observed to quickly get the row!
+    u32 Result = TriangleNumberMat(Pair);
     return(Result);
 }
 
@@ -310,13 +311,13 @@ struct pairwise_index_result
 internal pairwise_index_result
 GetPairFromPairwise(u32 Ordinal)
 {
-    u16 Row = GetPairwiseRow(Ordinal);
-    u16 Pitch = (u16)(TriangleNumber(Row - 1) + 1); // STUDY(chowie): Neat way I found to handle 0th case without a clamp
+    u16 Row = TriangleNumberPrevPerfectSquare(Ordinal);
+    u16 PrevPitch = (u16)TriangleNumber(Row); // STUDY(chowie): Neat way I found to handle 0th case without a clamp
 
     pairwise_index_result Result = {};
     Result.Row = Row;
-    Result.Col = (u16)Ordinal - Pitch;
-    Result.IsTriangleNumber = (Ordinal == TriangleNumber((u32)Result.Row)) ? true : false;
+    Result.Col = (u16)Ordinal - PrevPitch;
+    Result.IsTriangleNumber = (Ordinal == TriangleNumberMat(Row)) ? true : false;
 
     return(Result);
 }
@@ -341,7 +342,7 @@ enum testhash_entity_type : u16
     TestHash_EntityType_Count,
 };
 
-// TODO(chowie): Replace with actual TriangleNumber(TableDim)!!
+// COULDDO(chowie): Replace with actual TriangleNumber(TableDim) but as a constant??
 #define PAIRWISE_TABLE_MAX(TableDim) (TableDim * (TableDim + 1) / 2)
 struct pairwise
 {
@@ -361,6 +362,127 @@ IncrementOrdinal(u32 *Ordinal)
 //    u32 *TriangleNumberOrdinal;
 //    Pairwise->TriangleNumberOrdinal = &Ordinal;
 //    printf("Not at a triangle number: I'm here at ordinal %d!\n", *Pairwise->TriangleNumberOrdinal);
+
+//
+// Non-Pairwise (reversible) for Merkle Trees (in fact I don't need to store the tree data structure)
+//
+
+// IMPORTANT(chowie): Primitives (child nodes) must be even values!
+// TODO(chowie): Assert this!
+
+// COULDDO(chowie): Can I do better than linear?
+// NOTE(chowie): Non-pairwise and a recursive hash, used best with
+// binary trees (or anything hierarchical)
+// RESOURCE(alex fink & jorg rhiemeier): https://listserv.brown.edu/archives/cgi-bin/wa?A2=ind0907B&L=CONLANG&P=R12478
+// P.S. Original concept from 2009 amazingly! It's not even your main point??
+// f(x,y) = 1 + 2(x + (x+y)(x+y+1)/2)
+inline u32
+MerkleTreeFinkHash(v2u Value)
+{
+    v2u Offset = V2U(Value.x, Value.x + Value.y);
+    u32 Result = 2*TriangleNumberMat(Offset) + 1; // NOTE(chowie): Parents must be odd, leaves even for children
+    return(Result);
+}
+
+// NOTE(chowie): Because how the function is mapped, it avoids needing
+// to check in tree hierarchy for children or not, neat optimisation!
+// NOTE(chowie): 'Even natural numbers' includes 0
+inline b32x
+IsChildNodeViaFinkHash(u32 FinkHash)
+{
+    b32x Result = Odd(FinkHash) ? false : true;
+    return(Result);
+}
+
+// 1)
+// 1a Maximum(A, B) = A must the largest value to produce the greatest result
+// 1b Diff is always = "2*abs(A - B)". Add this difference to the lowest will be correct!
+
+// 2)
+// 2a (Min, Max) -> (must lie at an even triangle number row) = (Value - 1)/2
+// 2b (Max, Min) -> (= 2a.Value + abs(A - B))
+// 2b+ Check if result isn't a triangle number. If not, "Result - abs(A - B)"
+// 2c Next even number proceeding A or B are two triangle numbers
+// apart! e.g. f(2, 0) and f(4, 0).
+
+// A) Convert the number into triangle number form, by -1 then /2
+
+// B) For f(2, 8) -> 57 (CurrentTriangleNumber),
+// f(x,y) = (x + (x+y)(x+y+1)/2)
+// A + B = (CurrentTriangleNumber - PrevTwoTriangleNumber - 1)/2 + 1
+// A + B = ResultAB
+
+// 1. CurrentTriangleNumber
+// 2. PrevTwoTriangleNumber (because it moves an even amount)
+// 3. ResultAB
+
+// 10 = x+y
+// 57 = (x + (x+y)(x+y+1)/2)
+// 57 = x + (110/2)
+// 57 = x + 55
+// x = 2, substitute
+// y = 8 QED
+
+// f(2, 6)
+// 8 = x+y
+// 38 = x + (72/2)
+// x = 2, substitute
+// y = 6 QED
+
+// f(0, 8) =
+// 8 = x+y
+// 36 = x + (72/2)
+// x = 0, substitute
+// y = 8, substitute
+
+// COULDDO(chowie): I think recursive is impossible!!!! (If you know how many deep, is it??)
+
+//
+// Dual.
+//
+
+// f(0, 2) = 7 -> 3
+// f(2, 4) = 47 -> 23
+// Thus, f(7, 47) = 2985 -> 1492
+
+//
+// Sing.
+//
+
+// f(0, 2) = 7 -> 3
+// f(2, 0) = 11 >> 5
+
+// f(0, 4) = 21 -> 10
+// f(4, 0) = 29 >> 14
+
+// f(0, 6) = 43 -> 21
+// f(6, 0) = 55 >> 27
+
+// f(0, 8) = 73 -> 36
+// f(8, 0) = 89 >> 44
+
+//
+// Sing.
+//
+
+// f(2, 4) = 47 -> 23
+// f(4, 2) = 51 >> 25
+
+// f(2, 6) = 77 -> 38
+// f(6, 2) = 85 >> 42
+
+// f(2, 8) = 115 -> 57
+// f(8, 2) = 127 >> 63
+
+//
+// Sing.
+//
+
+// f(4, 6) = 119 -> 59
+// f(6, 4) = 123 >> 61
+
+// f(4, 8) = 165 -> 82
+// f(8, 4) = 173 >> 86
 
 #define RUINENGLASS_HASH_H
 #endif

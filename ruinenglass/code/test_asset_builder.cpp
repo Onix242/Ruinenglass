@@ -48,7 +48,7 @@ LoadBitmap(char *FileName)
     {
         Result.Free = ReadResult.Data;
 
-        // NOTE: Cold-cast
+        // STUDY(chowie): Cold-cast
         bitmap_header *Header = (bitmap_header *)ReadResult.Data;
         u32 *Pixels = (u32 *)((u8 *)ReadResult.Data + Header->BitmapOffset);
         Result.Memory = Pixels;
@@ -56,12 +56,13 @@ LoadBitmap(char *FileName)
 
         Assert(Result.Dim.Height >= 0);
         Assert(Header->Compression == 3);
-        // NOTE: If you are using this generically, remember bmp files can go in either
-        // directions and the height will be negative for top-down.
-        // Also, compression etc... Not complete BMP code.
+        // NOTE(chowie): If you are using this generically, remember
+        // bmp files can go in either directions and the height will
+        // be negative for top-down. Also, compression etc... Not
+        // complete BMP code.
 
-        // NOTE: Byte order is determined by the header so we have to read out the masks
-        // and convert the pixels ourselves.
+        // NOTE(chowie): Byte order is determined by the header, read
+        // out the masks and convert the pixels ourselves.
         u32 RedMask = Header->ColourMasks.r;
         u32 GreenMask = Header->ColourMasks.g;
         u32 BlueMask = Header->ColourMasks.b;
@@ -282,11 +283,32 @@ WriteRUI(loaded_rui *RUI, char *FileName)
         Header.TagCount = RUI->TagCount;
         Header.AssetCount = RUI->AssetCount;
         Header.AssetTypeCount = Asset_Count; // TODO(chowie): Sparseness?
+
+        //
+        //
+        //
+
+        u32 TagArraySize = Header.TagCount*sizeof(rui_tag); // NOTE(chowie): Use a lower-level write if you need write u64
+        u32 AssetTypeArraySize = Header.AssetTypeCount*sizeof(rui_asset_type);
+        u32 AssetArraySize = Header.AssetCount*sizeof(rui_asset);
+
         Header.TagsOffset = sizeof(Header);
-        Header.AssetTypesOffset = Header.TagsOffset + Header.TagCount*sizeof(rui_tag);
-        Header.AssetsOffset = Header.AssetTypesOffset + Header.AssetTypeCount*sizeof(rui_asset_type);
+        Header.AssetTypesOffset = Header.TagsOffset + TagArraySize;
+        Header.AssetsOffset = Header.AssetTypesOffset + AssetTypeArraySize;
+
+        //
+        //
+        //
 
         fwrite(&Header, sizeof(Header), 1, Out);
+        fwrite(RUI->Tags, TagArraySize, 1, Out);
+        fwrite(RUI->AssetTypes, AssetTypeArraySize, 1, Out);
+
+        //
+        //
+        //
+
+//        fwrite(RUI->Assets, AssetArraySize, 1, Out);
 
         fclose(Out);
     }
@@ -307,6 +329,7 @@ InitRUI(loaded_rui *RUI)
     RUI->TagCount = 1;
     RUI->AssetTypeIndex = 0;
 
+    RUI->AssetTypeCount = Asset_Count;
     memset(RUI->Tags, 0, sizeof(RUI->Tags));
 }
 
@@ -328,15 +351,15 @@ WriteNonPlayer(void)
     InitRUI(RUI);
 
     BeginAssetType(RUI, Asset_DEBUG_Bush);
-    AddBitmapAsset(RUI, "bush_00.bmp");
+    AddBitmapAsset(RUI, "TestBMP/test_bush_00.bmp");
     EndAssetType(RUI);
 
     BeginAssetType(RUI, Asset_DEBUG_Lilypad);
-    AddBitmapAsset(RUI, "lilypad_00.bmp");
+    AddBitmapAsset(RUI, "TestBMP/test_lilypad_00.bmp");
     EndAssetType(RUI);
 
     BeginAssetType(RUI, Asset_DEBUG_Lotus);
-    AddBitmapAsset(RUI, "lotus_00.bmp");
+    AddBitmapAsset(RUI, "TestBMP/test_lotus_00.bmp");
     EndAssetType(RUI);
 
     WriteRUI(RUI, "DEBUG_NonPlayer.rui");
@@ -345,5 +368,6 @@ WriteNonPlayer(void)
 int
 main(int ArgCount, char **Args)
 {
+    WriteNonPlayer();
 }
 

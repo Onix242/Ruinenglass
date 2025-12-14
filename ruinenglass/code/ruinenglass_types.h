@@ -402,6 +402,14 @@ union v2u
     {
         u32 Width, Height;
     };
+    struct
+    {
+        u32 a, b; // NOTE(chowie): For making equations
+    };
+    struct
+    {
+        u32 Start, End; // NOTE(chowie): For animation
+    };
     u32 E[2];
 };
 
@@ -418,6 +426,14 @@ union v2s
     struct
     {
         s32 Width, Height;
+    };
+    struct
+    {
+        u32 a, b; // NOTE(chowie): For making equations
+    };
+    struct
+    {
+        u32 Start, End; // NOTE(chowie): For animation
     };
     s32 E[2];
 };

@@ -158,15 +158,6 @@ StringsAreEqual(string A, string B)
     return(Result);
 }
 
-// RESOURCE(): https://theartincode.stanis.me/008-djb2/
-inline u32
-DJB2Hash(char Scan)
-{
-    u32 MagicNumber = 5381;
-    u32 Result = ((MagicNumber << 5) + MagicNumber) + Scan;
-    return(Result);
-}
-
 internal u32
 StringHashOf(char *Z)
 {

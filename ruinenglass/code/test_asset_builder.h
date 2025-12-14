@@ -121,11 +121,16 @@ struct builder_asset_source
 
 struct loaded_rui
 {
-    u32 AssetCount;
-    rui_asset Assets[BUILDER_MAX_SIZE];
-
     u32 TagCount;
     rui_tag Tags[BUILDER_MAX_SIZE];
+
+    // TODO(chowie): I think I'd like to collapse AssetType with Tags,
+    // or just have a general category tag?
+    u32 AssetTypeCount;
+    rui_asset_type AssetTypes[Asset_Count];
+
+    u32 AssetCount;
+    rui_asset Assets[BUILDER_MAX_SIZE]; // NOTE(chowie): Assets in file
 
     builder_asset_source AssetSources[BUILDER_MAX_SIZE];
 
