@@ -67,11 +67,11 @@ CRC32(void *Data, umm Size)
 inline u32
 MauroHash(v3u Value)
 {
-    u32 Max = Maximum3(Value.x, Value.y, Value.z);
+    u32 Max = Max3(Value.x, Value.y, Value.z);
     u32 Result = CUBIC(Max) + (2*Max*Value.z) + Value.z;
     if(Max == Value.z)
     {
-        Result += QUADRATIC(Maximum(Value.x, Value.y));
+        Result += QUADRATIC(Max(Value.x, Value.y));
     }
 
     if(Value.y >= Value.x)
@@ -93,11 +93,11 @@ MauroHash(v3s Value)
     s32 NegY = (Value.y >= 0) ? (2 * Value.y) : (-2*Value.y - 1);
     s32 NegZ = (Value.z >= 0) ? (2 * Value.z) : (-2*Value.z - 1);
 
-    s32 Max = Maximum3(NegX, NegY, NegZ);
+    s32 Max = Max3(NegX, NegY, NegZ);
     s32 Result = CUBIC(Max) + (2*Max*NegZ) + NegZ;
     if(Max == NegZ)
     {
-        Result += QUADRATIC(Maximum(NegX, NegY));
+        Result += QUADRATIC(Max(NegX, NegY));
     }
 
     if(NegY >= NegX)
@@ -128,7 +128,7 @@ inline u32
 MullerHash(v3s Value)
 {
     s32 Result = (Value.x*92837111) ^ (Value.y*689287499) ^ (Value.z*283923481);
-    Result = AbsoluteValue(Result);
+    Result = Abs(Result);
     return(Result);
 }
 
@@ -279,7 +279,7 @@ TriangleNumberMat(v2u Value)
 inline u16
 TriangleNumberPrevPerfectSquare(u32 Value)
 {
-    f32 PrevPerfectSquare = (SquareRoot(8*(f32)Value + 1) - 1)/2;
+    f32 PrevPerfectSquare = (Sqrt(8*(f32)Value + 1) - 1)/2;
     u16 Result = FloorF32ToU16(PrevPerfectSquare); // STUDY(chowie): New technique I observed to quickly get the row!
     return(Result);
 }
@@ -366,6 +366,11 @@ IncrementOrdinal(u32 *Ordinal)
 //
 // Non-Pairwise (reversible) for Merkle Trees (in fact I don't need to store the tree data structure)
 //
+
+// COULDDO(chowie): RESOURCE(): https://andrew-helmer.github.io/tree-shuffling/
+
+// TODO(chowie): Merkle trees are good for validating a node without
+// the whole tree! Check sum with the root. According to John D Cook
 
 // IMPORTANT(chowie): Primitives (child nodes) must be even values!
 // TODO(chowie): Assert this!

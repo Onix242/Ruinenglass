@@ -393,7 +393,7 @@ GetAssetMatch(game_assets *GameAssets, asset_type_id ID, asset_match_vector Matc
             {
                 f32 A = MatchVector.E[MatchIndex];
                 f32 B = Tag->Value;
-                f32 Dist0 = AbsoluteValue(A - B);
+                f32 Dist0 = Abs(A - B);
                 f32 Difference = 1.0f - Dist0;
                 TotalMatch += Difference;
             }

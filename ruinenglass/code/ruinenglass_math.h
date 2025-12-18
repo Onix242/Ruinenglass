@@ -21,6 +21,13 @@ V2U(u32 X, u32 Y)
 }
 
 inline v2u
+V2U(u32 Value)
+{
+    v2u Result = {Value, Value};
+    return(Result);
+}
+
+inline v2u
 V2U(v2s Value)
 {
     v2u Result = {(u32)Value.x, (u32)Value.y};
@@ -453,6 +460,13 @@ TrianglePulse(v2 A, f32 t, v2 B)
     return(Result);
 }
 
+inline b32x
+IsPerfectSquare(u32 Value)
+{
+    b32x Result = IsInteger(Sqrt((f32)Value));
+    return(Result);
+}
+
 // RESOURCE(inigo quilez): https://iquilezles.org/articles/functions/
 // TODO(chowie): Implement these remapping functions! Can be used for animations too
 
@@ -708,7 +722,7 @@ LengthSq(v2 A)
 inline f32
 Length(v2 A)
 {
-    f32 Result = SquareRoot(LengthSq(A));
+    f32 Result = Sqrt(LengthSq(A));
     return(Result);
 }
 
@@ -720,7 +734,7 @@ NOZ(v2 A)
     f32 LenSq = LengthSq(A);
     if(LenSq > Square(Epsilon32))
     {
-        Result = A*InvSquareRoot(LenSq);
+        Result = A*InvSqrt(LenSq);
     }
 
     return(Result);
@@ -826,7 +840,7 @@ RotationByCircleSector(f32 n, f32 Circumference)
 
     v2 Result;
     Result.y = Sector + Error;
-    Result.x = SquareRoot(1.0f - Square(Result.y));
+    Result.x = Sqrt(1.0f - Square(Result.y));
 
     return(Result);
 }
@@ -867,8 +881,8 @@ NormalisedRotationByCircleSector(f32 n)
     //f32 s3 = (Sin(Tau32 / n)); // NOTE(chowie): Change to this for more accuracy
 
     // NOTE(chowie): Cross Law
-    f32 Gradient = s3 / (1.0f - SquareRoot(1.0f - Square(s3)));
-    //f32 Gradient = SquareRoot(s3 / (2 - SquareRoot(4*(1 - s3)) - s3));
+    f32 Gradient = s3 / (1.0f - Sqrt(1.0f - Square(s3)));
+    //f32 Gradient = Sqrt(s3 / (2 - Sqrt(4*(1 - s3)) - s3));
 
     // NOTE(by arnon): Project a point on a unit circle from a
     // position on a vertical line of "x = 1" towards the origin
@@ -1179,7 +1193,7 @@ LengthSq(v3 A)
 inline f32
 Length(v3 A)
 {
-    f32 Result = SquareRoot(LengthSq(A));
+    f32 Result = Sqrt(LengthSq(A));
     return(Result);
 }
 
@@ -1189,7 +1203,7 @@ inline v3
 Normalise(v3 A)
 {
     f32 LenSq = LengthSq(A);
-    v3 Result = A*InvSquareRoot(LenSq);
+    v3 Result = A*InvSqrt(LenSq);
     return(Result);
 }
 
@@ -1210,7 +1224,7 @@ NOZ(v3 A)
     f32 LenSq = LengthSq(A);
     if(LenSq > Square(Epsilon32))
     {
-        Result = A*InvSquareRoot(LenSq);
+        Result = A*InvSqrt(LenSq);
     }
 
     return(Result);
@@ -1224,9 +1238,9 @@ NOU(v3 A)
     v3 Result = V3(1, 1, 1);
 
     f32 LenSq = LengthSq(A);
-    if(AbsoluteValue(LenSq - 1.0f) > Square(Epsilon32))
+    if(Abs(LenSq - 1.0f) > Square(Epsilon32))
     {
-        Result = A*InvSquareRoot(LenSq);
+        Result = A*InvSqrt(LenSq);
     }
 
     return(Result);
@@ -1252,7 +1266,7 @@ inline b32x
 IsPerp(v3 A, v3 B, f32 Epsilon)
 {
     b32x Result = false;
-    if(AbsoluteValue(Inner(A, B)) < Epsilon)
+    if(Abs(Inner(A, B)) < Epsilon)
     {
         Result = true;
     }
@@ -1269,7 +1283,7 @@ IsParallel(v3 A, v3 B, f32 Epsilon)
 {
     A = Normalise(A);
     B = Normalise(B);
-    b32x Result = ((1.0f - AbsoluteValue(Inner(A, B))) < Epsilon);
+    b32x Result = ((1.0f - Abs(Inner(A, B))) < Epsilon);
 
     return(Result);
 }
@@ -1358,7 +1372,7 @@ GetBasis(v3 A, v3 B, v3 C)
     // least one component of a unit vector must be greater or equal
     // to 0.57735.
 #define SqrtThird 0.57735f
-    if(AbsoluteValue(A.x) >= SqrtThird)
+    if(Abs(A.x) >= SqrtThird)
     {
         B = V3(A.y, -A.x, 0.0f);
     }
@@ -1389,7 +1403,7 @@ Clip(v3 A, v3 B)
 {
     f32 Coeff = Inner(A, B);
     v3 Result = (Coeff > 0.0f) ? A :
-        ((A - B*Coeff)*InvSquareRoot(1.0f - Square(Coeff) / Inner(A, A)));
+        ((A - B*Coeff)*InvSqrt(1.0f - Square(Coeff) / Inner(A, A)));
     return(Result);
 }
 
@@ -1548,7 +1562,7 @@ LengthSq(v4 A)
 inline f32
 Length(v4 A)
 {
-    f32 Result = SquareRoot(LengthSq(A));
+    f32 Result = Sqrt(LengthSq(A));
     return(Result);
 }
 
@@ -1558,7 +1572,7 @@ inline v4
 Normalise(v4 A)
 {
     f32 LenSq = LengthSq(A);
-    v4 Result = A*InvSquareRoot(LenSq);
+    v4 Result = A*InvSqrt(LenSq);
     return(Result);
 }
 
@@ -1891,7 +1905,7 @@ inline v4
 RotorAverage(v4 A, f32 t, v4 B)
 {
     // RESOURCE(): https://martin.ankerl.com/2007/02/11/optimized-exponential-functions-for-java/
-    // STUDY(chowie): Optimisations Exp(B*Log(A)) = Pow(A, B)
+    // TODO(chowie): Optimisations Exp(B*Log(A)) = Pow(A, B)
     v4 Delta = ReverseRotor(A)*B;
     v4 Result = A*Exp(t*Log(Delta));
     return(Result);
@@ -2266,7 +2280,7 @@ Union(rect2 A, rect2 B)
         Corner < ArrayCount(Result.E);
         ++Corner)
     {
-        Result.E[Corner] = Minimum(A.E[Corner], B.E[Corner]);
+        Result.E[Corner] = Min(A.E[Corner], B.E[Corner]);
     }
 
     Result.MaxN = V2(-Result.MaxN.x, -Result.MaxN.y);
@@ -2284,7 +2298,7 @@ Intersect(rect2 A, rect2 B)
         Corner < ArrayCount(Result.E);
         ++Corner)
     {
-        Result.E[Corner] = Maximum(A.E[Corner], B.E[Corner]);
+        Result.E[Corner] = Max(A.E[Corner], B.E[Corner]);
     }
 
     Result.MaxN = V2(-Result.MaxN.x, -Result.MaxN.y);
@@ -2519,7 +2533,7 @@ Union(rect2i A, rect2i B)
         Corner < ArrayCount(Result.E);
         ++Corner)
     {
-        Result.E[Corner] = Minimum(A.E[Corner], B.E[Corner]);
+        Result.E[Corner] = Min(A.E[Corner], B.E[Corner]);
     }
 
     Result.MaxN = V2S(-Result.MaxN.x, -Result.MaxN.y);
@@ -2537,7 +2551,7 @@ Intersect(rect2i A, rect2i B)
         Corner < ArrayCount(Result.E);
         ++Corner)
     {
-        Result.E[Corner] = Maximum(A.E[Corner], B.E[Corner]);
+        Result.E[Corner] = Max(A.E[Corner], B.E[Corner]);
     }
 
     Result.MaxN = V2S(-Result.MaxN.x, -Result.MaxN.y);
@@ -2582,10 +2596,10 @@ UnionRects(rect2i *Rects, s32 Amount) // NOTE(chowie): Amount >= 1
         RectNum < Amount;
         ++RectNum)
     {
-        Result.Min.x = Minimum(Result.Min.x, Rects[RectNum].Min.x);
-        Result.Min.y = Minimum(Result.Min.y, Rects[RectNum].Min.y);
-        Result.MaxN.x = -Minimum(-Result.MaxN.x, -Rects[RectNum].MaxN.x);
-        Result.MaxN.y = -Minimum(-Result.MaxN.y, -Rects[RectNum].MaxN.y);
+        Result.Min.x = Min(Result.Min.x, Rects[RectNum].Min.x);
+        Result.Min.y = Min(Result.Min.y, Rects[RectNum].Min.y);
+        Result.MaxN.x = -Min(-Result.MaxN.x, -Rects[RectNum].MaxN.x);
+        Result.MaxN.y = -Min(-Result.MaxN.y, -Rects[RectNum].MaxN.y);
     }
 
     return(Result);
@@ -2894,7 +2908,7 @@ Linear1TosRGB255(v4 Colour)
 // inline v4
 // Linear1TosRGB255(v4 C)
 // {
-//     v4 Result = {One255*SquareRoot(C.r), One255*SquareRoot(C.g), One255*SquareRoot(C.b), One255*C.a};
+//     v4 Result = {One255*Sqrt(C.r), One255*Sqrt(C.g), One255*Sqrt(C.b), One255*C.a};
 //     return(Result);
 // }
 

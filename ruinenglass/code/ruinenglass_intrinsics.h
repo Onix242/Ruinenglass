@@ -33,14 +33,14 @@ CopySign(f32 Sign, f32 Value)
 {
     __m128 SignMask = _mm_set1_ps(-0.0f);
     __m128 ExtractSign = _mm_and_ps(_mm_set_ss(Sign), SignMask);
-    __m128 ExtractValue = _mm_andnot_ps(SignMask, _mm_set_ss(Value)); // STUDY(chowie): Equivalent of AbsoluteValue(Value)
+    __m128 ExtractValue = _mm_andnot_ps(SignMask, _mm_set_ss(Value)); // STUDY(chowie): Equivalent of Abs(Value)
 
     f32 Result = _mm_cvtss_f32(_mm_or_ps(ExtractSign, ExtractValue));
     return(Result);
 }
 
 inline f32
-SquareRoot(f32 F32)
+Sqrt(f32 F32)
 {
     f32 Result = _mm_cvtss_f32(_mm_sqrt_ss(_mm_set_ss(F32)));
     return(Result);
@@ -50,7 +50,7 @@ SquareRoot(f32 F32)
 // RESOURCE(cbloom): http://cbloomrants.blogspot.com/2010/11/11-20-10-function-approximation-by_20.html
 // NOTE(chowie): 1/sqrt(x), replaces normalising vectors
 inline f32
-InvSquareRoot(f32 F32)
+InvSqrt(f32 F32)
 {
     __m128 Half = _mm_set1_ps(0.5f);
     __m128 Three = _mm_set1_ps(3.0f);
@@ -67,7 +67,7 @@ InvSquareRoot(f32 F32)
 
 // RESOURCE(norbert): https://stackoverflow.com/questions/5508628/how-to-absolute-2-double-or-4-floats-using-sse-instruction-set-up-to-sse4
 inline f32
-AbsoluteValue(f32 F32)
+Abs(f32 F32)
 {
     __m128 SignMask = _mm_set1_ps(-0.0f); // NOTE(chowie): -0.0f = 1 << 31
     __m128 ExtractValue = _mm_andnot_ps(SignMask, _mm_set_ss(F32));
@@ -78,7 +78,7 @@ AbsoluteValue(f32 F32)
 
 // RESOURCE(brumme): https://bits.stephan-brumme.com/absInteger.html
 inline s32
-AbsoluteValue(s32 S32)
+Abs(s32 S32)
 {
     s32 Shift = S32 >> 31;
     s32 Result = (S32 ^ Shift) - Shift; // NOTE(chowie) s32 Result = (Value < 0) ? -Value : Value;
@@ -203,6 +203,27 @@ inline f32
 Fract(f32 F32)
 {
     f32 Result = (F32 - Floor(F32));
+    return(Result);
+}
+
+inline f32
+FractPositive(f32 F32)
+{
+    f32 Result = (F32 - FloorPositive(F32));
+    return(Result);
+}
+
+inline b32x
+IsInteger(f32 F32)
+{
+    b32x Result = (Fract(F32) == 0.0f);
+    return(Result);
+}
+
+inline b32x
+IsIntegerPositive(f32 F32)
+{
+    b32x Result = (FractPositive(F32) == 0.0f);
     return(Result);
 }
 

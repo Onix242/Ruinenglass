@@ -15,64 +15,211 @@
 // reliability, give something a new direction, slerp between random
 // orientations
 
-// RESOURCE(o'neill): https://www.pcg-random.org/download.html
-struct pcg32_random_series
-{
-    u64 State; // RNG state. All values are possible.
-    u64 Inc; // Controls which RNG sequence (stream) is selected. Must *always* be odd.
-};
-
-internal u32
-PCG32(pcg32_random_series *Series)
-{
-    u64 OldState = Series->State;
-    Series->State = OldState*6364136223846793005ULL + Series->Inc;
-    u32 Xorshifted = (u32)(((OldState >> 18u) ^ OldState) >> 27u);
-    u32 Rot = OldState >> 59u;
-    u32 Result = (Xorshifted >> Rot) | (Xorshifted << ((-(s32)Rot) & 31));
-    return(Result);
-}
-
-internal void
-RandomSeed(pcg32_random_series *Series, u64 InitState, u64 InitSeq)
-{
-    Series->State = 0U;
-    Series->Inc = (InitSeq << 1u) | 1u;
-    PCG32(Series);
-    Series->State += InitState;
-    PCG32(Series);
-}
-
-// NOTE(chowie) How to use PCG:
-//    pcg32_random_series PCG;
-//    RandomSeed(&PCG, 42u, 54u);
-//    printf("Test RNG PCG: %u\n", PCG32(&PCG));
-//    printf("Rand Bounds1: %u\n", RandomBounds(&PCG, 10));
-//    printf("Rand Bounds2: %u\n", RandomBounds(&PCG, 10));
+//
+// PCG
+//
 
 // RESOURCE(inigo quilez): https://iquilezles.org/articles/sfrand/
 // STUDY(chowie): Passing in Series/Seed has benefits of
 // multithreading, compared to C-standard rand(), one for each thread
 // on the stack
-struct xorshift32_random_series
+// RESOURCE(o'neill): https://www.pcg-random.org/download.html
+// RESOURCE(): More complete PCG - https://gist.github.com/mmozeiko/1561361cd4105749f80bb0b9223e9db8
+#define PCG32_DEFAULT_MULTIPLIER 6364136223846793005ULL
+#define PCG32_DEFAULT_INCREMENT  1442695040888963407ULL
+struct pcg32_random_series
 {
-    u32 Index;
+    u64 State;
 };
 
-// NOTE(chowie): Required in -O2. Otherwise, the series is uninitialised!
-inline xorshift32_random_series
-RandomSeed(u32 Value)
+internal u32
+PCG32Next(pcg32_random_series *Series)
 {
-    xorshift32_random_series Series;
-    Series.Index = (Value);
+    u64 State = Series->State;
+    Series->State = State*PCG32_DEFAULT_MULTIPLIER + PCG32_DEFAULT_INCREMENT;
 
-    return(Series);
+    // XSH-RR
+    u32 Value = (u32)((State ^ (State >> 18)) >> 27);
+    int Rot = State >> 59;
+    u32 Result = RotateRight(Value, Rot);
+    return(Result);
+}
+
+internal u64
+PCG32Next64(pcg32_random_series *Series)
+{
+    u64 Value = PCG32Next(Series);
+    Value <<= 32;
+    Value |= PCG32Next(Series);
+    return(Value);
+}
+
+internal void
+RandomSeed(pcg32_random_series *Series, u64 Seed)
+{
+    Series->State = 0ULL;
+    PCG32Next(Series);
+    Series->State += Seed;
+    PCG32Next(Series);
+}
+
+internal void
+PCG32Advance(pcg32_random_series *Series, u64 Delta)
+{
+    u64 CurrentMult = PCG32_DEFAULT_MULTIPLIER;
+    u64 CurrentInc  = PCG32_DEFAULT_INCREMENT;
+
+    u64 AccMult = 1;
+    u64 AccInc  = 0;
+    while(Delta != 0)
+    {
+        if(Odd(Delta))
+        {
+            AccMult *= CurrentMult;
+            AccInc = AccInc*CurrentMult + CurrentInc;
+        }
+        CurrentInc = (CurrentMult + 1)*CurrentInc;
+        CurrentMult *= CurrentMult;
+        Delta >>= 1;
+    }
+
+    Series->State = AccMult*Series->State + AccInc;
+}
+
+// RESOURCE(): https://www.johndcook.com/blog/2020/02/19/inverse-congruence-rng/
+// RESOURCE(): https://www.johndcook.com/blog/2015/04/01/integration-by-darts/
+// NOTE(chowie): Reasons why you might want to undo rng generation:
+// - Alot of times for math equations e.g. for graphical effects in
+//   shaders is a limiting factor to rewind is adding rng (this
+//   removes it). This includes physics too.
+// - Debugging becomes a lot easier
+// - Generating stuff steps (e.g. in chunks) can be undone in steps,
+//   can even reverse proc gen. Regenerate rng but continue to move
+//   forward in time (if rng determined time).
+// - Rewind an outcome e.g. a dice roll for a choice and take it
+//   again, you can!
+// - After reversing, you can advance to regenerate a different seed.
+// Means you don't have to save the seed to go back. Good for proc gen!
+// - Good for sampling rejection and Monte-carlo
+// RESOURCE(): https://www.pcg-random.org/using-pcg-c.html
+internal void
+PCG32Backstep(pcg32_random_series *Series, u32 Step = 1)
+{
+    PCG32Advance(Series, U64Max - Step);
+}
+
+// NOTE(chowie): [0, 1)
+// NOTE(chowie): Backstep amount PCG32Backstep(&PCG, 1)
+internal f32
+RandomUnilateral(pcg32_random_series *Series)
+{
+    u32 x = PCG32Next(Series);
+    f32 Result = (f32)(s32)(x >> 8)*0x1.0p-24f;
+    return(Result);
+}
+
+// NOTE(chowie): [0, 1)
+// NOTE(chowie): Backstep amount PCG32Backstep(&PCG, 1)
+internal f64
+RandomUnilateralF64(pcg32_random_series *Series)
+{
+    u64 x = PCG32Next64(Series);
+    f64 Result = (f64)(s64)(x >> 11)*0x1.0p-53;
+    return(Result);
+}
+
+// NOTE(chowie): [0, 1]
+// NOTE(chowie): Backstep amount PCG32Backstep(&PCG, 1)
+inline f32
+RandomUnilateralAlt(pcg32_random_series *Series)
+{
+    f32 Result = (f32)(PCG32Next(Series) >> 1) / (U32Max >> 1);
+    return(Result);
+}
+
+// NOTE: Binormal (-1 to 1) 
+// NOTE(chowie): Backstep amount PCG32Backstep(&PCG, 1)
+inline f32
+RandomBilateral(pcg32_random_series *Series)
+{
+    f32 Result = 2.0f*RandomUnilateral(Series) - 1.0f;
+    return(Result);
+}
+
+// RESOURCE: https://github.com/apple/swift/pull/39143
+// NOTE(chowie): Lemire Uniform [0, n). No divisions, branchless
+// NOTE(chowie): Backstep amount PCG32Backstep(&PCG, 2). Unlike most other functions are 1
+internal u32
+RandomBounds(pcg32_random_series *Series, u32 Bounds)
+{
+    u64 A = (u64)Bounds*PCG32Next(Series);
+    u64 B = (u32)A + (((u64)Bounds*PCG32Next(Series)) >> 32);
+    u32 Result = (A >> 32) + (B >> 32);
+    return(Result);
+}
+
+// NOTE(chowie): [Min, Max)
+// NOTE(chowie): Backstep amount PCG32Backstep(&PCG, 1)
+internal u32
+RandomBetween(pcg32_random_series *Series, v2u Range)
+{
+    u32 Bound = Range.Max - Range.Min;
+    // RESOURCE(): Fast Random Integer Generation in an Interval: https://arxiv.org/abs/1805.10941
+    u64 m = (u64)PCG32Next(Series)*(u64)Bound;
+    u32 l = (u32)m;
+
+    if(l < Bound)
+    {
+        u32 t = -(s32)Bound % Bound;
+        while(l < t)
+        {
+            m = (u64)PCG32Next(Series)*(u64)Bound;
+            l = (u32)m;
+        }
+    }
+
+    u32 Result = Range.Min + (u32)(m >> 32);
+    return(Result);
+}
+
+// NOTE(chowie): Backstep amount PCG32Backstep(&PCG, 1)
+inline f32
+RandomBetween(pcg32_random_series *Series, v2 Range)
+{
+    f32 Result = Lerp(Range.Min, RandomUnilateral(Series), Range.Max);
+    return(Result);
+}
+
+// NOTE(chowie) How to use PCG:
+// pcg32_random_series PCG;
+// RandomSeed(&PCG, 3);
+// printf("Step 1. PCG: %u\n", PCG32Next(&PCG));
+// printf("Step 2. PCG: %u\n", PCG32Next(&PCG));
+// printf("Step 3. PCG: %u\n", PCG32Next(&PCG));
+// PCG32Backstep(&PCG, 1);
+// printf("Step 4. Backstepped PCG: %u\n", PCG32Next(&PCG));
+// printf("Step 5. PCG: %u\n", PCG32Next(&PCG));
+
+//
+// Xorshift
+//
+
+/*
+struct xorshift32_random_series
+{
+    u32 State;
+};
+
+inline void
+RandomSeed(xorshift32_random_series *Series, u32 Seed)
+{
+    Series->State = Seed;
 }
 
 internal u32
 XorshiftStar32(xorshift32_random_series *Series)
 {
-    u32 Result = Series->Index;
+    u32 Result = Series->State;
 
     Result ^= Result << 13;
     Result ^= Result >> 17;
@@ -83,24 +230,27 @@ XorshiftStar32(xorshift32_random_series *Series)
 }
 
 // RESOURCE(graemephi): https://graemephi.github.io/posts/some-low-discrepancy-noise-functions/
-// TODO(chowie): Use Variant has better statistical quality for the
-// bottom-most 4 bits. Works for 2^16 (Similar to LCGs).
-// TODO(chowie): Note how easy it is to convert to SIMD, not so much if also wanting to rotate too
+// COULDDO(chowie): Note how easy it is to convert to SIMD, not so much if also wanting to rotate too
 // TODO(chowie): Noise?
 // RESOURCE(wikipedia): https://en.wikipedia.org/wiki/Xorshift
-// NOTE(chowie): The state must be initialized to non-zero
+// NOTE(chowie): For xorshift, the state must be initialized to non-zero
 internal u32
 Xorshift32(xorshift32_random_series *Series)
 {
-    u32 Result = Series->Index;
+    u32 Result = Series->State;
 
     Result ^= Result << 13;
     Result ^= Result >> 17;
     Result ^= Result << 5;
 
+    Series->State = Result;
+
     return(Result);
 }
 
+// RESOURCE(): Reversing rng - https://www.youtube.com/watch?v=XDsYPXRCXAs
+// STUDY(chowie): To reverse the hash, go in reverse order and
+// successively shift using the original by 2x (until about to overflow).
 internal u32
 ReverseXorshift32(u32 XorHash)
 {
@@ -117,50 +267,33 @@ ReverseXorshift32(u32 XorHash)
 
     return(Result);
 }
+*/
 
-// RESOURCE: https://github.com/apple/swift/pull/39143
-// NOTE(chowie): Lemire Uniform [0 to n). No divisions, branchless
-internal u32
-RandomBounds(pcg32_random_series *Series, u32 Bounds)
-{
-    u64 A = (u64)Bounds*PCG32(Series);
-    u64 B = (u32)A + (((u64)Bounds*PCG32(Series)) >> 32);
-    u32 Result = (A >> 32) + (B >> 32);
-    return(Result);
-}
+// NOTE(chowie): Reversing Usage:
+// xorshift32_random_series Series;
+// RandomSeed(&Series, 3);
+// u32 TestRNG = Xorshift32(&Series);
+// u32 TestReverseRNG = ReverseXorshift32(TestRNG);
+// printf("Test RNG Xorshift: %u, Original when reversed: %u\n", TestRNG, TestReverseRNG);
+// 
+// TestRNG = Xorshift32(&Series);
+// TestReverseRNG = ReverseXorshift32(TestRNG);
+// printf("Test RNG Xorshift: %u, Original when reversed: %u\n", TestRNG, TestReverseRNG);
 
-// NOTE(chowie): [0, 1]
-inline f32
-RandomUnilateral(pcg32_random_series *Series)
-{
-    f32 Result = (f32)(PCG32(Series) >> 1) / (U32Max >> 1);
-    return(Result);
-}
+//
+//
+//
 
-// NOTE: Binormal (-1 to 1) 
-inline f32
-RandomBilateral(pcg32_random_series *Series)
-{
-    f32 Result = 2.0f*RandomUnilateral(Series) - 1.0f;
-    return(Result);
-}
+// COULDDO(chowie): https://stackoverflow.com/questions/10133194/reverse-modulus-operator
+// Possible to reverse modulo but tricky!
+// Step 1. (a + x) mod m = b  
+// a + x = nm + b  
+// x = nm + b - a for some integer n
 
-inline f32
-RandomBetween(pcg32_random_series *Series, v2 Range)
-{
-    f32 Result = Lerp(Range.Min, RandomUnilateral(Series), Range.Max);
-    return(Result);
-}
-
-inline s32
-RandomBetween(pcg32_random_series *Series, v2s Range)
-{
-    // NOTE(chowie): We want to be one over the Max, we want to include
-    // the case where 1 can produce a 0 or 1 instead of always getting
-    // the min.
-    s32 Result = Range.Min + (s32)(PCG32(Series) % ((Range.Max + 1) - Range.Min));
-    return(Result);
-}
+// Step 2. Final eq, x = (b - a) mod m
+// (26 + x) % 29 = 3
+// x = (3 - 26) mod 29
+// QED (26 + 6) mod 29 = 3
 
 // RESOURCE(): Reversing hashes - https://www.youtube.com/watch?v=XDsYPXRCXAs
 // x = (x * (x + 3 + 4 * a) + 4 * b + 2) % c
@@ -199,6 +332,9 @@ LCGPossiblePhaseCancelling(u32 x, u32 A, u32 B, u32 Pow2C)
     return(Result);
 }
 
+//
+//
+//
 
 /*
   RESOURCE(andrew helmer): https://andrew-helmer.github.io/permute/
@@ -290,9 +426,9 @@ InvertibleHash(u32 Seed, u32 Index, u32 Mask)
 // has 50% chance to flip the MostSignificantBit (hash to value
 // 1/2 of lower half of domain). Takes < 2 iterations on average.
 internal u32
-Permute(xorshift32_random_series *Series, u32 Index, u32 Length) // TODO(chowie): Change to use PCG?
+Permute(pcg32_random_series *Series, u32 Index, u32 Length)
 {
-    u32 Seed = Series->Index;
+    u32 Seed = PCG32Next(Series);
     u32 Result = 0;
 
     u32 Mask = FindMostSignificantBitFullMask(Length);
@@ -312,6 +448,10 @@ Permute(xorshift32_random_series *Series, u32 Index, u32 Length) // TODO(chowie)
     return(Result);
 }
 
+//
+//
+//
+
 // TODO(chowie): Use this to make static starfields, the ones in the
 // night sky!
 // RESOURCE(): https://hero.handmade.network/forums/code-discussion/t/2799-samplehemisphere_is_not_uniform#13820
@@ -322,7 +462,7 @@ SampleUniformlyHemisphere(pcg32_random_series *Series)
     v3 Result = {};
 
     f32 z = RandomBilateral(Series);
-    f32 r = SquareRoot(1 - Square(z));
+    f32 r = Sqrt(1 - Square(z));
     f32 theta = RandomBilateral(Series)*Tau32;
 
     Result.x = r*Cos(theta);
@@ -340,9 +480,9 @@ CosineSampleNonuniformlyHemisphere(pcg32_random_series *Series)
     v3 Result = {};
 
     f32 r2 = RandomBilateral(Series);
-    f32 r = SquareRoot(r2);
+    f32 r = Sqrt(r2);
     f32 theta = RandomBilateral(Series)*Tau32;
-    f32 z = SquareRoot(1 - r2);
+    f32 z = Sqrt(1 - r2);
 
     Result.x = r*Cos(theta);
     Result.y = r*Sin(theta);

@@ -41,7 +41,7 @@ inline rect2
 RectCutSide_Left(rect2 *Rect, f32 A)
 {
     f32 CutLeft = Rect->Min.x;
-    Rect->Min.x = Minimum(Rect->Max.x, Rect->Min.x + A);
+    Rect->Min.x = Min(Rect->Max.x, Rect->Min.x + A);
 
     rect2 Result = RectMinMax(V2(CutLeft, Rect->Min.y), V2(Rect->Min.x, Rect->Max.y));
     return(Result);
@@ -51,7 +51,7 @@ inline rect2
 RectCutSide_Right(rect2 *Rect, f32 A)
 {
     f32 CutRight = Rect->Max.x;
-    Rect->Max.x = Maximum(Rect->Min.x, Rect->Max.x - A);
+    Rect->Max.x = Max(Rect->Min.x, Rect->Max.x - A);
 
     rect2 Result = RectMinMax(V2(Rect->Max.x, Rect->Min.y), V2(CutRight, Rect->Max.y));
     return(Result);
@@ -61,7 +61,7 @@ inline rect2
 RectCutSide_Top(rect2 *Rect, f32 A)
 {
     f32 CutTop = Rect->Min.y;
-    Rect->Min.y = Minimum(Rect->Max.y, Rect->Min.y + A);
+    Rect->Min.y = Min(Rect->Max.y, Rect->Min.y + A);
 
     rect2 Result = RectMinMax(V2(Rect->Min.x, CutTop), V2(Rect->Max.x, Rect->Min.y));
     return(Result);
@@ -71,7 +71,7 @@ inline rect2
 RectCutSide_Bottom(rect2 *Rect, f32 A)
 {
     f32 CutBottom = Rect->Max.y;
-    Rect->Max.y = Maximum(Rect->Min.y, Rect->Max.y - A);
+    Rect->Max.y = Max(Rect->Min.y, Rect->Max.y - A);
 
     rect2 Result = RectMinMax(V2(Rect->Min.x, Rect->Max.y), V2(Rect->Max.x, CutBottom));
     return(Result);
@@ -116,7 +116,7 @@ RectCutFitToSize(rect_cut *RectCut, f32 A)
 inline rect2
 GetRectCutSide_Left(rect2 *Rect, f32 A)
 {
-    f32 Left = Minimum(Rect->Max.x, Rect->Min.x + A);
+    f32 Left = Min(Rect->Max.x, Rect->Min.x + A);
 
     rect2 Result = RectMinMax(V2(Rect->Min.x, Rect->Min.y), V2(Left, Rect->Max.y));
     return(Result);
@@ -125,7 +125,7 @@ GetRectCutSide_Left(rect2 *Rect, f32 A)
 inline rect2
 GetRectCutSide_Right(rect2 *Rect, f32 A)
 {
-    f32 Right = Maximum(Rect->Min.x, Rect->Max.x - A);
+    f32 Right = Max(Rect->Min.x, Rect->Max.x - A);
 
     rect2 Result = RectMinMax(V2(Right, Rect->Min.y), V2(Rect->Max.x, Rect->Max.y));
     return(Result);
@@ -134,7 +134,7 @@ GetRectCutSide_Right(rect2 *Rect, f32 A)
 inline rect2
 GetRectCutSide_Top(rect2 *Rect, f32 A)
 {
-    f32 Top = Minimum(Rect->Max.y, Rect->Min.y + A);
+    f32 Top = Min(Rect->Max.y, Rect->Min.y + A);
 
     rect2 Result = RectMinMax(V2(Rect->Min.x, Rect->Min.y), V2(Rect->Max.x, Top));
     return(Result);
@@ -143,7 +143,7 @@ GetRectCutSide_Top(rect2 *Rect, f32 A)
 inline rect2
 GetRectCutSide_Bottom(rect2 *Rect, f32 A)
 {
-    f32 Bottom = Maximum(Rect->Min.y, Rect->Max.y - A);
+    f32 Bottom = Max(Rect->Min.y, Rect->Max.y - A);
 
     rect2 Result = RectMinMax(V2(Rect->Min.x, Bottom), V2(Rect->Max.x, Rect->Max.y));
     return(Result);

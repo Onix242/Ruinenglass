@@ -380,7 +380,7 @@ struct d7sam_concat
         }
 
         u32 CastValue = RoundF32ToU32(Bases[Decimals]*Value);
-        u32 MaxDecimals = Maximum(NumDigitsLog10(CastValue), (s32)Decimals + 1);
+        u32 MaxDecimals = Max(NumDigitsLog10(CastValue), (s32)Decimals + 1);
         CharCount += MaxDecimals + Negative + (Decimals > 0);
         u32 CharIndex = CharCount;
 

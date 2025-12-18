@@ -130,16 +130,17 @@ typedef double f64;
 
 #define Swap(type, A, B) {type Temp = (A); (A) = (B); (B) = Temp;}
 
-#define Minimum(A, B) ((A < B) ? (A) : (B))
-#define Minimum3(A, B, C) (Minimum(A, Minimum(B, C)))
-#define Maximum(A, B) ((A > B) ? (A) : (B))
-#define Maximum3(A, B, C) (Maximum(A, Maximum(B, C)))
+#define Min(A, B) ((A < B) ? (A) : (B))
+#define Min3(A, B, C) (Min(A, Min(B, C)))
+#define Max(A, B) ((A > B) ? (A) : (B))
+#define Max3(A, B, C) (Max(A, Max(B, C)))
 
 // NOTE(chowie): Limit macros
 #define F32Max FLT_MAX
 #define F32Min -FLT_MAX
 #define S32Max INT32_MAX
 #define S32Min -INT32_MAX
+#define U64Max ((u64) - 1)
 #define U32Max ((u32) - 1)
 #define U16Max ((u16) - 1)
 #define U8Max ((u8) - 1)
@@ -203,6 +204,35 @@ Log(f32 Value)
 {
     rational_approx Log = { Value };
     f32 Result = (Log.x - 1064866805)*8.262958405176314e-8f; /* 1 / 12102203.0; */
+    return(Result);
+}
+
+// RESOURCE(): https://www.johndcook.com/blog/2025/06/24/log-ish/
+// "I could see how this could be very handy. Often you want something
+// like a logarithmic scale, not for the exact properties of the
+// logarithm but because it brings big numbers closer in. And for big
+// values of x there's little difference between log(x) vs log(1 + x).
+//
+// The function above is linear near the origin, literally linear for
+// negative values and approximately linear for small positive values.
+//
+// I've occasionally needed something like a log scale, but one that
+// would handle values that dip below zero. This transformation would
+// be good for that. If data were equally far above and below zero,
+// I'd use something like arctangent instead."
+// STUDY(chowie): This is how you 'patch functions together' with a mediocre fit
+// IMPORTANT(chowie): Beware these functions have a slight bump at the
+// transition point, 0!
+// f(x) = { log(1 + x) if x > 0
+//        { x          if x <= 0
+inline f32
+Logish(f32 Value)
+{
+    f32 Result = Value;
+    if(Value > 0)
+    {
+        Result = Log(1 + Value);
+    }
     return(Result);
 }
 
@@ -353,7 +383,9 @@ SafeTruncateU64(u64 Value)
     return(Result);
 }
 
-#define BitSet(Bit) (1 << (Bit))
+#define Pow2N(Value) (1 << (Value))
+#define BitSet(Bit) Pow2N(Bit)
+#define BitSet64(Bit) ((1ULL << Bit))
 
 #define FlagSet(A, Flag) (A & Flag)
 #define AddFlag(A, Flag) (A |= Flag)
@@ -405,6 +437,10 @@ union v2u
     struct
     {
         u32 a, b; // NOTE(chowie): For making equations
+    };
+    struct
+    {
+        u32 Min, Max;
     };
     struct
     {
@@ -727,6 +763,27 @@ struct m4x4_inv
     m4x4 Forward;
     m4x4 Inverse;
 };
+
+//
+//
+//
+
+inline v2u
+MinMax(v2u Value)
+{
+    v2u Result;
+    if(Value.a > Value.b)
+    {
+        Result.Max = Value.a;
+        Result.Min = Value.b;
+    }
+    else
+    {
+        Result.Max = Value.b;
+        Result.Min = Value.a;
+    }
+    return(Result);
+}
 
 //
 //
