@@ -46,6 +46,13 @@ Sqrt(f32 F32)
     return(Result);
 }
 
+inline f64
+Sqrt64(f64 F64)
+{
+    f64 Result = _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(F64)));
+    return(Result);
+}
+
 // RESOURCE(martins): https://handmade.network/forums/t/6940-understanding_basic_simd#21153
 // RESOURCE(cbloom): http://cbloomrants.blogspot.com/2010/11/11-20-10-function-approximation-by_20.html
 // NOTE(chowie): 1/sqrt(x), replaces normalising vectors
@@ -189,6 +196,14 @@ Floor(f32 F32)
     return(Result);
 }
 
+// NOTE(chowie): This has better compability than converting floor positive to f64
+internal f64
+Floor64(f64 F64)
+{
+    f64 Result = _mm_cvtsd_f64(_mm_floor_sd(_mm_setzero_pd(), _mm_set_sd(F64)));
+    return(Result);
+}
+
 // NOTE(chowie): Floor for non-negative values, only [0 .. +2147483648) range.
 internal f32
 FloorPositive(f32 F32)
@@ -245,6 +260,13 @@ inline u16
 FloorF32ToU16(f32 F32)
 {
     u16 Result = (u16)FloorPositive(F32);
+    return(Result);
+}
+
+inline u64
+FloorF64ToU64(f64 F64)
+{
+    u64 Result = (u64)Floor64(F64);
     return(Result);
 }
 
@@ -404,6 +426,24 @@ ATan2(f32 Y, f32 X)
     return(Result);
 }
 
+// RESOURCE: https://www.evanmiller.org/mathematical-hacker.html
+// NOTE(chowie): Original article has lround
+inline u32
+Fibonacci(u32 Value)
+{
+    u32 Result = RoundF32ToU32((Pow(0.5f + 0.5f * Sqrt(5.0f), (f32)Value) - 
+                                Pow(0.5f - 0.5f * Sqrt(5.0f), (f32)Value)) / 
+                               Sqrt(5.0f));
+    return(Result);
+}
+
+inline u32
+Factorial(u32 Value)
+{
+    u32 Result = RoundF32ToU32(Exp(Lgamma((f32)Value + 1)));
+    return(Result);
+}
+
 /*
 // RESOURCE: https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-fmod
 inline u32
@@ -417,24 +457,6 @@ inline f32
 FMod(f32 X, f32 Y)
 {
     f32 Result = fmodf(X, Y);
-    return(Result);
-}
-
-// RESOURCE: https://www.evanmiller.org/mathematical-hacker.html
-// TODO(chowie): Any more than can be replaced with intrinsics?
-inline s32
-Fibonacci(u32 Value)
-{
-    u32 Result = lround((pow(0.5f + 0.5f * SquareRoot(5.0), Value) - 
-                         pow(0.5f - 0.5f * SquareRoot(5.0), Value)) / 
-                        SquareRoot(5.0));
-    return(Result);
-}
-
-inline s32
-Factorial(u32 Value)
-{
-    u32 Result = lround(exp(lgamma(Value + 1)));
     return(Result);
 }
 */

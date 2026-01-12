@@ -621,6 +621,8 @@
     = RESOURCE(): Gradient for mountains not noise - https://iquilezles.org/articles/morenoise/
     = RESOURCE(runevision): Layer-based deterministic gen - https://www.youtube.com/watch?v=4oJGkx0K8UQ
     = RESOURCE(): Interesting generation spaces - http://maetl.net/notes/storyboard/generating-interesting-content
+    = TODO(chowie): Mountain gen not perlin noise or erosion https://www.youtube.com/watch?v=gsJHzBTPG0Y
+      based on this article - https://iquilezles.org/articles/morenoise/
     = Cyclic generation!
       > RESOURCE(): http://ctrl500.com/tech/handcrafted-feel-dungeon-generation-unexplored-explores-cyclic-dungeon-generation/
       > RESOURCE(): http://maetl.net/notes/storyboard/cyclic-dungeon-generation

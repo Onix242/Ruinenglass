@@ -6,6 +6,7 @@
    $Notice: $
    ======================================================================== */
 
+/*
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -337,3 +338,117 @@ main(void)
 }
 
 #endif
+*/
+
+#include <stdlib.h>
+#include <windows.h>
+#include <stdio.h>
+#include <math.h>
+#include <stdint.h>
+
+typedef int8_t s8;
+typedef int16_t s16;
+typedef int32_t s32;
+typedef int64_t s64;
+
+typedef uint8_t u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
+typedef uint64_t u64;
+
+typedef float f32;
+typedef double f64;
+typedef s32 b32x;
+
+#define Assert(Expression) if(!(Expression)) {*(volatile int *)0 = 0;}
+#define InvalidCodePath Assert(!"InvalidCodePath")
+#define InvalidDefaultCase default: {InvalidCodePath;} break
+
+#define internal static
+
+// NOTE(chowie): For scaling with other data types with a union (avoids casting).
+typedef struct node_data
+{
+    s32 Info;
+} node_data;
+
+typedef struct node
+{
+    node_data Data;
+    struct node *Next;
+} node;
+
+internal node *
+Push(node *Node, node_data Data)
+{
+    node *Result = (node *)malloc(sizeof(node));
+    Assert(Result);
+    Result->Data = Data;
+    Result->Next = Node;
+    return(Result);
+}
+
+internal node *
+Pop(node *Node, node_data *Data)
+{
+    node *Result = Node;
+    if(Result)
+    {
+        *Data = Node->Data;
+        Node = Node->Next;
+        free(Result);
+    }
+    else
+    {
+        // TODO(chowie): Logging!
+    }
+    return(Node);
+}
+
+internal node_data *
+StackTop(node *Node)
+{
+    return(&Node->Data);
+}
+
+internal b32x
+StackIsEmpty(node* Node)
+{
+    return((Node == NULL) ? 1 : 0);
+}
+
+int
+main(void)
+{
+    node *Top = {};
+    node_data Element;
+
+    Element.Info = 11;
+    Top = Push(Top, Element);
+
+    char TestBuffer[256];
+    _snprintf_s(TestBuffer, sizeof(TestBuffer),
+                "Stack Top: %d\n", StackTop(Top)->Info);
+    OutputDebugStringA(TestBuffer);
+
+    Element.Info = 33;
+    Top = Push(Top, Element);
+
+    char TestBuffer2[256];
+    _snprintf_s(TestBuffer2, sizeof(TestBuffer2),
+                "Stack Top2: %d\n", StackTop(Top)->Info);
+    OutputDebugStringA(TestBuffer2);
+
+    while(!StackIsEmpty(Top))
+    {
+        Top = Pop(Top, &Element);
+
+        char PopBuffer[256];
+        _snprintf_s(PopBuffer, sizeof(PopBuffer),
+                    "Popping: %d\n", Element.Info);
+        OutputDebugStringA(PopBuffer);
+    }
+
+    return(0);
+}
+

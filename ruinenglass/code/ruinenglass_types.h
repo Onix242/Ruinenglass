@@ -177,9 +177,6 @@ Log2(u32 Value)
 // RESOURCE(): https://stackoverflow.com/questions/9411823/fast-log2float-x-implementation-c
 // TODO(chowie): f32 Log2?
 
-// RESOURCE(mineiro): https://web.archive.org/web/20150113003634/http://fastapprox.googlecode.com/svn/trunk/fastapprox/src/fastonebigheader.h
-// TODO(chowie): LGamma? Trig? Lambert? Sigmoid?
-
 // TODO(chowie): Do I need 64-bit versions?
 // RESOURCE(ankerl): http://martin.ankerl.com/2007/10/04/optimized-pow-approximation-for-java-and-c-c/
 // RESOURCE(ekmett): https://github.com/ekmett/approximate/blob/master/cbits/fast.c
@@ -233,6 +230,49 @@ Logish(f32 Value)
     {
         Result = Log(1 + Value);
     }
+    return(Result);
+}
+
+// TODO(chowie): Use this for smoothing + lerp for mountain gen not perlin
+// noise or erosion https://www.youtube.com/watch?v=gsJHzBTPG0Y
+// NOTE(chowie): This is more effective "1 + 1/(1 + x)"
+inline f32
+LogishPos(f32 Value)
+{
+    f32 Result = Log(1 + Value);
+    return(Result);
+}
+
+// NOTE(chowie): This is basically "1 + 1/(1 + x)" if you only care about f32 0-1
+inline f32
+LogishPosCheap(f32 Value)
+{
+    f32 Result = Value - (Value*Value)/2;
+    return(Result);
+}
+
+// NOTE(chowie): This is more effective "1/(1 + x)"
+inline f32
+InvLogishPos(f32 Value)
+{
+    f32 Result = 1 - Log(Value);
+    return(Result);
+}
+
+// NOTE(chowie): This is basically "1/(1 + x)" if you only care about f32 0-1
+inline f32
+InvLogishPosCheap(f32 Value)
+{
+    f32 Result = 1 - Value + (Value*Value)/2;
+    return(Result);
+}
+
+// RESOURCE(mineiro): https://web.archive.org/web/20150113003634/http://fastapprox.googlecode.com/svn/trunk/fastapprox/src/fastonebigheader.h
+// TODO(chowie): Trig? Lambert? Sigmoid?
+internal f32
+Lgamma(f32 Value)
+{
+    f32 Result = -0.0810614667f - Value - Log(Value) + (0.5f + Value)*Log(1.0f + Value);
     return(Result);
 }
 
@@ -447,6 +487,31 @@ union v2u
         u32 Start, End; // NOTE(chowie): For animation
     };
     u32 E[2];
+};
+
+union v2u64
+{
+    struct
+    {
+        u64 x, y;
+    };
+    struct
+    {
+        u64 Width, Height;
+    };
+    struct
+    {
+        u64 Min, Max;
+    };
+    struct
+    {
+        u64 a, b; // NOTE(chowie): For making equations
+    };
+    struct
+    {
+        u64 Start, End; // NOTE(chowie): For animation
+    };
+    u64 E[2];
 };
 
 union v2s
@@ -772,6 +837,23 @@ inline v2u
 MinMax(v2u Value)
 {
     v2u Result;
+    if(Value.a > Value.b)
+    {
+        Result.Max = Value.a;
+        Result.Min = Value.b;
+    }
+    else
+    {
+        Result.Max = Value.b;
+        Result.Min = Value.a;
+    }
+    return(Result);
+}
+
+inline v2u64
+MinMax64(v2u64 Value)
+{
+    v2u64 Result;
     if(Value.a > Value.b)
     {
         Result.Max = Value.a;

@@ -200,6 +200,17 @@ RandomBetween(pcg32_random_series *Series, v2 Range)
 // printf("Step 4. Backstepped PCG: %u\n", PCG32Next(&PCG));
 // printf("Step 5. PCG: %u\n", PCG32Next(&PCG));
 
+// RESOURCE(): https://arxiv.org/abs/1704.00358
+// NOTE(chowie): Martins says to use for SIMD/GPU parallel generation without state
+// u64 WerlSeed = 0;
+// u64 WerlCounter = 0;
+// inline u32
+// Msws32(void)
+// {
+//     WerlSeed = WerlSeed*WerlSeed + (WerlCounter += 0xb5ad4eceda1ce2a9);
+//     return((u32)(WerlSeed = (WerlSeed >> 32) | (WerlSeed << 32)));
+// }
+
 //
 // Xorshift
 //
@@ -462,7 +473,7 @@ SampleUniformlyHemisphere(pcg32_random_series *Series)
     v3 Result = {};
 
     f32 z = RandomBilateral(Series);
-    f32 r = Sqrt(1 - Square(z));
+    f32 r = Sqrt(1 - Sqr(z));
     f32 theta = RandomBilateral(Series)*Tau32;
 
     Result.x = r*Cos(theta);

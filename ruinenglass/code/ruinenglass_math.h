@@ -34,6 +34,20 @@ V2U(v2s Value)
     return(Result);
 }
 
+inline v2u64
+V2U64(u64 Value)
+{
+    v2u64 Result = {Value, Value};
+    return(Result);
+}
+
+inline v2u64
+V2U64(u64 X, u64 Y)
+{
+    v2u64 Result = {X, Y};
+    return(Result);
+}
+
 inline v2s
 V2S(s32 X, s32 Y)
 {
@@ -230,14 +244,14 @@ SafeRatio0(f64 Numerator, f64 Divisor)
 
 // NOTE(chowie): Squaring functions are nice for whole expressions
 inline f32
-Square(f32 A)
+Sqr(f32 A)
 {
     f32 Result = QUADRATIC(A);
     return(Result);
 }
 
 inline v3
-Square(v3 A)
+Sqr(v3 A)
 {
     v3 Result = {QUADRATIC(A.r), QUADRATIC(A.g), QUADRATIC(A.b)};
     return(Result);
@@ -267,7 +281,7 @@ Sin01(f32 t)
 {
     f32 Range = (Pi32*t);
     // NOTE(chowie): Sin approx (0 to Pi32) originates from Aryabhata I, around 500 AD.
-    f32 Result = ((16*Range)*(Pi32 - Range)) / (5*Square(Pi32) - 4*Range*(Pi32 - Range));
+    f32 Result = ((16*Range)*(Pi32 - Range)) / (5*Sqr(Pi32) - 4*Range*(Pi32 - Range));
     return(Result);
 }
 
@@ -411,13 +425,13 @@ IsInRange(f32 Min, f32 Value, f32 Max)
     return(Result);
 }
 
-// NOTE(chowie): It could be rewritten as "Square(Result) * (3.0f - 2.0f*Result)"
+// NOTE(chowie): It could be rewritten as "Sqr(Result) * (3.0f - 2.0f*Result)"
 // RESOURCE: https://handmade.network/p/64/geometer/blog/p/3048-1_year_of_geometer_-_lessons_learnt
 // NOTE(chowie): Smooth curve for blending (lerp)
 inline f32
 SmoothStep(f32 t)
 {
-    f32 Result = DifferenceOfProducts(3.0f, Square(t), 2.0f, Cube(t)); /* 3t^2 - 2t^3 */
+    f32 Result = DifferenceOfProducts(3.0f, Sqr(t), 2.0f, Cube(t)); /* 3t^2 - 2t^3 */
     return(Result);
 }
 
@@ -446,7 +460,7 @@ Step(f32 t, f32 Value)
 }
 
 inline f32
-SquarePulse(f32 A, f32 B, f32 Value)
+SqrPulse(f32 A, f32 B, f32 Value)
 {
     f32 Result = Step(A, Value) - Step(B, Value);
     return(Result);
@@ -461,7 +475,7 @@ TrianglePulse(v2 A, f32 t, v2 B)
 }
 
 inline b32x
-IsPerfectSquare(u32 Value)
+IsPerfectSqr(u32 Value)
 {
     b32x Result = IsInteger(Sqrt((f32)Value));
     return(Result);
@@ -732,7 +746,7 @@ NOZ(v2 A)
     v2 Result = {};
 
     f32 LenSq = LengthSq(A);
-    if(LenSq > Square(Epsilon32))
+    if(LenSq > Sqr(Epsilon32))
     {
         Result = A*InvSqrt(LenSq);
     }
@@ -840,7 +854,7 @@ RotationByCircleSector(f32 n, f32 Circumference)
 
     v2 Result;
     Result.y = Sector + Error;
-    Result.x = Sqrt(1.0f - Square(Result.y));
+    Result.x = Sqrt(1.0f - Sqr(Result.y));
 
     return(Result);
 }
@@ -851,7 +865,7 @@ RotationByGradient(f32 m)
 {
     // NOTE(by arnon): Project a point on a unit circle from a
     // position on a vertical line of "x = 1" towards the origin
-    f32 mSq = Square(m);
+    f32 mSq = Sqr(m);
     f32 Factor = 1.0f / (1.0f + mSq);
 
     v2 Result;
@@ -881,13 +895,13 @@ NormalisedRotationByCircleSector(f32 n)
     //f32 s3 = (Sin(Tau32 / n)); // NOTE(chowie): Change to this for more accuracy
 
     // NOTE(chowie): Cross Law
-    f32 Gradient = s3 / (1.0f - Sqrt(1.0f - Square(s3)));
+    f32 Gradient = s3 / (1.0f - Sqrt(1.0f - Sqr(s3)));
     //f32 Gradient = Sqrt(s3 / (2 - Sqrt(4*(1 - s3)) - s3));
 
     // NOTE(by arnon): Project a point on a unit circle from a
     // position on a vertical line of "x = 1" towards the origin
     // RESOURCE(NJ Wildberger): Rational Param of Circle - https://www.youtube.com/watch?v=Ui8OvmzDn7o
-    f32 mSq = Square(Gradient);
+    f32 mSq = Sqr(Gradient);
     f32 Factor = 1.0f / (1.0f + mSq);
 
     v2 Result = {};
@@ -1222,7 +1236,7 @@ NOZ(v3 A)
     v3 Result = {};
 
     f32 LenSq = LengthSq(A);
-    if(LenSq > Square(Epsilon32))
+    if(LenSq > Sqr(Epsilon32))
     {
         Result = A*InvSqrt(LenSq);
     }
@@ -1238,7 +1252,7 @@ NOU(v3 A)
     v3 Result = V3(1, 1, 1);
 
     f32 LenSq = LengthSq(A);
-    if(Abs(LenSq - 1.0f) > Square(Epsilon32))
+    if(Abs(LenSq - 1.0f) > Sqr(Epsilon32))
     {
         Result = A*InvSqrt(LenSq);
     }
@@ -1254,8 +1268,8 @@ inline b32x
 IsNormalisedEps(v3 A, f32 Epsilon)
 {
     f32 Magnitude = LengthSq(A);
-    b32x Result = (Magnitude >= Square(1.0f - Epsilon) &&
-                  Magnitude <= Square(1.0f + Epsilon));
+    b32x Result = (Magnitude >= Sqr(1.0f - Epsilon) &&
+                  Magnitude <= Sqr(1.0f + Epsilon));
     return(Result);
 }
 
@@ -1403,7 +1417,7 @@ Clip(v3 A, v3 B)
 {
     f32 Coeff = Inner(A, B);
     v3 Result = (Coeff > 0.0f) ? A :
-        ((A - B*Coeff)*InvSqrt(1.0f - Square(Coeff) / Inner(A, A)));
+        ((A - B*Coeff)*InvSqrt(1.0f - Sqr(Coeff) / Inner(A, A)));
     return(Result);
 }
 
@@ -1752,7 +1766,7 @@ ReverseRotor(v4 A)
 }
 
 // TODO(chowie): The identity quaternion, [(0, 0, 0), 1] is achieved
-// by the inverse. Conjugate/LengthSquared = inverse. A unit length
+// by the inverse. Conjugate/LengthSqrd = inverse. A unit length
 // quaternion is equal to its conjugate!
 
 // NOTE(chowie): Sandwich Product
@@ -2901,7 +2915,7 @@ Linear1TosRGB255(v4 Colour)
 // inline v4
 // sRGB255ToLinear1(v4 C)
 // {
-//     v4 Result = {Square(Inv255*C.r), Square(Inv255*C.g), Square(Inv255*C.b), Inv255*C.a};
+//     v4 Result = {Sqr(Inv255*C.r), Sqr(Inv255*C.g), Sqr(Inv255*C.b), Inv255*C.a};
 //     return(Result);
 // }
 

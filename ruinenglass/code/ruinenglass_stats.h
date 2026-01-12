@@ -72,7 +72,8 @@ IncrementalAvg(f32 Avg, f32 tNewSampleCount, f32 NewValue)
 // IMPORTANT(chowie): Fairmath is a percentage-based incremental
 // averaging, XCOM would tie this to shooting chance and map this to
 // distance, setting 100 and 0 manually (for close and long distances
-// especially shotguns and snipers)! I think this is where 
+// especially shotguns and snipers)! I think it's used for High Elo
+// ranking systems. Gain little with higher rank, lose much more!
 
 struct fairmath
 {
@@ -164,7 +165,7 @@ FairmathOpInternal(fairmath_op Op, v2 Value, fairmath_stat_outcome StatOutcome =
         // NOTE(chowie): Medium/Small have similar values sometimes
         case StatOutcome_Medium:
         {
-            Result.Norm.t = FairmathEerp01(Value.Avg, Negative*Square(Value.t));
+            Result.Norm.t = FairmathEerp01(Value.Avg, Negative*Sqr(Value.t));
         } break;
 
         case StatOutcome_Small:

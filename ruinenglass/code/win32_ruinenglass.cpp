@@ -1920,7 +1920,7 @@ WinMain(HINSTANCE Instance,
                     s32 CounterElapsed = EndCounter - (u32)LastCounter;
                     f32 MSPerFrame = 1000.0f*Win32GetSecondsElapsed(LastCounter, EndCounter);
                     f32 FPS = ((f32)GlobalPerfCountFrequency / (f32)CounterElapsed);
-                    f32 MCPF = ((f32)CyclesElapsed / Square(1000.0f));
+                    f32 MCPF = ((f32)CyclesElapsed / Sqr(1000.0f));
 //                    OutputDebugStringA(d7sam_concat(MSPerFrame)("ms/f, ")(FPS)("f/s, ")(MCPF)("mc/f")("\n"));
 
                     // TODO: Should we clear these here?

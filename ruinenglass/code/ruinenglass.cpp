@@ -121,7 +121,7 @@ MoveEntity(game_state *GameState, entity *Entity, f32 dt, v2 ddP, v2 MetersToPix
     Entity->dP += ddP*dt;
 #else
     v2 OldEntityP = Entity->P.Offset_.xy;
-    v2 EntityDelta = (0.5f*ddP*Square(dt) +
+    v2 EntityDelta = (0.5f*ddP*Sqr(dt) +
                       Entity->dP*dt);
     Entity->dP = ddP*dt + Entity->dP;
     v2 NewEntityP = OldEntityP + EntityDelta;
