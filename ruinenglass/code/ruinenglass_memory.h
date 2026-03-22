@@ -355,5 +355,72 @@ NonRestoredArea(void)
 }
 */
 
+//
+//
+//
+
+struct stack_entry
+{
+    u64 Entry;
+};
+
+// TODO(chowie): Use memory arenas!!
+// RESOURCE(): https://guide.handmadehero.org/code/day641/#2876
+// COULDDO(chowie): In theory I could replace with array-based? With proper depth!
+struct stack
+{
+    stack_entry Data;
+    struct stack *Next;
+};
+
+internal u32
+StackLength(stack *Stack)
+{
+    u32 Count = 0;
+    for(stack *Curr = Stack;
+        Curr;
+        Curr = Curr->Next)
+    {
+        ++Count;
+    }
+
+    return(Count);
+}
+
+inline stack_entry *
+StackTop(stack *Stack)
+{
+    stack_entry *Result = &Stack->Data;
+    return(Result);
+}
+
+inline b32x
+StackIsEmpty(stack* Stack)
+{
+    b32x Result = !Stack;
+    return(Result);
+}
+
+internal stack *
+Push(stack *Stack, stack_entry Data)
+{
+    stack *Result = (stack *)malloc(sizeof(stack));
+    Assert(Result);
+    Result->Data = Data;
+    Result->Next = Stack;
+    return(Result);
+}
+
+internal stack *
+Pop(stack *Stack)
+{
+    Assert(!StackIsEmpty(Stack)); // TODO(chowie): Proper logging! Popped empty stack
+    stack *Result = Stack;
+    Result = Stack->Next;
+    free(Stack);
+
+    return(Result);
+}
+
 #define RUINENGLASS_MEMORY_H
 #endif

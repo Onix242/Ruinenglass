@@ -475,9 +475,9 @@ TrianglePulse(v2 A, f32 t, v2 B)
 }
 
 inline b32x
-IsPerfectSqr(u32 Value)
+IsPerfectSqr(u64 Value)
 {
-    b32x Result = IsInteger(Sqrt((f32)Value));
+    b32x Result = IsIntegerPositive(Sqrt((f64)Value));
     return(Result);
 }
 

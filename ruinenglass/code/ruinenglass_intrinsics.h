@@ -26,6 +26,18 @@ SignOf(f32 Value)
     return(Result);
 }
 
+inline f64
+SignOf(f64 Value)
+{
+    __m128d SignMask = _mm_set1_pd(-0.0f); // NOTE(chowie): -0.0f = 1 << 31
+    __m128d One = _mm_set_sd(1.0f);
+    __m128d SignBit = _mm_and_pd(_mm_set_sd(Value), SignMask);
+    __m128d Combined = _mm_or_pd(One, SignBit);
+
+    f64 Result = _mm_cvtsd_f64(Combined);
+    return(Result);
+}
+
 // RESOURCE(wychmaster): https://stackoverflow.com/questions/57870896/writing-a-portable-sse-avx-version-of-stdcopysign
 // RESOURCE(theowl84): Same technique using andnot to negate can be observed here - http://fastcpp.blogspot.com/2011/03/changing-sign-of-float-values-using-sse.html
 inline f32
@@ -47,7 +59,7 @@ Sqrt(f32 F32)
 }
 
 inline f64
-Sqrt64(f64 F64)
+Sqrt(f64 F64)
 {
     f64 Result = _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(F64)));
     return(Result);
@@ -198,7 +210,7 @@ Floor(f32 F32)
 
 // NOTE(chowie): This has better compability than converting floor positive to f64
 internal f64
-Floor64(f64 F64)
+Floor(f64 F64)
 {
     f64 Result = _mm_cvtsd_f64(_mm_floor_sd(_mm_setzero_pd(), _mm_set_sd(F64)));
     return(Result);
@@ -210,6 +222,14 @@ FloorPositive(f32 F32)
 {
     Assert(SignOf(F32) == 1.0f);
     f32 Result = _mm_cvtss_f32(_mm_cvtepi32_ps(_mm_cvttps_epi32(_mm_set_ss(F32))));
+    return(Result);
+}
+
+internal f64
+FloorPositive(f64 F64)
+{
+    Assert(SignOf(F64) == 1.0f);
+    f64 Result = _mm_cvtsd_f64(_mm_cvtepi64_pd(_mm_cvttpd_epi64(_mm_set_sd(F64))));
     return(Result);
 }
 
@@ -228,6 +248,13 @@ FractPositive(f32 F32)
     return(Result);
 }
 
+inline f64
+FractPositive(f64 F64)
+{
+    f64 Result = (F64 - FloorPositive(F64));
+    return(Result);
+}
+
 inline b32x
 IsInteger(f32 F32)
 {
@@ -239,6 +266,13 @@ inline b32x
 IsIntegerPositive(f32 F32)
 {
     b32x Result = (FractPositive(F32) == 0.0f);
+    return(Result);
+}
+
+inline b32x
+IsIntegerPositive(f64 F64)
+{
+    b32x Result = (FractPositive(F64) == 0.0f);
     return(Result);
 }
 
@@ -266,7 +300,7 @@ FloorF32ToU16(f32 F32)
 inline u64
 FloorF64ToU64(f64 F64)
 {
-    u64 Result = (u64)Floor64(F64);
+    u64 Result = (u64)Floor(F64);
     return(Result);
 }
 
