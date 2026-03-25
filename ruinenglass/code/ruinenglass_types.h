@@ -268,11 +268,20 @@ InvLogishPosCheap(f32 Value)
 }
 
 // RESOURCE(mineiro): https://web.archive.org/web/20150113003634/http://fastapprox.googlecode.com/svn/trunk/fastapprox/src/fastonebigheader.h
-// TODO(chowie): Trig? Lambert? Sigmoid?
-internal f32
+// TODO(chowie): Trig? Lambert?
+inline f32
 Lgamma(f32 Value)
 {
     f32 Result = -0.0810614667f - Value - Log(Value) + (0.5f + Value)*Log(1.0f + Value);
+    return(Result);
+}
+
+// RESOURCE(): https://www.johndcook.com/blog/tag/neural-networks/
+// NOTE(chowie): Also called "logistic function" or "s-curve", similar to tanh(x*k)
+inline f32
+Sigmoid(f32 Value)
+{
+    f32 Result = 1/(1 + Exp(-Value));
     return(Result);
 }
 

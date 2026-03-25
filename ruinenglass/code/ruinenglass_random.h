@@ -14,6 +14,7 @@
 // TODO(chowie): Lot more useful than you would think to test
 // reliability, give something a new direction, slerp between random
 // orientations
+// TODO(chowie): See quaternion implementation here!
 
 //
 // PCG
@@ -137,15 +138,6 @@ RandomUnilateralAlt(pcg32_random_series *Series)
     return(Result);
 }
 
-// NOTE: Binormal (-1 to 1) 
-// NOTE(chowie): Backstep amount PCG32Backstep(&PCG, 1)
-inline f32
-RandomBilateral(pcg32_random_series *Series)
-{
-    f32 Result = 2.0f*RandomUnilateral(Series) - 1.0f;
-    return(Result);
-}
-
 // RESOURCE: https://github.com/apple/swift/pull/39143
 // NOTE(chowie): Lemire Uniform [0, n). No divisions, branchless
 // NOTE(chowie): Backstep amount PCG32Backstep(&PCG, 2). Unlike most other functions are 1
@@ -155,6 +147,15 @@ RandomBounds(pcg32_random_series *Series, u32 Bounds)
     u64 A = (u64)Bounds*PCG32Next(Series);
     u64 B = (u32)A + (((u64)Bounds*PCG32Next(Series)) >> 32);
     u32 Result = (A >> 32) + (B >> 32);
+    return(Result);
+}
+
+// NOTE: Binormal (-1 to 1) 
+// NOTE(chowie): Backstep amount PCG32Backstep(&PCG, 1)
+inline f32
+RandomBilateral(pcg32_random_series *Series)
+{
+    f32 Result = 2.0f*RandomUnilateral(Series) - 1.0f;
     return(Result);
 }
 
@@ -190,6 +191,16 @@ RandomBetween(pcg32_random_series *Series, v2 Range)
     return(Result);
 }
 
+// RESOURCE(): https://stackoverflow.com/questions/2106503/pseudorandom-number-generator-exponential-distribution
+// TODO(chowie): Double check this is correct
+// NOTE(chowie): Not uniform!
+internal f32
+RandomExpUnilateral(pcg32_random_series *Series, f32 Rate)
+{
+    f32 Result = Log((1 - RandomUnilateral(Series))/(-Rate));
+    return(Result);
+}
+
 // NOTE(chowie) How to use PCG:
 // pcg32_random_series PCG;
 // RandomSeed(&PCG, 3);
@@ -199,6 +210,10 @@ RandomBetween(pcg32_random_series *Series, v2 Range)
 // PCG32Backstep(&PCG, 1);
 // printf("Step 4. Backstepped PCG: %u\n", PCG32Next(&PCG));
 // printf("Step 5. PCG: %u\n", PCG32Next(&PCG));
+
+//
+//
+//
 
 // RESOURCE(): https://arxiv.org/abs/1704.00358
 // NOTE(chowie): Martins says to use for SIMD/GPU parallel generation without state
@@ -344,7 +359,7 @@ LCGPossiblePhaseCancelling(u32 x, u32 A, u32 B, u32 Pow2C)
 }
 
 //
-//
+// SHUFFLE
 //
 
 /*
@@ -460,15 +475,38 @@ Permute(pcg32_random_series *Series, u32 Index, u32 Length)
 }
 
 //
-//
+// SAMPLING (LIGHTING, MONTE CARLO DISTRIBUTION/VEGETATION)
 //
 
 // TODO(chowie): Use this to make static starfields, the ones in the
 // night sky!
-// RESOURCE(): https://hero.handmade.network/forums/code-discussion/t/2799-samplehemisphere_is_not_uniform#13820
 // RESOURCE(): https://hero.handmade.network/forums/code-discussion/t/419-periodic_functions
+// RESOURCE(): https://hero.handmade.network/forums/code-discussion/t/2799-samplehemisphere_is_not_uniform#13820
+
+// RESOURCE(G Marsaglia): Choosing a Point from the Surface of a Sphere (1972)
 internal v3
-SampleUniformlyHemisphere(pcg32_random_series *Series)
+SampleSphere(pcg32_random_series *Series)
+{
+    v3 Result = {};
+    f32 X1, X2, SquaresSum, SquareRootTerm;
+
+    do
+    {
+        X1 = RandomBilateral(Series);
+        X2 = RandomBilateral(Series);
+        SquaresSum = Sqr(X1) + Sqr(X2);
+    } while (SquaresSum >= 1.0f);
+
+    SquareRootTerm = 2*Sqrt(1 - SquaresSum);
+    Result.x = X1*SquareRootTerm;
+    Result.y = X2*SquareRootTerm;
+    Result.z = 1 - 2*SquaresSum;
+
+    return(Result);
+}
+
+internal v3
+SampleHemisphere(pcg32_random_series *Series)
 {
     v3 Result = {};
 
@@ -485,8 +523,9 @@ SampleUniformlyHemisphere(pcg32_random_series *Series)
 
 // NOTE(from bromage): For light transport, add geometric cosine
 // factor, sample unit disc, map to hemisphere sitting above
+// NOTE(chowie): Prefer this to SampleHemisphere()
 internal v3
-CosineSampleNonuniformlyHemisphere(pcg32_random_series *Series)
+CosineSampleHemisphere(pcg32_random_series *Series)
 {
     v3 Result = {};
 
@@ -502,9 +541,73 @@ CosineSampleNonuniformlyHemisphere(pcg32_random_series *Series)
     return(Result);
 }
 
-// TODO(chowie): Random distribution of a triangle using barycentric
-// with exponential distribution
+// RESOURCE(): https://pharr.org/matt/blog/2019/02/27/triangle-sampling-1
+// RESOURCE(): https://pharr.org/matt/blog/2019/03/13/triangle-sampling-1.5
+// NOTE(chowie): Notably doesn't use sqrt!
+inline v3
+SampleTriangle(v2 Sample)
+{
+    v2 Coeff = Sample/2;
+    f32 Offset = Coeff.y - Coeff.x;
+    if(Offset > 0)
+    {
+        Coeff.y += Offset;
+    }
+    else
+    {
+        Coeff.x -= Offset;
+    }
+
+    v3 Result = {Coeff.x, Coeff.y, 1.0f - Coeff.x - Coeff.y};
+    return(Result);
+}
+
+// NOTE(chowie): Old 
+// inline v3
+// SampleTriangle(v2 Sample)
+// {
+//     f32 Uniform = Sqrt(Sample.x);
+//     f32 Coeff1 = (1 - Uniform);
+//     f32 Coeff2 = (Sample.y*Uniform);
+// 
+//     v3 Result = {Coeff1, Coeff2, 1.0f - Coeff1 - Coeff2};
+//     return(Result);
+// }
+
 // RESOURCE(): https://www.johndcook.com/blog/2025/09/11/random-inside-triangle/
+// NOTE(chowie): Random distribution of a triangle using barycentric
+// with exponential distribution
+// TODO(chowie): Double check this is correct + check if this is
+// better than the standard SampleTriangle()
+// inline f32
+// SampleTriangleAltInternal(pcg32_random_series *Series)
+// {
+//     v3 Sample = {RandomExpUnilateral(Series, 1), RandomExpUnilateral(Series, 1), RandomExpUnilateral(Series, 1)};
+//     v3 NormSample = Normalise(Sample);
+// 
+//     f32 Result = Sample.x*NormSample.x + Sample.y*NormSample.y + Sample.z*NormSample.z;
+//     return(Result);
+// }
+
+//
+// RANDOM UNIT VECTORS
+//
+
+// RESOURCE(): https://www.flipcode.com/archives/Random_Unit_Vectors.shtml
+// NOTE(from n capens): Lot more useful than you would think to test
+// reliability, give something a new direction, slerp between random
+// orientations.
+internal v3
+RandomUnitV3(pcg32_random_series *Series)
+{
+    f32 Z = RandomBilateral(Series);
+    f32 A = RandomBetween(Series, V2(0, Tau32));
+
+    f32 R = Sqrt(1.0f - Sqr(Z));
+
+    v3 Result = V3(R*Cos(A), R*Sin(A), Z);
+    return(Result);
+}
 
 #define RUINENGLASS_RANDOM_H
 #endif

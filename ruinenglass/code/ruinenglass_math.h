@@ -693,6 +693,18 @@ operator-=(v2 &A, v2 B)
     return(A);
 }
 
+inline v2
+Sqrt(v2 A)
+{
+    v2 Result =
+    {
+        Sqrt(A.x),
+        Sqrt(A.y),
+    };
+
+    return(Result);
+}
+
 // STUDY(chowie): Difference between hadamard and inner product is
 // that the terms are not summed
 inline v2
@@ -961,6 +973,19 @@ operator*(v3s A, v3s B)
     return(Result);
 }
 
+inline v3
+Sqrt(v3 A)
+{
+    v3 Result =
+    {
+        Sqrt(A.x),
+        Sqrt(A.y),
+        Sqrt(A.z),
+    };
+
+    return(Result);
+}
+
 inline b32x
 AreEqual(v3s A, v3s B)
 {
@@ -1172,12 +1197,10 @@ Hadamard(v3 A, v3 B)
     return(Result);
 }
 
-// TODO(chowie): Is there a better way? Fma(A.x, B.x, Fma(A.y, B.y, A.z*B.z))?
-// A.x*B.x + A.y*B.y + A.z*B.z
 inline f32
 Inner(v3 A, v3 B)
 {
-    f32 Result = Fma(A.z, B.z, SumOfProducts(A.x, B.x, A.y, B.y));
+    f32 Result = A.x*B.x + A.y*B.y + A.z*B.z;
     return(Result);
 }
 
@@ -1427,6 +1450,42 @@ ClipNoLength(v3 A, v3 B)
 {
     f32 Coeff = Inner(A, B);
     v3 Result = (Coeff > 0.0f) ? A : (A - B*Coeff);
+    return(Result);
+}
+
+// RESOURCE(): https://iquilezles.org/articles/trianglearea/
+// RESOURCE(): https://www.johndcook.com/blog/2020/02/27/numerical-heron/
+// RESOURCE(): https://www.johndcook.com/blog/2016/08/23/area-of-a-triangle-and-its-projections/
+// NOTE(chowie): For sampling and normals!
+inline v3
+TriangleArea(v3 A, v3 B)
+{
+    v3 Result = Sqrt(Cross(A, B));
+    return(Result);
+}
+
+inline f32
+TriangleAreaHeronInternal(v3 Value)
+{
+    f32 A = Sqr(Value.x);
+    f32 B = Sqr(Value.y);
+    f32 C = Sqr(Value.z);
+
+    f32 Result = Sqrt((2*A*B + 2*B*C + 2*C*A - Sqr(A) - Sqr(B) - Sqr(C))/16);
+    return(Result);
+}
+
+// TODO(chowie): Double check this is correct
+inline v3
+TriangleAreaHeron(v3 A, v3 B, v3 C)
+{
+    v3 Result =
+    {
+        TriangleAreaHeronInternal(V3(A.x, B.x, C.x)),
+        TriangleAreaHeronInternal(V3(A.y, B.y, C.y)),
+        TriangleAreaHeronInternal(V3(A.z, B.z, C.z)),
+    };
+
     return(Result);
 }
 

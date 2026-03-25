@@ -7,10 +7,10 @@
    $Notice: $
    ======================================================================== */
 
-// TODO(chowie): Better Hash Function
+// TODO(chowie): Better hash functions
 
 //
-// General
+// GENERAL
 //
 
 // RESOURCE(reed): https://www.reedbeta.com/blog/hash-functions-for-gpu-rendering/
@@ -25,7 +25,7 @@ PCGHash(u32 Value)
 }
 
 //
-// String
+// STRING
 //
 
 // RESOURCE(): https://theartincode.stanis.me/008-djb2/
@@ -57,7 +57,7 @@ CRC32(void *Data, umm Size)
 }
 
 //
-// Spatial
+// SPATIAL
 //
 
 // NOTE(by mauro): Using Szudnik Pairing.
@@ -259,7 +259,7 @@ EncodeMorton3D(u32 MortonAxis, v3s Step, v3s dAxis)
 }
 
 //
-// Triangle Numbers
+// TRIANGLE NUMBERS
 //
 
 inline u32
@@ -341,7 +341,7 @@ GetPairwiseRow64(u64 Ordinal)
 }
 
 //
-// Pairwise (reversible)
+// Remaley Hash (2D, pairwise)
 //
 
 // COULDDO(chowie): Where to take these next:
@@ -440,7 +440,7 @@ IncrementOrdinal(u32 *Ordinal)
 //    printf("Not at a triangle number: I'm here at ordinal %d!\n", *Pairwise->TriangleNumberOrdinal);
 
 //
-// Non-Pairwise (invertible)
+// Fink Hash (3D, non-pairwise)
 //
 
 // COULDDO(chowie): Can I do better than linear?
@@ -624,7 +624,7 @@ FinkHashTreeDeleteParams(finkhashtree_mode Mode, u16 SourceLeafIndex, b32x Compa
 }
 
 //
-// FINK HASH TREE TRAVERSAL CHECKS
+// Fink hash tree traversal
 //
 
 // NOTE(chowie): Because how f(x, y) is mapped, a neat optimisation is checking for odd in
@@ -1126,10 +1126,6 @@ GetDepthFinkHashPerfectTree(u64 Hash)
 }
 
 //
-//
-//
-
-//
 // NOTE(chowie): First 38 (including 0) can be used for eighth blocks
 //
 // IMPORTANT(chowie): Primitives (child nodes) must be even values!
@@ -1241,7 +1237,7 @@ FinkHashExpandLeafToPerfectTree(u64 Hash, finkhash_expandmode ExpandMode = FinkH
 }
 
 //
-// VERIFY FINK HASH INTEGRITY
+// Fink hash integrity
 //
 
 // TODO(chowie): Merkle trees are good for validating a node without
@@ -1270,9 +1266,8 @@ RepairSourceFinkHashTree(u64 Source, u64 Copy)
     return(Result);
 }
 
-
 //
-// UNIT TESTS
+// Fink hash unit tests
 //
 
 enum testcase_finkhash_max
@@ -1585,11 +1580,6 @@ InitTestFinkHashReplaceDepth3(u16 HashL1a, u16 HashL1b, u16 HashR1a, u16 HashR1b
     Result.HashR2b = HashR2b;
 
     return(Result);
-}
-
-internal void
-DEBUGBeginFinkHashReplaceDepth2(testreplacedepth_info *Info)
-{
 }
 
 internal void
@@ -1951,7 +1941,7 @@ TestDoubleCheckFinkHashReplace(u32 Flag)
 }
 
 //
-//
+// Fink hash main
 //
 
 internal void
@@ -2029,7 +2019,7 @@ ProcessFinkHashTree(void)
 }
 
 //
-// OTHER TREE CONSTRUCTIONS
+// Fink hash future work
 //
 
 // RESOURCE(): https://en.wikipedia.org/wiki/Tree_rotation
@@ -2052,7 +2042,7 @@ ProcessFinkHashTree(void)
 // E.g. "H (UTO)H H(IUV)", H = 2, (UTO) = 0, (IUV) = 4. Doesn't really matter unless a specific pair is a set phrase!
 
 //
-//
+// Fink hash manual working out
 //
 
 // COULDDO(chowie): RESOURCE(): https://andrew-helmer.github.io/tree-shuffling/
@@ -2115,10 +2105,6 @@ ProcessFinkHashTree(void)
 
 // f(4, 8) = 165 -> 82
 // f(8, 4) = 173 >> 86
-
-//
-// SAMPLE PASSED FUNCTIONS IN FINK HASH TO PLAY WITH
-//
 
 // f(a, b) = FinkHash (full) -> RemovedHashParity (raw)
 // NOTE(chowie): IMPORTANT(chowie): Prims must be even steps

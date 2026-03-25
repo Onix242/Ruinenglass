@@ -467,7 +467,7 @@ Fibonacci(u32 Value)
 {
     u32 Result = RoundF32ToU32((Pow(0.5f + 0.5f * Sqrt(5.0f), (f32)Value) - 
                                 Pow(0.5f - 0.5f * Sqrt(5.0f), (f32)Value)) / 
-                               Sqrt(5.0f));
+                                Sqrt(5.0f));
     return(Result);
 }
 
@@ -480,13 +480,6 @@ Factorial(u32 Value)
 
 /*
 // RESOURCE: https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-fmod
-inline u32
-FMod(u32 X, u32 Y)
-{
-    u32 Result = (u32)fmod(X, Y);
-    return(Result);
-}
-
 inline f32
 FMod(f32 X, f32 Y)
 {
