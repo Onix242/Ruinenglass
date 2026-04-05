@@ -9,7 +9,7 @@
 
 #define QUADRATIC(a) ((a)*(a))
 #define CUBIC(a) ((a)*(a)*(a))
-#define QUARTIC(a) ((a)*(a)*(a)*(a)) // TODO(chowie): Use?
+#define QUARTIC(a) ((a)*(a)*(a)*(a))
 #define QUINTIC(a) ((a)*(a)*(a)*(a)*(a))
 #define Epsilon32 0.0001f
 
@@ -3049,21 +3049,6 @@ RGBAPack4x8(v4 Unpacked)
     return(Result);
 }
 
-//
-//
-//
-
-// RESOURCE(): https://www.flipcode.com/archives/Little_Math_Trick.shtml
-// STUDY(chowie): For loop accumulator e.g. raycasting to += rather
-// than *= using log and exponential for faster calculations
-
-// RESOURCE(sam): https://web.archive.org/web/20211023131624/https://lolengine.net/blog/2011/12/14/understanding-motion-in-games
-// TODO(chowie): Implement Verlet equation of motions instead of Euler
-//  Accel = V3(0, 0, -9.81f);
-//  v3 OldVel = Vel;
-//  Vel = Vel + Accel * dtForFrame;
-//  Pos = Pos + (OldVel + Vel) * 0.5f * dt;
-
 // TODO(chowie): Try to use this!
 // RESOURCE: https://gist.github.com/d7samurai/f98cb2aa30a6d73e62a65a376d24c6da
 // NOTE(from d7sam): Storing argb color in various compact forms, either
@@ -3083,6 +3068,71 @@ D7samNormalisedMul(u8 A, u8 B)
 {
     return (((u16)A + 1)*B) >> 8;
 }
+
+//
+// Interval Overlap
+//
+
+// RESOURCE(): https://fgiesen.wordpress.com/2015/09/24/intervals-in-modular-arithmetic/
+
+// RESOURCE(): https://www.drmaciver.com/2017/05/a-hybrid-voting-system-for-scheduling/
+// TODO(chowie): Use this for gameplay (calculating a scheduling
+// system), animation systems and ring buffers.
+
+// NOTE(chowie): Must be non-negative intervals
+#define ModN(Value, N) (Value % N)
+
+// NOTE(chowie): [a, b]
+inline b32x
+PointInClosedInterval(u32 Point, v2u Interval, u32 Base = 12)
+{
+    b32x Result = (ModN(Point - Interval.Start, Base) <= ModN(Interval.End - Interval.Start, Base));
+    return(Result);
+}
+
+// NOTE(chowie): [a, b)
+inline b32x
+PointInHalfOpenInterval(u32 Point, v2u Interval, u32 Base = 12)
+{
+    b32x Result = (ModN(Point - Interval.Start, Base) < ModN(Interval.End - Interval.Start, Base));
+    return(Result);
+}
+
+// NOTE(chowie): [a, b] [c, d]
+inline b32x
+ClosedIntervalsOverlap(v2u IntervalA, v2u IntervalB, u32 Base = 12)
+{
+    b32x Result = (ModN(IntervalB.Start - IntervalA.Start, Base) <= ModN(IntervalA.End - IntervalA.Start, Base)) ||
+                  (ModN(IntervalA.Start - IntervalB.Start, Base) <= ModN(IntervalB.End - IntervalB.Start, Base));
+    return(Result);
+}
+
+// NOTE(chowie): [a, b) [c, d)
+inline b32x
+HalfOpenIntervalsOverlap(v2u IntervalA, v2u IntervalB, u32 Base = 12)
+{
+    v2u Coeff = V2U(ModN(IntervalA.End - IntervalA.Start, Base),
+                    ModN(IntervalB.End - IntervalB.Start, Base));
+
+    b32x Result = ((Coeff.b != 0) && (ModN(IntervalB.Start - IntervalA.Start, Base) < Coeff.a)) ||
+                  ((Coeff.a != 0) && (ModN(IntervalA.Start - IntervalB.Start, Base) < Coeff.b));
+    return(Result);
+}
+
+//
+//
+//
+
+// RESOURCE(): https://www.flipcode.com/archives/Little_Math_Trick.shtml
+// STUDY(chowie): For loop accumulator e.g. raycasting to += rather
+// than *= using log and exponential for faster calculations
+
+// RESOURCE(sam): https://web.archive.org/web/20211023131624/https://lolengine.net/blog/2011/12/14/understanding-motion-in-games
+// TODO(chowie): Implement Verlet equation of motions instead of Euler
+//  Accel = V3(0, 0, -9.81f);
+//  v3 OldVel = Vel;
+//  Vel = Vel + Accel * dtForFrame;
+//  Pos = Pos + (OldVel + Vel) * 0.5f * dt;
 
 //
 // NOTE(chowie): Sorting

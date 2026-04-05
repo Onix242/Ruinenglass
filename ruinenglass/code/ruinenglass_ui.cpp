@@ -7,6 +7,7 @@
    ======================================================================== */
 
 // RESOURCE(): https://halt.software/p/rectcut-for-dead-simple-ui-layouts
+// RESOURCE(): https://www.oskarmendel.me/p/diving-into-quake-2-building-a-ui
 // RESOURCE(): Linked in article above - https://github.com/nsmryan/rectcut-rs/blob/master/src/lib.rs
 // TODO(chowie): Use Inverted infinity rect in math.h?
 
@@ -36,7 +37,10 @@
 // Rect panel_left = cut_left(&layout, w / 2);
 // Rect panel_right = layout;
 
+//
 // NOTE(chowie): Cuts smaller rectangle of input rect
+//
+
 inline rect2
 RectCutSide_Left(rect2 *Rect, f32 A)
 {
@@ -77,24 +81,25 @@ RectCutSide_Bottom(rect2 *Rect, f32 A)
     return(Result);
 }
 
-inline rect_cut
-GetRectCut(rect2 *Rect, rect_cut_side_type Type)
+inline rectcut
+GetRectCut(rect2 *Rect, rectcutside_type Type)
 {
-    rect_cut Result = {Rect, Type};
+    rectcut Result = {Rect, Type};
     return(Result);
 }
 
 inline rect2
-RectCutFitToSize(rect_cut *RectCut, f32 A)
+RectCutFitToSize(rectcut *RectCut, f32 A)
 {
-#define RectCase(Cut, a) case a: {return RectCut##a(Cut, a);}
+#define RectCase(Cut, Type, a) case Type: {return RectCut##Type(Cut, a);}
     switch(RectCut->Type)
     {
-        RectCase(RectCut->Rect, Side_Left);
-        RectCase(RectCut->Rect, Side_Right);
-        RectCase(RectCut->Rect, Side_Top);
-        RectCase(RectCut->Rect, Side_Bottom);
-        default: InvalidCodePath;
+        RectCase(RectCut->Rect, Side_Left, A);
+        RectCase(RectCut->Rect, Side_Right, A);
+        RectCase(RectCut->Rect, Side_Top, A);
+        RectCase(RectCut->Rect, Side_Bottom, A);
+
+        InvalidCodePath;
     }
 }
 
@@ -112,7 +117,10 @@ RectCutFitToSize(rect_cut *RectCut, f32 A)
 // Button(GetRectCut(&Toolbar, Side_Left), "Left");
 // Button(GetRectCut(&Toolbar, Side_Right), "Right");
 
+//
 // NOTE(chowie): Leaves rect unmodified = good for adding 9-patch UI or decorations?
+//
+
 inline rect2
 GetRectCutSide_Left(rect2 *Rect, f32 A)
 {

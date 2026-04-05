@@ -8,7 +8,7 @@
    ======================================================================== */
 
 // TODO(chowie): Get inspiration from when I did a simple compressor a program
-enum rect_cut_side_type
+enum rectcutside_type
 {
     Side_Left,
     Side_Right,
@@ -16,18 +16,20 @@ enum rect_cut_side_type
     Side_Bottom,
 };
 
-struct rect_cut
+struct rectcut
 {
     rect2 *Rect;
-    rect_cut_side_type Type;
+    rectcutside_type Type;
 };
 
 // TODO(chowie): Fully implement this!
 // COULDDO(chowie): Discriminated unions?
-struct ui_layout_element
+struct layout_element
 {
-    rect_cut_side_type Type;
+    rectcutside_type Type;
 };
+
+// TODO(chowie): Alignment modes?
 
 #define RUINENGLASS_UI_H
 #endif

@@ -8,6 +8,13 @@
 
 #include "test_asset_builder.h"
 
+//
+// IMPORTANT(chowie): This is an _offline_ asset packer
+//
+
+// RESOURCE(): https://handmade.network/p/29/swedish-cubes-for-unity/blog/p/2723-how_media_molecule_does_serialization
+// TODO(chowie): Try out this type of serialisation (for game + world)!
+
 internal string
 ReadEntireFile(char *FileName)
 {
@@ -369,5 +376,129 @@ int
 main(int ArgCount, char **Args)
 {
     WriteNonPlayer();
+}
+
+//
+// LBP Serializer
+//
+
+// TODO(chowie): Move this out into its own file!
+// RESOURCE(): https://www.oskarmendel.me/p/brainroll-postmortem-part-5-assets
+// RESOURCE(): https://handmade.network/p/29/swedish-cubes-for-unity/blog/p/2723-how_media_molecule_does_serialization
+
+struct debug_state
+{
+    u32 DebugState;
+    u32 Points;
+};
+
+// NOTE(chowie): Every time you want to make a change, add to this list (don't reorder)!
+// TODO(chowie): Replace with proper data
+enum serialization_versions
+{
+    SV_Scores = 1,
+    SV_ExtraPlayers,
+    SV_Fouls,
+
+    SV_LatestPlusOne, // NOTE(chowie): Keep this as the last element!
+};
+#define SV_Latest (SV_LatestPlusOne - 1)
+
+// TODO(chowie): Any point to saving file handle here (instead of buffer)?
+struct lbp_serializer
+{
+    u32 DataVersion;
+    b32 IsWriting;
+
+    u32 Counter; // NOTE(chowie): Checks for integrity
+
+    buffer Buffer; // TODO(chowie): Replace with arenas?
+};
+
+internal void
+Serialize(lbp_serializer *Serializer, u32 *Datum)
+{
+    if(Serializer->IsWriting)
+    {
+        // NOTE(chowie): Equivant to alloc
+        u32 *Pointer = (u32 *)(Serializer->Buffer.Data + Serializer->Buffer.Size);
+        *Pointer = *Datum;
+    }
+    else
+    {
+        // NOTE(chowie): Equivant to realloc
+        *Datum = *(u32 *)(Serializer->Buffer.Data + Serializer->Buffer.Size);
+    }
+    Serializer->Buffer.Size += sizeof(u32);
+}
+
+#define VerifySerializerIntegrity(CheckAdded)          \
+    if(Serializer->DataVersion >= (CheckAdded))        \
+    {                                                  \
+        u32 Verify = Serializer->Counter;              \
+        Serializer(Serializer, &Verify);               \
+        Assert(Verify == Serializer->Counter++);       \
+    }                                                  \
+
+#define VersionInRange(From, To)                       \
+    ((Serializer->DataVersion >= (From)) &&            \
+     (Serializer->DataVersion < (To)))                 \
+
+#define SerializeAdd(FieldAdded, FieldName)            \
+    if(Serializer->DataVersion >= FieldAdded)          \
+    {                                                  \
+        Serialize(Serializer, &(Datum->FieldName));    \
+    }                                                  \
+
+#define SerializeRemove(FieldAdded, FieldName, type, FieldRemoved, DefaultValue) \
+    type FieldName = (DefaultValue);                   \
+    if(VersionInRange((FieldAdded), (FieldRemoved))    \
+    {                                                  \
+        Serialize(Serializer, &(FieldName));           \
+    }                                                  \
+
+//
+// TODO(chowie): Add whatever state you'd like to serialize!
+//
+
+enum serialization_state_type
+{
+    LBPState_Debug,
+
+    LBPState_Count,
+};
+
+// COULDDO(chowie): Do something like this to generaliser for different state serialization?
+// #define PushRenderElement(RenderGroup, type) PushRenderElement_(RenderGroup, sizeof(type), RenderGroupEntryType_##type)
+// #define SERIALIZESTATE(name, type) void name(lbp_serializer *Serializer, type *State)
+// typedef SERIALIZESTATE(serialize_state);
+
+// TODO(chowie): Complete this test case!
+internal void
+Serialize(lbp_serializer *Serializer, debug_state *Datum)
+{
+    SerializeAdd(SV_ExtraPlayers, Points);
+}
+
+// COULDDO(chowie): Convert this to a "#define"?
+internal b32x
+SerializeIncludingVersion(lbp_serializer *Serializer, debug_state *Datum)
+{
+    b32x Result = false;
+    if(Serializer->IsWriting)
+    {
+        Serializer->DataVersion = SV_Latest;
+    }
+
+    Serialize(Serializer, &Serializer->DataVersion);
+
+    // NOTE(chowie): Stays false if reading from a file that comes after this one!
+    if(Serializer->DataVersion <= SV_Latest)
+    {
+        Serialize(Serializer, Datum);
+        Result = true;
+    }
+
+    return(Result);
 }
 

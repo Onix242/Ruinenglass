@@ -32,7 +32,7 @@ REM ForAllTestingGrounds
 REM cl %CommonCompilerFlags% -D_CRT_SECURE_NO_WARNINGS ..\ruinenglass\code\test_gap_buffer.cpp %CommonLinkerFlags%
 
 REM Asset Builder
-REM cl %CommonCompilerFlags% -D_CRT_SECURE_NO_WARNINGS ..\ruinenglass\code\test_asset_builder.cpp %CommonLinkerFlags%
+cl %CommonCompilerFlags% -D_CRT_SECURE_NO_WARNINGS ..\ruinenglass\code\test_asset_builder.cpp %CommonLinkerFlags%
 
 REM GAME
 cl %CommonCompilerFlags% ..\ruinenglass\code\ruinenglass.cpp       %GameDLLFlags%

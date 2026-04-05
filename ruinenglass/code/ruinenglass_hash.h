@@ -458,6 +458,8 @@ FinkHash(v2u64 Value)
 
 // f(x,y) = 1 + 2(x + (x+y)(x+y+1)/2) -- becomes --> = (x + (x+y)(x+y+1)/2)
 // In other words, "2*TriangleNumberMat(Offset) + 1" -- becomes --> "TriangleNumberMat(Offset)"
+// NOTE(chowie): This will never cause an integer overflow because the
+// tree must be odd (so at least 1)!
 inline u64
 RemoveFinkHashParity(u64 Hash)
 {
@@ -1944,6 +1946,8 @@ TestDoubleCheckFinkHashReplace(u32 Flag)
 // Fink hash main
 //
 
+// RESOURCE(): http://www.0x80.pl/notesen/2013-11-23-integer-sequence-encoding.html
+// TODO(chowie): Compression for variable-sized integers?
 internal void
 ProcessFinkHashTree(void)
 {
