@@ -83,7 +83,7 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile)
         LARGE_INTEGER FileSize;
         if(GetFileSizeEx(FileHandle, &FileSize))
         {
-            u32 FileSize32 = SafeTruncateU64(FileSize.QuadPart); // NOTE(chowie): Not interested in loading large files for debug
+            u32 FileSize32 = SafeTruncateToU32(FileSize.QuadPart); // NOTE(chowie): Not interested in loading large files for debug
             Result.Contents = VirtualAlloc(0, FileSize32, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
             if(Result.Contents)
             {
@@ -229,8 +229,9 @@ PLATFORM_GET_ALL_FILES_OF_TYPE_END(Win32GetAllFilesOfTypeEnd)
     }
 }
 
+// TODO(chowie): Remove?
 internal
-PLATFORM_OPEN_FILE(Win32OpenNextFile)
+PLATFORM_OPEN_NEXT_FILE(Win32OpenNextFile)
 {
     platform_file_handle Result = {};
 
@@ -266,15 +267,15 @@ PLATFORM_OPEN_FILE(Win32OpenNextFile)
 internal
 PLATFORM_READ_DATA_FROM_FILE(Win32ReadDataFromFile)
 {
-    if(PlatformNoFileErrors(Source))
+    if(PlatformNoFileErrors(Handle))
     {
-        win32_platform_file_handle *FileHandle = (win32_platform_file_handle *)Source->Platform;
+        win32_platform_file_handle *FileHandle = (win32_platform_file_handle *)Handle->Platform;
 
         OVERLAPPED Overlapped = {};
         Overlapped.Offset = (u32)((Offset >> 0) & 0xFFFFFFFF);
         Overlapped.OffsetHigh = (u32)((Offset >> 32) & 0xFFFFFFFF);
 
-        u32 FileSize32 = SafeTruncateU64(Size);
+        u32 FileSize32 = SafeTruncateToU32(Size);
 
         DWORD BytesRead;
         if(ReadFile(FileHandle->Handle, Dest, FileSize32, &BytesRead, &Overlapped) &&
@@ -284,7 +285,33 @@ PLATFORM_READ_DATA_FROM_FILE(Win32ReadDataFromFile)
         }
         else
         {
-            Win32FileError(Source, "Read file failed.");
+            Win32FileError(Handle, "Read file failed.");
+        }
+    }
+}
+
+internal
+PLATFORM_WRITE_DATA_TO_FILE(Win32WriteDataToFile)
+{
+    if(PlatformNoFileErrors(Handle))
+    {
+        win32_platform_file_handle *FileHandle = (win32_platform_file_handle *)Handle->Platform;
+        
+        OVERLAPPED Overlapped = {};
+        Overlapped.Offset = (u32)((Offset >> 0) & 0xFFFFFFFF);
+        Overlapped.OffsetHigh = (u32)((Offset >> 32) & 0xFFFFFFFF);
+
+        u32 FileSize32 = SafeTruncateToU32(Size);
+        
+        DWORD BytesWritten;
+        if(WriteFile(FileHandle->Handle, Source, FileSize32, &BytesWritten, &Overlapped) &&
+           (FileSize32 == BytesWritten))
+        {
+            // NOTE(chowie): File write succeeded!
+        }
+        else
+        {
+            Win32FileError(Handle, "Write file failed.");
         }
     }
 }
@@ -1538,6 +1565,7 @@ WinMain(HINSTANCE Instance,
             Platform.GetAllFilesOfTypeEnd = Win32GetAllFilesOfTypeEnd;
             Platform.OpenNextFile = Win32OpenNextFile;
             Platform.ReadDataFromFile = Win32ReadDataFromFile;
+            Platform.WriteDataToFile = Win32WriteDataToFile;
 
             //
             //

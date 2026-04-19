@@ -20,7 +20,7 @@ ReadEntireFile(char *FileName)
 {
     string Result = {};
 
-    FILE *In = fopen(FileName, "rb");
+    FILE *In = fopen(FileName, "rb"); // STUDY(chowie): "r" = read, "b" = binary
     if(In)
     {
         // STUDY(chowie): Hacky way to get location of the entire
@@ -46,7 +46,7 @@ ReadEntireFile(char *FileName)
 //
 
 internal builder_loaded_bitmap
-LoadBitmap(char *FileName)
+LoadBMP(char *FileName)
 {
     builder_loaded_bitmap Result = {};
 
@@ -118,6 +118,8 @@ LoadBitmap(char *FileName)
         }
     }
 
+    // NOTE(chowie): Guard against multiple bitmap
+    // pitches, fixed or padded to a particular thing.
     Result.Pitch = Result.Dim.Width*BITMAP_BYTES_PER_PIXEL;
 
     return(Result);
@@ -128,14 +130,14 @@ LoadBitmap(char *FileName)
 //
 
 internal void
-BeginAssetType(loaded_rui *RUI, asset_type_id ID)
+BeginAssetType(loaded_rui *RUI, asset_type_id TypeID)
 {
-    Assert(RUI->AssetType == 0); // NOTE(chowie): Assumes not multithreaded for now!
+    Assert(RUI->DEBUGAssetType == 0); // NOTE(chowie): Assumes not multithreaded for now!
 
-    RUI->AssetType = RUI->AssetType + ID;
-    RUI->AssetType->TypeID = ID;
-    RUI->AssetType->FirstAssetIndex = RUI->AssetCount;
-    RUI->AssetType->OnePastLastAssetIndex = RUI->AssetType->FirstAssetIndex;
+    RUI->DEBUGAssetType = RUI->AssetTypes + TypeID;
+    RUI->DEBUGAssetType->TypeID = TypeID;
+    RUI->DEBUGAssetType->FirstAssetIndex = RUI->AssetCount;
+    RUI->DEBUGAssetType->OnePastLastAssetIndex = RUI->DEBUGAssetType->FirstAssetIndex;
 }
 
 internal void
@@ -154,9 +156,9 @@ AddTag(loaded_rui *RUI, asset_type_id ID, f32 Value)
 internal void
 EndAssetType(loaded_rui *RUI)
 {
-    Assert(RUI->AssetType);
-    RUI->AssetCount = RUI->AssetType->OnePastLastAssetIndex;
-    RUI->AssetType = 0;
+    Assert(RUI->DEBUGAssetType);
+    RUI->AssetCount = RUI->DEBUGAssetType->OnePastLastAssetIndex;
+    RUI->DEBUGAssetType = 0;
     RUI->AssetTypeIndex = 0;
 }
 
@@ -169,10 +171,10 @@ struct added_asset
 internal added_asset
 AddAsset(loaded_rui *RUI)
 {
-    Assert(RUI->AssetType);
-    Assert(RUI->AssetType->OnePastLastAssetIndex < ArrayCount(RUI->Assets));
+    Assert(RUI->DEBUGAssetType);
+    Assert(RUI->DEBUGAssetType->OnePastLastAssetIndex < ArrayCount(RUI->Assets));
 
-    u32 Index = RUI->AssetType->OnePastLastAssetIndex++;
+    u32 Index = RUI->DEBUGAssetType->OnePastLastAssetIndex++;
     builder_asset_source *Source = RUI->AssetSources + Index;
 
     rui_asset *Asset = RUI->Assets + Index;
@@ -200,6 +202,9 @@ AddBitmapAsset(loaded_rui *RUI, char *FileName, v2 AlignPercentage = {0.5f, 0.5f
     bitmap_id Result = {Added.ID};
     return(Result);
 }
+
+// RESOURCE(): http://hero.handmade.network/forums/code-discussion/t/1114-storing_strings_data
+// TODO(chowie): Add strings assets
 
 //
 //
@@ -281,7 +286,7 @@ AddBitmapAsset(loaded_rui *RUI, char *FileName, v2 AlignPercentage = {0.5f, 0.5f
 internal void
 WriteRUI(loaded_rui *RUI, char *FileName)
 {
-    FILE *Out = fopen(FileName, "wb");
+    FILE *Out = fopen(FileName, "wb"); // STUDY(chowie): "w" = write, "b" = binary
     if(Out)
     {
         rui_header Header = {};
@@ -295,6 +300,7 @@ WriteRUI(loaded_rui *RUI, char *FileName)
         //
         //
 
+        // NOTE(chowie): Byte offset
         u32 TagArraySize = Header.TagCount*sizeof(rui_tag); // NOTE(chowie): Use a lower-level write if you need write u64
         u32 AssetTypeArraySize = Header.AssetTypeCount*sizeof(rui_asset_type);
         u32 AssetArraySize = Header.AssetCount*sizeof(rui_asset);
@@ -312,10 +318,37 @@ WriteRUI(loaded_rui *RUI, char *FileName)
         fwrite(RUI->AssetTypes, AssetTypeArraySize, 1, Out);
 
         //
-        //
+        // NOTE(chowie): Asset file creation, write all assets
         //
 
-//        fwrite(RUI->Assets, AssetArraySize, 1, Out);
+        fseek(Out, AssetArraySize, SEEK_CUR);
+        for(u32 AssetIndex = 1; // NOTE(chowie): First file intentionally left blank
+            AssetIndex < Header.AssetCount;
+            ++AssetIndex)
+        {
+            builder_asset_source *Source = RUI->AssetSources + AssetIndex;
+            rui_asset *Dest = RUI->Assets + AssetIndex;
+
+            // NOTE(chowie): Position
+            Dest->DataOffset = ftell(Out); // NOTE(chowie): Use ftelli64 if past 4GB/64-bit
+
+            // TODO(chowie): Add AssetType_Sounds
+            if(Source->Type == AssetType_Font)
+            {
+            }
+            else
+            {
+                builder_loaded_bitmap Bitmap;
+                Bitmap = LoadBMP(Source->Bitmap.FileName);
+                Dest->Bitmap.Dim = V2U(Bitmap.Dim);
+
+                fwrite(Bitmap.Memory, Bitmap.Dim.Width*Bitmap.Dim.Height*BITMAP_BYTES_PER_PIXEL, 1, Out);
+
+                free(Bitmap.Free);
+            }
+        }
+        fseek(Out, (u32)Header.AssetsOffset, SEEK_SET); // NOTE(chowie): Use lseek if past 4GB/64-bit
+        fwrite(RUI->Assets, AssetArraySize, 1, Out);
 
         fclose(Out);
     }
@@ -334,10 +367,11 @@ InitRUI(loaded_rui *RUI)
 {
     RUI->AssetCount = 1;
     RUI->TagCount = 1;
+    RUI->DEBUGAssetType = 0;
     RUI->AssetTypeIndex = 0;
 
     RUI->AssetTypeCount = Asset_Count;
-    memset(RUI->Tags, 0, sizeof(RUI->Tags));
+    memset(RUI->AssetTypes, 0, sizeof(RUI->AssetTypes));
 }
 
 internal void
@@ -372,6 +406,7 @@ WriteNonPlayer(void)
     WriteRUI(RUI, "DEBUG_NonPlayer.rui");
 }
 
+// TODO(chowie): Add simple compression!
 int
 main(int ArgCount, char **Args)
 {
@@ -394,6 +429,7 @@ struct debug_state
 
 // NOTE(chowie): Every time you want to make a change, add to this list (don't reorder)!
 // TODO(chowie): Replace with proper data
+// STUDY(chowie): This is the equivalent of 'writing' the location
 enum serialization_versions
 {
     SV_Scores = 1,
@@ -404,15 +440,15 @@ enum serialization_versions
 };
 #define SV_Latest (SV_LatestPlusOne - 1)
 
-// TODO(chowie): Any point to saving file handle here (instead of buffer)?
 struct lbp_serializer
 {
     u32 DataVersion;
     b32 IsWriting;
 
+    // FILE *In; // TODO(chowie): Any point to saving file handle here (instead of buffer)?
     u32 Counter; // NOTE(chowie): Checks for integrity
 
-    buffer Buffer; // TODO(chowie): Replace with arenas?
+    buffer Buffer; // TODO(chowie): Replace with arenas? Replace with u32, not umm?
 };
 
 internal void
@@ -420,13 +456,13 @@ Serialize(lbp_serializer *Serializer, u32 *Datum)
 {
     if(Serializer->IsWriting)
     {
-        // NOTE(chowie): Equivant to alloc
+        // NOTE(chowie): Equivant to alloc (write)
         u32 *Pointer = (u32 *)(Serializer->Buffer.Data + Serializer->Buffer.Size);
         *Pointer = *Datum;
     }
     else
     {
-        // NOTE(chowie): Equivant to realloc
+        // NOTE(chowie): Equivant to realloc (read)
         *Datum = *(u32 *)(Serializer->Buffer.Data + Serializer->Buffer.Size);
     }
     Serializer->Buffer.Size += sizeof(u32);

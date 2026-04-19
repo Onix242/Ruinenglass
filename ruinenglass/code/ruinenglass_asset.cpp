@@ -26,6 +26,7 @@ AllocGameAssets(transient_state *TranState, memory_arena *Arena, umm Size)
         platform_file_group FileGroup = Platform.GetAllFilesOfTypeBegin(PlatformFileType_AssetFile);
         GameAssets->FileCount = FileGroup.FileCount;
         GameAssets->Files = PushArray(Arena, asset_file, GameAssets->FileCount);
+
         for(u32 FileIndex = 0;
             FileIndex < GameAssets->FileCount;
             ++FileIndex)
@@ -33,7 +34,7 @@ AllocGameAssets(transient_state *TranState, memory_arena *Arena, umm Size)
             asset_file *File = GameAssets->Files + FileIndex;
 
             File->FontBitmapIDOffset = 0;
-            File->AssetBase = GameAssets->AssetCount - 1;
+//            File->AssetBase = GameAssets->AssetCount - 1;
             File->TagBase = GameAssets->TagCount;
 
             ZeroStruct(File->Header);
@@ -45,9 +46,9 @@ AllocGameAssets(transient_state *TranState, memory_arena *Arena, umm Size)
             Platform.ReadDataFromFile(&File->FileHandle, File->Header.AssetTypesOffset,
                                       AssetTypeArraySize, File->AssetTypeArray);
 
-            // NOTE(chowie): All we care about is getting back a
-            // header, we don't care when that happens; if we cannot
-            // open the file, we can't open the file.
+            // NOTE(chowie): Attempt to get back a header. We don't
+            // care when that happens; if we cannot open the file, we
+            // can't open the file.
             if(File->Header.MagicValue != RUI_MAGIC_VALUE)
             {
                 Platform.FileError(&File->FileHandle, "RUI file has an invalid magic value.");
@@ -79,6 +80,7 @@ AllocGameAssets(transient_state *TranState, memory_arena *Arena, umm Size)
                 InvalidCodePath;
             }
         }
+
         Platform.GetAllFilesOfTypeEnd(&FileGroup);
     }
 

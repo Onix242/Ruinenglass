@@ -119,11 +119,14 @@ typedef PLATFORM_GET_ALL_FILES_OF_TYPE_BEGIN(platform_get_all_files_of_type_begi
 #define PLATFORM_GET_ALL_FILES_OF_TYPE_END(name) void name(platform_file_group *FileGroup)
 typedef PLATFORM_GET_ALL_FILES_OF_TYPE_END(platform_get_all_files_of_type_end);
 
-#define PLATFORM_OPEN_FILE(name) platform_file_handle name(platform_file_group *FileGroup)
-typedef PLATFORM_OPEN_FILE(platform_open_next_file);
+#define PLATFORM_OPEN_NEXT_FILE(name) platform_file_handle name(platform_file_group *FileGroup)
+typedef PLATFORM_OPEN_NEXT_FILE(platform_open_next_file);
 
-#define PLATFORM_READ_DATA_FROM_FILE(name) void name(platform_file_handle *Source, u64 Offset, u64 Size, void *Dest)
+#define PLATFORM_READ_DATA_FROM_FILE(name) void name(platform_file_handle *Handle, u64 Offset, u64 Size, void *Dest)
 typedef PLATFORM_READ_DATA_FROM_FILE(platform_read_data_from_file);
+
+#define PLATFORM_WRITE_DATA_TO_FILE(name) void name(platform_file_handle *Handle, u64 Offset, u64 Size, void *Source)
+typedef PLATFORM_WRITE_DATA_TO_FILE(platform_write_data_to_file);
 
 //
 //
@@ -167,6 +170,7 @@ typedef struct platform_api
     platform_get_all_files_of_type_end *GetAllFilesOfTypeEnd;
     platform_open_next_file *OpenNextFile;
     platform_read_data_from_file *ReadDataFromFile;
+    platform_write_data_to_file *WriteDataToFile;
 
 #if RUINENGLASS_INTERNAL
     debug_platform_free_file_memory  *DEBUGFreeFileMemory;

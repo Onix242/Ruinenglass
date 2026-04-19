@@ -8,7 +8,7 @@
 
 inline void
 PushBitmapInternal(render_group *RenderGroup, rui_bitmap *Bitmap,
-           f32 Height, v3 Offset, v4 Colour = V4(1, 1, 1, 1))
+                   f32 Height, v3 Offset, v4 Colour = V4(1, 1, 1, 1))
 {
     if(Bitmap->Dim.E)
     {

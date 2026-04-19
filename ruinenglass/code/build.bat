@@ -22,11 +22,10 @@ mkdir ..\..\build
 pushd ..\..\build
 
 del *.pdb > NUL 2> NUL
-echo WAITING FOR PDB > lock.tmp
 
 REM TODO(chowie): Custom executable name
 REM RESOURCE(theinternetftw): https://hero.handmade.network/forums/code-discussion/t/121-batch_script_notes
-set ExecutableName= Ruinenglass
+set ExecutableName= MachiRepli
 
 REM ForAllTestingGrounds
 REM cl %CommonCompilerFlags% -D_CRT_SECURE_NO_WARNINGS ..\ruinenglass\code\test_gap_buffer.cpp %CommonLinkerFlags%
@@ -34,7 +33,9 @@ REM cl %CommonCompilerFlags% -D_CRT_SECURE_NO_WARNINGS ..\ruinenglass\code\test_
 REM Asset Builder
 cl %CommonCompilerFlags% -D_CRT_SECURE_NO_WARNINGS ..\ruinenglass\code\test_asset_builder.cpp %CommonLinkerFlags%
 
+REM TODO(chowie): Add .map file?
 REM GAME
+echo WAITING FOR PDB > lock.tmp
 cl %CommonCompilerFlags% ..\ruinenglass\code\ruinenglass.cpp       %GameDLLFlags%
 del lock.tmp
 cl %CommonCompilerFlags% ..\ruinenglass\code\win32_ruinenglass.cpp %CommonLinkerFlags%

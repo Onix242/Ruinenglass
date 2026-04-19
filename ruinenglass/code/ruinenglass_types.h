@@ -425,10 +425,26 @@ IsPow2(u32 Value)
 
 // NOTE(chowie): Explicit cast - no data should really be > hi32-bits
 inline u32
-SafeTruncateU64(u64 Value)
+SafeTruncateToU32(u64 Value)
 {
     Assert(Value <= U32Max);
     u32 Result = (u32)Value;
+    return(Result);
+}
+
+inline u16
+SafeTruncateToU16(u32 Value)
+{
+    Assert(Value <= U16Max);
+    u16 Result = (u16)Value;
+    return(Result);
+}
+
+inline u8
+SafeTruncateToU8(u64 Value)
+{
+    Assert(Value <= U8Max);
+    u8 Result = (u8)Value;
     return(Result);
 }
 

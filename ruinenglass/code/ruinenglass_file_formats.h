@@ -33,7 +33,7 @@
 
 // NOTE(chowie):
 // Game Code    | Asset Table
-// - categories | - bitmaps
+// - categories | - bitmaps/pngs of voxel faces
 // - tags       |
 
 // Asset Table has:
@@ -83,7 +83,7 @@ enum asset_font_typeface
     FontTypeface_Fraunces,
 
     //
-    // NOTE(chowie): Strictly for gameplay (world space text)
+    // NOTE(chowie): Strictly for gameplay (world-space text)
     //
 
     FontTypeface_Eurolang, // NOTE(chowie): Includes Cistercian clock numbers, maps to ~1234567890-=
@@ -194,13 +194,11 @@ struct rui_header
 
     u32 TagCount;
     u32 AssetCount;
-
     u32 AssetTypeCount;
 
     u64 TagsOffset; // rui_tag[TagCount]
-    u64 AssetsOffset; // rui_asset[AssetCount]
-
     u64 AssetTypesOffset; // rui_asset_type[AssetTypeCount]
+    u64 AssetsOffset; // rui_asset[AssetCount]
 };
 
 struct rui_tag

@@ -12,6 +12,8 @@
 
 // TODO(chowie): Store strings in here?
 
+// TODO(chowie): Eventually switch to using Windows to read/write
+
 #include "ruinenglass_platform.h"
 #include "ruinenglass_file_formats.h"
 #include "ruinenglass_intrinsics.h"
@@ -21,7 +23,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <memory.h>
-// TODO(chowie): Am I able to remove Windows for stb_truetype?
+// IMPORTANT(chowie): TODO(chowie): Remove Windows for stb_truetype?
 #include <windows.h>
 
 #pragma pack(push, 1)
@@ -78,13 +80,6 @@ struct builder_loaded_font
 //
 //
 
-enum builder_asset_type
-{
-    AssetType_Bitmap,
-    AssetType_Font,
-    AssetType_FontGlyph,
-};
-
 struct builder_asset_source_bitmap
 {
     char *FileName;
@@ -99,6 +94,13 @@ struct builder_asset_source_font_glyph
 {
     builder_loaded_font *Font;
     u32 Codepoint;
+};
+
+enum builder_asset_type
+{
+    AssetType_Bitmap,
+    AssetType_Font,
+    AssetType_FontGlyph,
 };
 
 // NOTE(chowie): Data only used for processing and not saved in file
@@ -132,10 +134,10 @@ struct loaded_rui
     u32 AssetCount;
     rui_asset Assets[BUILDER_MAX_SIZE]; // NOTE(chowie): Assets in file
 
-    builder_asset_source AssetSources[BUILDER_MAX_SIZE];
+    builder_asset_source AssetSources[BUILDER_MAX_SIZE]; // NOTE(chowie): Just markup, never write it out!
 
     u32 AssetTypeIndex;
-    rui_asset_type *AssetType;
+    rui_asset_type *DEBUGAssetType;
 };
 
 #define TEST_ASSET_BUILDER_H
