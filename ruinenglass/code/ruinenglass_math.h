@@ -1234,6 +1234,28 @@ Length(v3 A)
     return(Result);
 }
 
+// RESOURCE(): https://lisyarus.github.io/blog/posts/its-ok-to-compare-floating-points-for-equality.html
+// NOTE(chowie): Use this when you want to treat FP-precision
+// carefully, instead of a length + threshold/epsilon
+inline f32
+LengthPrecise(v3 A)
+{
+    f32 Result = 0;
+
+    f32 M = Max3(Abs(A.x), Abs(A.y), Abs(A.z));
+    if(M == 0.f)
+    {
+        Result = 0.f;
+    }
+    else
+    {
+        v3 u = A / M;
+        Result = M*Sqrt(LengthSq(u));
+    }
+
+    return(Result);
+}
+
 // RESOURCE(owl): https://fastcpp.blogspot.com/2012/02/calculating-length-of-3d-vector-using.html
 // TODO(chowie): Convert to SSE4?
 inline v3
@@ -1389,6 +1411,26 @@ SLerp(v3 A, f32 t, v3 B)
     return(Result);
 }
 */
+
+// RESOURCE(): https://lisyarus.github.io/blog/posts/its-ok-to-compare-floating-points-for-equality.html
+inline v3
+SLerp(v3 A, f32 t, v3 B)
+{
+    v3 Result = {};
+
+    f32 Dot = Inner(A, B);
+    if(Dot >= 1.f)
+    {
+        Result = Lerp(A, t, B);
+    }
+    else
+    {
+        f32 Angle = acosf(Dot);
+        Result = (Sin((1 - t)*Angle)*A + Sin(t*Angle)*B) / Sin(Angle);
+    }
+
+    return(Result);
+}
 
 struct get_basis_result
 {
@@ -2711,23 +2753,17 @@ AspectRatioFit(v2u Render, v2u Window)
 {
     rect2i Result = {};
 
-    v2 OptimalWindow =
-    {
-        (f32)(Window.Height * (Render.Width / Render.Height)),
-        (f32)(Window.Width  * (Render.Height / Render.Width)),
-    };
-
-    Result.Min.x = 0;
-    Result.Max.x = RoundF32ToS32(OptimalWindow.Width);
-    Result.Min.y = 0;
-    Result.Max.y = RoundF32ToS32(OptimalWindow.Height);
-
-#if 0
     if((Render.Width > 0) &&
        (Render.Height > 0) &&
        (Window.Width > 0) &&
        (Window.Height > 0))
     {
+        v2 OptimalWindow =
+        {
+            (f32)Window.Height*((f32)Render.Width/(f32)Render.Height),
+            (f32)Window.Width*((f32)Render.Height/(f32)Render.Width),
+        };
+
         if(OptimalWindow.Width > (f32)Window.Width)
         {
             // NOTE(chowie): Width-constrained display - top and bottom black bars
@@ -2755,7 +2791,6 @@ AspectRatioFit(v2u Render, v2u Window)
             Result.Max.x = Result.Min.x + UseWidth;
         }
     }
-#endif
 
     return(Result);
 }

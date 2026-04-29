@@ -18,9 +18,13 @@ AllocGameAssets(transient_state *TranState, memory_arena *Arena, umm Size)
     GameAssets->TranState = TranState;
 
     // NOTE(chowie): First entries are intentionally left null
-    GameAssets->TagCount   = 1;
     GameAssets->AssetCount = 1;
+    GameAssets->TagCount   = 1;
     GameAssets->FileCount  = 1;
+
+    //
+    // NOTE(chowie): Init Source File
+    //
 
     {
         platform_file_group FileGroup = Platform.GetAllFilesOfTypeBegin(PlatformFileType_AssetFile);
@@ -34,16 +38,15 @@ AllocGameAssets(transient_state *TranState, memory_arena *Arena, umm Size)
             asset_file *File = GameAssets->Files + FileIndex;
 
             File->FontBitmapIDOffset = 0;
-//            File->AssetBase = GameAssets->AssetCount - 1;
             File->TagBase = GameAssets->TagCount;
 
             ZeroStruct(File->Header);
-            File->FileHandle = Platform.OpenNextFile(&FileGroup);
-            Platform.ReadDataFromFile(&File->FileHandle, 0, sizeof(File->Header), &File->Header);
+            File->Handle = Platform.OpenNextFile(&FileGroup);
+            Platform.ReadDataFromFile(&File->Handle, 0, sizeof(File->Header), &File->Header);
 
             u32 AssetTypeArraySize = File->Header.AssetTypeCount*sizeof(rui_asset_type);
             File->AssetTypeArray = (rui_asset_type *)PushSize(Arena, AssetTypeArraySize);
-            Platform.ReadDataFromFile(&File->FileHandle, File->Header.AssetTypesOffset,
+            Platform.ReadDataFromFile(&File->Handle, File->Header.AssetTypesOffset,
                                       AssetTypeArraySize, File->AssetTypeArray);
 
             // NOTE(chowie): Attempt to get back a header. We don't
@@ -51,27 +54,26 @@ AllocGameAssets(transient_state *TranState, memory_arena *Arena, umm Size)
             // can't open the file.
             if(File->Header.MagicValue != RUI_MAGIC_VALUE)
             {
-                Platform.FileError(&File->FileHandle, "RUI file has an invalid magic value.");
+                Platform.FileError(&File->Handle, "RUI file has an invalid magic value.");
             }
 
             if(File->Header.Version > RUI_VERSION)
             {
-                Platform.FileError(&File->FileHandle, "RUI file is of a later version.");
+                Platform.FileError(&File->Handle, "RUI file is of a later version.");
             }
 
-            if(PlatformNoFileErrors(&File->FileHandle))
+            if(PlatformNoFileErrors(&File->Handle))
             {
                 // NOTE(chowie): The first asset and tag slot is a
-                // null asset (reserved), it is not counted as
-                // something that requires space!
-                if(File->Header.TagCount)
-                {
-                    GameAssets->TagCount += (File->Header.TagCount - 1);
-                }
-
+                // null asset (reserved).
                 if(File->Header.AssetCount)
                 {
                     GameAssets->AssetCount += (File->Header.AssetCount - 1);
+                }
+
+                if(File->Header.TagCount)
+                {
+                    GameAssets->TagCount += (File->Header.TagCount - 1);
                 }
             }
             else
@@ -84,40 +86,45 @@ AllocGameAssets(transient_state *TranState, memory_arena *Arena, umm Size)
         Platform.GetAllFilesOfTypeEnd(&FileGroup);
     }
 
-    GameAssets->Tags   = PushArray(Arena, rui_tag, GameAssets->TagCount);
-    ZeroStruct(GameAssets->Tags[0]); // NOTE(chowie): First entry is intentionally left null
+    // NOTE(chowie): Allocate metadata space
     GameAssets->Assets = PushArray(Arena, asset, GameAssets->AssetCount);
+    GameAssets->Tags   = PushArray(Arena, rui_tag, GameAssets->TagCount);
 
-    // NOTE(chowie): First entry is intentionally left null
+    // NOTE(chowie): First entry + tags is intentionally left null
     u32 GameAssetCount = 0;
     ZeroStruct(*(GameAssets->Assets + GameAssetCount));
     ++GameAssetCount;
+    ZeroStruct(GameAssets->Tags[0]);
+
+    //
+    // NOTE(chowie): Pack file
+    //
 
     for(u32 FileIndex = 0;
         FileIndex < GameAssets->FileCount;
         ++FileIndex)
     {
         asset_file *File = GameAssets->Files + FileIndex;
-        if(PlatformNoFileErrors(&File->FileHandle))
+        if(PlatformNoFileErrors(&File->Handle))
         {
             if(File->Header.TagCount)
             {
                 // NOTE(chowie): Skip the first tag, since it is null!
                 u32 TagArraySize = sizeof(rui_tag)*(File->Header.TagCount - 1);
-                Platform.ReadDataFromFile(&File->FileHandle, File->Header.TagsOffset + sizeof(rui_tag),
+                Platform.ReadDataFromFile(&File->Handle, File->Header.TagsOffset + sizeof(rui_tag),
                                           TagArraySize, GameAssets->Tags + File->TagBase);
-                // NOTE(chowie): Tags don't really reference anything that needs
-                // to be moved really! It is flat-loaded in this case.
+                // NOTE(chowie): Tags don't really reference anything that
+                // needs to be moved really! It's flat-loaded here.
             }
 
             if(File->Header.AssetCount)
             {
                 u32 FileAssetCount = (File->Header.AssetCount - 1);
 
-                temporary_memory TempMemory = BeginTemporaryMemory(&TranState->TranArena);
+                temp_memory TempMemory = BeginTempMemory(&TranState->TranArena);
                 rui_asset *AssetArray = PushArray(&TranState->TranArena,
                                                   rui_asset, FileAssetCount);
-                Platform.ReadDataFromFile(&File->FileHandle,
+                Platform.ReadDataFromFile(&File->Handle,
                                           File->Header.AssetsOffset + 1*sizeof(rui_asset),
                                           FileAssetCount*sizeof(rui_asset),
                                           AssetArray);
@@ -144,13 +151,17 @@ AllocGameAssets(transient_state *TranState, memory_arena *Arena, umm Size)
                     }
                 }
 
-                EndTemporaryMemory(TempMemory);
+                EndTempMemory(TempMemory);
             }
         }
     }
 
     return(GameAssets);
 }
+
+//
+// Multithreading Assets?
+//
 
 inline asset_file *
 GetFile(game_assets *GameAssets, u32 FileIndex)
@@ -163,13 +174,9 @@ GetFile(game_assets *GameAssets, u32 FileIndex)
 inline platform_file_handle *
 GetFileHandleFor(game_assets *GameAssets, u32 FileIndex)
 {
-    platform_file_handle *Result = &GetFile(GameAssets, FileIndex)->FileHandle;
+    platform_file_handle *Result = &GetFile(GameAssets, FileIndex)->Handle;
     return(Result);
 }
-
-//
-// Multithreading Assets?
-//
 
 internal
 PLATFORM_WORK_QUEUE_CALLBACK(LoadAssetWork)
@@ -177,8 +184,8 @@ PLATFORM_WORK_QUEUE_CALLBACK(LoadAssetWork)
     load_asset_work *Work = (load_asset_work *)Data;
     asset_state State = AssetState_Unloaded;
 
-    Platform.ReadDataFromFile(Work->FileHandle, Work->Offset, Work->Size, Work->Destination);
-    if(PlatformNoFileErrors(Work->FileHandle))
+    Platform.ReadDataFromFile(Work->Handle, Work->Offset, Work->Size, Work->Destination);
+    if(PlatformNoFileErrors(Work->Handle))
     {
         State = AssetState_Loaded;
     
@@ -296,7 +303,7 @@ LoadBitmap(game_assets *GameAssets, bitmap_id ID)
             load_asset_work *Work = PushStruct(&TaskMemory->Arena, load_asset_work, NoClear());
             Work->TaskMemory = TaskMemory;
             Work->Asset = Asset;
-            Work->FileHandle = GetFileHandleFor(GameAssets, Asset->FileIndex);
+            Work->Handle = GetFileHandleFor(GameAssets, Asset->FileIndex);
             Work->Offset = Asset->RUI.DataOffset;
             Work->Size = TextureSize;
 //            Work->Destination = Bitmap->Memory; // TODO(chowie): Figure out someway TextureOp?
@@ -345,7 +352,7 @@ LoadFont(game_assets *GameAssets, font_id ID)
             load_asset_work *Work = PushStruct(&TaskMemory->Arena, load_asset_work, NoClear());
             Work->TaskMemory = TaskMemory;
             Work->Asset = Asset;
-            Work->FileHandle = GetFileHandleFor(GameAssets, Asset->FileIndex);
+            Work->Handle = GetFileHandleFor(GameAssets, Asset->FileIndex);
             Work->Offset = Asset->RUI.DataOffset;
             Work->Size = SizeData;
 //            Work->Destination = Bitmap->Memory; // TODO(chowie): Figure out someway TextureOp?

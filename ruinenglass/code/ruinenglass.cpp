@@ -206,9 +206,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         // audio clipping at the beginning?
 //        InitialiseAudioState(&GameState->AudioState);
 
-        InitialiseArena(&GameState->WorldArena,
-                        Memory->Permanent.Size - sizeof(game_state),
-                        Memory->Permanent.Base + sizeof(game_state));
+        InitArena(&GameState->WorldArena,
+                  Memory->Permanent.Size - sizeof(game_state),
+                  Memory->Permanent.Base + sizeof(game_state));
 
         //
         //
@@ -233,9 +233,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     transient_state *TranState = (transient_state *)Memory->Transient.Base;
     if(!TranState->IsInitialised)
     {
-        InitialiseArena(&TranState->TranArena,
-                        Memory->Transient.Size - sizeof(transient_state),
-                        Memory->Transient.Base + sizeof(transient_state));
+        InitArena(&TranState->TranArena,
+                  Memory->Transient.Size - sizeof(transient_state),
+                  Memory->Transient.Base + sizeof(transient_state));
 
         TranState->HighPriorityQueue = Memory->HighPriorityQueue;
         TranState->LowPriorityQueue  = Memory->LowPriorityQueue;
@@ -248,7 +248,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             Task->BeingUsed = false;
         }
 
-//        TranState->GameAssets = AllocGameAssets(TranState, &TranState->TranArena, Megabytes(256));
+        TranState->GameAssets = AllocGameAssets(TranState, &TranState->TranArena, Megabytes(256));
 
         TranState->IsInitialised = true;
     }

@@ -53,7 +53,7 @@
 // file). OTF intersects font glyphs, and programs don't play nice
 // either. I figured out (+ looking online says) TTF supports
 // overlapping contours!
-// TODO(chowie): Load ".lhl" writing format and ".klp" conlang format
+// COULDDO(chowie): Load ".lhl" writing format and ".klp" conlang format
 
 //
 //
@@ -227,6 +227,30 @@ struct rui_font
     f32 ExternalLeading;
 };
 
+// NOTE(chowie): Rep = Repeat
+enum rui_repligram_op_type : u8
+{
+    RepligramOp_None = BitSet(0),
+
+    RepligramOp_Modulo = BitSet(1),
+    RepligramOp_RepAdd = BitSet(2),
+    RepligramOp_RepSub = BitSet(3),
+    RepligramOp_Joined = BitSet(4), // NOTE(chowie): Requires ops to be adjacent to each other, includes formbanks' bars and blanks
+};
+struct rui_repligram_priority
+{
+    u8 Priority[2]; // NOTE(chowie): 0 maps to 'x'
+    enum8(repligram_op_type) Op;
+    u8 JoinedMax; // NOTE(chowie): Requires op_joined
+};
+
+struct rui_repligram
+{
+    v3u Dim;
+    v2u PriorityDim;
+    string PuzzleName;
+};
+
 // NOTE(chowie): References continguous range in a separate table
 // (array). Allows multiple asset files to be merged contiguously.
 struct rui_asset_type
@@ -236,7 +260,7 @@ struct rui_asset_type
     u32 OnePastLastAssetIndex;
 };
 
-enum asset_header_type // TODO(chowie): Use?
+enum asset_header_type
 {
     HeaderType_None,
 
@@ -251,11 +275,12 @@ struct rui_asset
     u64 DataOffset;
     u32 FirstTagIndex;
     u32 OnePastLastTagIndex;
-    enum32(asset_header_type) Type; // TODO(chowie): Use?
+    enum32(asset_header_type) Type;
     union
     {
         rui_bitmap Bitmap;
         rui_font Font;
+        rui_repligram Repligram;
     };
 };
 

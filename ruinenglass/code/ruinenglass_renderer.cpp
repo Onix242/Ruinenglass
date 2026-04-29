@@ -13,7 +13,6 @@ BeginRenderGroup(game_assets *GameAssets, game_render_commands *Commands)
 
     Result.GameAssets = GameAssets;
     Result.Commands = Commands;
-    Result.ScreenDim = V2i(Commands->Dim);
 
     return(Result);
 }

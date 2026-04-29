@@ -273,7 +273,7 @@ OpenGLRenderCommands(game_render_commands *Commands, v2u WindowDim)
     glMatrixMode(GL_TEXTURE);
     glLoadIdentity();
 
-    OpenGLSetScreenSpace(Commands->Dim);
+    OpenGLSetScreenSpace(Commands->OSWindowDim);
 
 //    u32 ClipRect = 0xFFFFFFFF; // STUDY: Set ClipRect to something that cannot be true, so we set it everytime, instead of force setting to 0
     for(umm BaseAddress = 0;

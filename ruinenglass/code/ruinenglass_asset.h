@@ -65,12 +65,12 @@ struct asset_type
 
 struct asset_file
 {
-    platform_file_handle FileHandle;
+    platform_file_handle Handle;
 
     rui_header Header;
     rui_asset_type *AssetTypeArray; // COULDDO(chowie): Proper thread stacks would render AssetTypeArray as useless!
 
-    u32 AssetBase;
+    u32 AssetBase; // TODO(chowie): Do I really need this?
     u32 TagBase;
     s32 FontBitmapIDOffset;
 };
@@ -116,7 +116,7 @@ struct load_asset_work
 {
     task_memory *TaskMemory;
     asset *Asset;
-    platform_file_handle *FileHandle;
+    platform_file_handle *Handle;
 
     u64 Offset;
     u64 Size;

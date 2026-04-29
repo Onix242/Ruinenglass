@@ -76,15 +76,14 @@ typedef struct memory_arena
     s32 TempCount; // TODO(chowie): Do I really need this here? Becomes 8-bytes instead of 4, a s64
 } memory_arena;
 
-// TODO(chowie): Use this!
-typedef struct temporary_memory
+typedef struct temp_memory
 {
     memory_arena *Arena;
     umm Used;
-} temporary_memory;
+} temp_memory;
 
 internal void
-InitialiseArena(memory_arena *Arena, umm Size, u8 *Base)
+InitArena(memory_arena *Arena, umm Size, u8 *Base)
 {
     Arena->Size = Size;
     Arena->Base = Base;
@@ -92,12 +91,12 @@ InitialiseArena(memory_arena *Arena, umm Size, u8 *Base)
     Arena->TempCount = 0;
 }
 
-// NOTE(chowie): Similar to begin and end temporary memory; pretty much
+// NOTE(chowie): Similar to begin and end temp memory; pretty much
 // permanent until wanting to clear it.
 inline void
 ClearArena(memory_arena *Arena)
 {
-    InitialiseArena(Arena, Arena->Size, Arena->Base);
+    InitArena(Arena, Arena->Size, Arena->Base);
 }
 
 enum arena_push_flag
@@ -255,10 +254,10 @@ PushZ(memory_arena *Arena, u32 Length, char *Source)
 
 // NOTE(chowie): Thread safety probably not a problem here, memory
 // should be come from each thread's arena.
-inline temporary_memory
-BeginTemporaryMemory(memory_arena *Arena)
+inline temp_memory
+BeginTempMemory(memory_arena *Arena)
 {
-    temporary_memory Result;
+    temp_memory Result;
 
     Result.Arena = Arena;
     Result.Used = Arena->Used;
@@ -269,7 +268,7 @@ BeginTemporaryMemory(memory_arena *Arena)
 }
 
 inline void
-KeepTemporaryMemory(temporary_memory TempMemory)
+KeepTempMemory(temp_memory TempMemory)
 {
     memory_arena *Arena = TempMemory.Arena;
     
@@ -278,7 +277,7 @@ KeepTemporaryMemory(temporary_memory TempMemory)
 }
 
 inline void
-EndTemporaryMemory(temporary_memory TempMemory)
+EndTempMemory(temp_memory TempMemory)
 {
     memory_arena *Arena = TempMemory.Arena;
 

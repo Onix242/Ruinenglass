@@ -689,7 +689,7 @@ Win32MakeWorkQueue(platform_work_queue *Queue, u32 ThreadCount, win32_thread_sta
         Startups->Queue = Queue;
 
         DWORD ThreadID;
-        HANDLE ThreadHandle = CreateThread(0, 0, ThreadProc,
+        HANDLE ThreadHandle = CreateThread(0, Megabytes(1), ThreadProc,
                                            Startup, 0, &ThreadID);
         CloseHandle(ThreadHandle);
     }
@@ -722,7 +722,7 @@ PLATFORM_ADD_WORK_QUEUE_ENTRY(Win32AddWorkQueueEntry)
 internal
 PLATFORM_COMPLETE_ALL_WORK_QUEUE(Win32CompleteAllWorkQueue)
 {
-    // STUDY(chowie): Example of a spinlock
+    // STUDY(chowie): Spinlock
     while(Queue->CompletionGoal != Queue->CompletionCount)
     {
         Win32ProcessNextWorkQueueEntry(Queue);
@@ -1848,7 +1848,7 @@ WinMain(HINSTANCE Instance,
                     //
 
                     game_render_commands RenderCommands = 
-                        RenderCommandStruct(GlobalBackbuffer.Dim,
+                        RenderCommandStruct(GlobalBackbuffer.Dim, V2U(0, 0),
                                             PushBufferSize, PushBuffer);
 
                     if(!GlobalPause)

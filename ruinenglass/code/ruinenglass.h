@@ -45,7 +45,7 @@ struct task_memory
     b32x BeingUsed;
 
     memory_arena Arena;
-    temporary_memory TempMemory;
+    temp_memory TempMemory;
 };
 
 // TODO(chowie): Different modes? game_mode_adventure? _creative?
@@ -107,7 +107,7 @@ BeginTaskMemory(transient_state *TranState)
         {
             Result = TaskMemory;
             TaskMemory->BeingUsed = true;
-            TaskMemory->TempMemory = BeginTemporaryMemory(&TaskMemory->Arena);
+            TaskMemory->TempMemory = BeginTempMemory(&TaskMemory->Arena);
             break;
         }
     }
@@ -118,7 +118,7 @@ BeginTaskMemory(transient_state *TranState)
 internal void
 EndTaskMemory(task_memory *Task)
 {
-    EndTemporaryMemory(Task->TempMemory);
+    EndTempMemory(Task->TempMemory);
 
     CompletePrevWritesBeforeFutureWrites;
     Task->BeingUsed = false;
