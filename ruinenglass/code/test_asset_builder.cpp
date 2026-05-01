@@ -125,6 +125,31 @@ LoadBMP(char *FileName)
     return(Result);
 }
 
+internal builder_loaded_repligram
+LoadRepligram(char *FileName)
+{
+    builder_loaded_repligram Result = {};
+
+    string ReadResult = ReadEntireFile(FileName);
+    if(ReadResult.Size != 0)
+    {
+        Result.Free = ReadResult.Data;
+
+        repligram_header *Header = (repligram_header *)ReadResult.Data;
+        Assert(Header->MagicValue == REPLIGRAM_MAGIC_VALUE);
+
+        // TODO(chowie): Do more stuff here!
+        Result.Dim = Header->Dim;
+    }
+
+    return(Result);
+}
+
+internal void
+WriteRepligram(rui_repligram Repligram, char *FileName)
+{
+}
+
 //
 //
 //
@@ -200,6 +225,18 @@ AddBitmapAsset(loaded_rui *RUI, char *FileName, v2 AlignPercentage = {0.5f, 0.5f
     Added.Source->Bitmap.FileName = FileName;
 
     bitmap_id Result = {Added.ID};
+    return(Result);
+}
+
+internal repligram_id
+AddRepligramAsset(loaded_rui *RUI, char *FileName, v3u Dim)
+{
+    added_asset Added = AddAsset(RUI);
+    Added.Asset->Repligram.Dim = Dim; // TODO(chowie): Not sure if I need this exactly?
+    Added.Source->Type = AssetType_Repligram;
+    Added.Source->Repligram.FileName = FileName;
+
+    repligram_id Result = {Added.ID};
     return(Result);
 }
 
@@ -332,19 +369,30 @@ WriteRUI(loaded_rui *RUI, char *FileName)
             // NOTE(chowie): Position
             Dest->DataOffset = ftell(Out); // NOTE(chowie): Use ftelli64 if past 4GB/64-bit
 
-            // TODO(chowie): Add AssetType_Sounds
-            if(Source->Type == AssetType_Font)
+            switch(Source->Type)
             {
-            }
-            else
-            {
-                builder_loaded_bitmap Bitmap;
-                Bitmap = LoadBMP(Source->Bitmap.FileName);
-                Dest->Bitmap.Dim = V2U(Bitmap.Dim);
+                // TODO(chowie): Add AssetType_Sounds
+                case AssetType_Repligram:
+                {
+                } break;
 
-                fwrite(Bitmap.Memory, Bitmap.Dim.Width*Bitmap.Dim.Height*BITMAP_BYTES_PER_PIXEL, 1, Out);
+                // TODO(chowie): Intentionally fallthrough to next case!
+                case AssetType_Font:
+                {
+                } break;
 
-                free(Bitmap.Free);
+                case AssetType_Bitmap:
+                {
+                    builder_loaded_bitmap Bitmap;
+                    Bitmap = LoadBMP(Source->Bitmap.FileName);
+                    Dest->Bitmap.Dim = V2U(Bitmap.Dim);
+
+                    fwrite(Bitmap.Memory, Bitmap.Dim.Width*Bitmap.Dim.Height*BITMAP_BYTES_PER_PIXEL, 1, Out);
+
+                    free(Bitmap.Free);
+                } break;
+
+                InvalidDefaultCase;
             }
         }
         fseek(Out, (u32)Header.AssetsOffset, SEEK_SET); // NOTE(chowie): Use lseek if past 4GB/64-bit
@@ -414,7 +462,7 @@ main(int ArgCount, char **Args)
 }
 
 //
-// LBP Serializer
+// LBP Serializer (still testing)
 //
 
 // TODO(chowie): Move this out into its own file!

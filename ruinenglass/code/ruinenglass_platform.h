@@ -39,6 +39,10 @@ struct font_id
 {
     u32 Value;
 };
+struct repligram_id
+{
+    u32 Value;
+};
 
 //
 // NOTE: Services that the platform layer provides to game

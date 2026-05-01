@@ -26,7 +26,12 @@
 // IMPORTANT(chowie): TODO(chowie): Remove Windows for stb_truetype?
 #include <windows.h>
 
+//
+// Headers
+//
+
 #pragma pack(push, 1)
+
 struct bitmap_header
 {
     u16 FileType;
@@ -46,7 +51,75 @@ struct bitmap_header
 
     v3u ColourMasks;
 };
+
+//
+
+// RESOURCE(jblow): Animation File Format, part 1 - https://www.youtube.com/watch?v=sQKAoiMPPOQ
+// TODO(chowie): Watch future parts?
+#define REPLIGRAM_MAGIC_VALUE FILE_FORMAT_CODE('r', 'e', 'p', 'l')
+#define REPLIGRAM_VERSION 1
+struct repligram_header
+{
+    u32 MagicValue;
+    u32 Version;
+
+    s32 FramesPerSecond; // STUDY(chowie): JBlow recommends s32 instead of u32 (from prev anim file format). Although you have to check for less than 0!
+    v2s KeyframeDuration; // TODO(chowie): Assert typeof(KeyframeDuration == v2s) in case the type changes later!
+    b32 IsBookmarked;
+
+    string Title; // COULDDO(chowie): Could move this to a separate annotation format?
+    v3u Dim; // NOTE(chowie): Volume max size
+    v3 Origin;
+
+    enum8(repligram_anim_type) AnimType;
+};
+
+// TODO(chowie): When I feel more comfortable with the file format,
+// replace with shared header for normal anim and bones anim file format.
+struct repligram_header_shared
+{
+    u32 MagicValue;
+    u32 Version;
+
+    s32 FramesPerSecond; // STUDY(chowie): JBlow recommends s32 instead of u32 (from prev anim file format). Although you have to check for less than 0!
+    v2s KeyframeDuration; // TODO(chowie): Assert typeof(KeyframeDuration == v2s) in case the type changes later!
+    b32 IsBookmarked;
+};
+
+/*
+// NOTE(chowie): Bone header doesn't include voxel/mesh info unlike
+// the normal header. Keeps inline with other anim formats though.
+#define REPLIGRAM_BONE_MAGIC_VALUE FILE_FORMAT_CODE('r', 'e', 'p', 'b')
+#define REPLIGRAM_BONE_VERSION 1
+struct repligram_header_bone
+{
+    repligram_header_shared Shared;
+
+    //
+    // Content
+    //
+
+    u32 BoneIDCount;
+    u32 BoneCount;
+    u32 ParentIndexCount;
+    u32 XformCount;
+    u32 XformConstantFlagsCount;
+    // TODO(chowie): Make a function "Compare flags of prev/next keyframe if same, or clear"
+    // e.g. memcmp(ipos, pos, sizeof(typeof(pos))) flags &= ~TRANSLATION_CONSTANT
+
+    u32 BoneIDOffset; // string[IDCount] or checksum+date because storing many strings can be massive for file size
+    u32 BoneOffset; // char *[BoneCount]
+    u32 ParentIndexOffset; // s16[ParentIndexCount];
+    u32 XformOffset; // render_transform[XformCount]; // TODO(chowie): Change to an array of positions/orientation/scale
+    u32 XformConstantFlagsOffset; // xform_constant_flags[XformConstantFlagsCount];
+};
+*/
+
 #pragma pack(pop)
+
+//
+//
+//
 
 struct builder_loaded_bitmap
 {
@@ -76,9 +149,35 @@ struct builder_loaded_font
     u32 *CodePointFromGlyph;
 };
 
+struct builder_loaded_repligram
+{
+    v3u Dim;
+
+    // TODO(chowie): IMPORTANT(chowie): Hash priorities as an ID
+    // somehow, so title can change freely. It's safe to hash as it
+    // would be a different repligram otherwise.
+    u32 PriorityCount;
+    u32 VoxelCount;
+    u32 StretchCount;
+
+    repligram_priority *Priorities;
+    u64 *FinkHashes;
+    repligram_timeline_entry *Stretches;
+
+    void *Free;
+};
+
 //
 //
 //
+
+enum builder_asset_type
+{
+    AssetType_Bitmap,
+    AssetType_Font,
+    AssetType_FontGlyph,
+    AssetType_Repligram,
+};
 
 struct builder_asset_source_bitmap
 {
@@ -96,11 +195,9 @@ struct builder_asset_source_font_glyph
     u32 Codepoint;
 };
 
-enum builder_asset_type
+struct builder_asset_source_repligram
 {
-    AssetType_Bitmap,
-    AssetType_Font,
-    AssetType_FontGlyph,
+    char *FileName;
 };
 
 // NOTE(chowie): Data only used for processing and not saved in file
@@ -112,6 +209,7 @@ struct builder_asset_source
         builder_asset_source_bitmap Bitmap;
         builder_asset_source_font Font;
         builder_asset_source_font_glyph Glyph;
+        builder_asset_source_repligram Repligram;
     };
 };
 

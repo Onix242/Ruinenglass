@@ -192,6 +192,10 @@ struct rui_header
     u32 MagicValue;
     u32 Version;
 
+    //
+    // Content
+    //
+
     u32 TagCount;
     u32 AssetCount;
     u32 AssetTypeCount;
@@ -227,28 +231,10 @@ struct rui_font
     f32 ExternalLeading;
 };
 
-// NOTE(chowie): Rep = Repeat
-enum rui_repligram_op_type : u8
-{
-    RepligramOp_None = BitSet(0),
-
-    RepligramOp_Modulo = BitSet(1),
-    RepligramOp_RepAdd = BitSet(2),
-    RepligramOp_RepSub = BitSet(3),
-    RepligramOp_Joined = BitSet(4), // NOTE(chowie): Requires ops to be adjacent to each other, includes formbanks' bars and blanks
-};
-struct rui_repligram_priority
-{
-    u8 Priority[2]; // NOTE(chowie): 0 maps to 'x'
-    enum8(repligram_op_type) Op;
-    u8 JoinedMax; // NOTE(chowie): Requires op_joined
-};
-
 struct rui_repligram
 {
     v3u Dim;
     v2u PriorityDim;
-    string PuzzleName;
 };
 
 // NOTE(chowie): References continguous range in a separate table
@@ -289,6 +275,61 @@ struct rui_asset
 //
 //
 //
+
+// NOTE(chowie): Rep = Repeat
+enum repligram_op_type : u8
+{
+    RepligramOp_None = BitSet(0),
+
+    RepligramOp_Modulo = BitSet(1),
+    RepligramOp_RepAdd = BitSet(2),
+    RepligramOp_RepSub = BitSet(3),
+    RepligramOp_Joined = BitSet(4), // NOTE(chowie): Requires ops to be adjacent to each other, includes formbanks' bars and blanks
+};
+struct repligram_priority
+{
+    u8 Priority[2]; // NOTE(chowie): 0 maps to 'x'
+    enum8(repligram_op_type) Op;
+    u8 JoinedMax; // NOTE(chowie): Requires op_joined
+};
+
+// NOTE(chowie): Static = Non-moving animation, easily toggleable to have animation
+// TODO(chowie): Decal = Assert (Dim == (.x == 1) || (.y == 1) || (.z == 1))
+enum repligram_anim_type : u8
+{
+    AnimType_Animated,
+    AnimType_Static,
+    AnimType_AnimatedDecal,
+    AnimType_StaticDecal,
+};
+enum repligram_anim_stretch_dir : u8
+{
+    AnimDir_Up = BitSet(0),
+    AnimDir_Down = BitSet(1),
+    AnimDir_Left = BitSet(2),
+    AnimDir_Right = BitSet(3),
+
+    AnimDir_FlipUp = BitSet(4),
+    AnimDir_FlipDown = BitSet(5),
+    AnimDir_FlipLeft = BitSet(6),
+    AnimDir_FlipRight = BitSet(7),
+
+    AnimDir_SimulUpDown = AnimDir_Up | AnimDir_Down,
+    AnimDir_SimulLeftRight = AnimDir_Left | AnimDir_Right,
+};
+struct repligram_timeline_entry
+{
+    u32 P;
+    enum8(repligram_anim_stretch_dir) Dir;
+};
+
+// NOTE(chowie): Constant = bones doesn't change value from prev keyframe
+enum xform_constant_flags
+{
+    Translation_Constant = BitSet(1),
+    Orientation_Constant = BitSet(2),
+    Scale_Constant       = BitSet(3), // NOTE(chowie): Scale may not exist
+};
 
 #define RUINENGLASS_FILE_FORMATS_H
 #endif
