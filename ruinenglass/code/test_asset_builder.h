@@ -54,6 +54,10 @@ struct bitmap_header
 
 //
 
+#define DEBUG_SYNC_HEADER_MARKER 0xcafe
+// NOTE(chowie): Use in the header to make sure reading hasn't
+// desynced e.g. u32 Marker; Assert(Marker == DEBUG_SYNC_HEADER_MARKER);
+
 // RESOURCE(jblow): Animation File Format, part 1 - https://www.youtube.com/watch?v=sQKAoiMPPOQ
 // TODO(chowie): Watch future parts?
 #define REPLIGRAM_MAGIC_VALUE FILE_FORMAT_CODE('r', 'e', 'p', 'l')

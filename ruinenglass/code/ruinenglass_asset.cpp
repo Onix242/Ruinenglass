@@ -109,7 +109,7 @@ AllocGameAssets(transient_state *TranState, memory_arena *Arena, umm Size)
         {
             if(File->Header.TagCount)
             {
-                // NOTE(chowie): Skip the first tag, since it is null!
+                // NOTE(chowie): Skip first tag, since it's null!
                 u32 TagArraySize = sizeof(rui_tag)*(File->Header.TagCount - 1);
                 Platform.ReadDataFromFile(&File->Handle, File->Header.TagsOffset + sizeof(rui_tag),
                                           TagArraySize, GameAssets->Tags + File->TagBase);
@@ -119,6 +119,7 @@ AllocGameAssets(transient_state *TranState, memory_arena *Arena, umm Size)
 
             if(File->Header.AssetCount)
             {
+                // NOTE(chowie): Skip first asset, since it's null!
                 u32 FileAssetCount = (File->Header.AssetCount - 1);
 
                 temp_memory TempMemory = BeginTempMemory(&TranState->TranArena);

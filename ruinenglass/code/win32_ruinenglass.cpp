@@ -187,7 +187,7 @@ PLATFORM_GET_ALL_FILES_OF_TYPE_BEGIN(Win32GetAllFilesOfTypeBegin)
 
         case PlatformFileType_SavedGameFile:
         {
-            WildCard = L"*.sgf";
+            WildCard = L"*.rsg";
         } break;
 
         InvalidDefaultCase;
@@ -1475,7 +1475,7 @@ WinMain(HINSTANCE Instance,
     if(RegisterClassA(&WindowClass))
     {
         HWND Window =
-            CreateWindowExA(0, WindowClass.lpszClassName, "Ruinenglass",
+            CreateWindowExA(0, WindowClass.lpszClassName, "Machi Repli",
                             WS_OVERLAPPEDWINDOW|WS_VISIBLE, // NOTE(chowie): WS_VISIBLE can be ShowWindow!
                             CW_USEDEFAULT, CW_USEDEFAULT,
                             CW_USEDEFAULT, CW_USEDEFAULT,
@@ -1544,28 +1544,27 @@ WinMain(HINSTANCE Instance,
 #endif
 
             game_memory GameMemory = {};
-            Platform = GameMemory.PlatformAPI;
 
-            Platform.AllocateMemory = Win32AllocateMemory;
-            Platform.DeallocateMemory = Win32DeallocateMemory;
+            GameMemory.PlatformAPI.AllocateMemory = Win32AllocateMemory;
+            GameMemory.PlatformAPI.DeallocateMemory = Win32DeallocateMemory;
 
-            Platform.AddWorkQueueEntry = Win32AddWorkQueueEntry;
-            Platform.CompleteAllWorkQueue = Win32CompleteAllWorkQueue;
-//            GameMemory.HighPriorityQueue = &HighPriorityQueue;
-//            GameMemory.LowPriorityQueue = &LowPriorityQueue;
+            GameMemory.PlatformAPI.AddWorkQueueEntry = Win32AddWorkQueueEntry;
+            GameMemory.PlatformAPI.CompleteAllWorkQueue = Win32CompleteAllWorkQueue;
+//            GameMemory.PlatformAPI.HighPriorityQueue = &HighPriorityQueue;
+//            GameMemory.PlatformAPI.LowPriorityQueue = &LowPriorityQueue;
 
 #if RUINENGLASS_INTERNAL
-            Platform.DEBUGFreeFileMemory = DEBUGPlatformFreeFileMemory;
-            Platform.DEBUGReadEntireFile = DEBUGPlatformReadEntireFile;
-            Platform.DEBUGWriteEntireFile = DEBUGPlatformWriteEntireFile;
+            GameMemory.PlatformAPI.DEBUGFreeFileMemory = DEBUGPlatformFreeFileMemory;
+            GameMemory.PlatformAPI.DEBUGReadEntireFile = DEBUGPlatformReadEntireFile;
+            GameMemory.PlatformAPI.DEBUGWriteEntireFile = DEBUGPlatformWriteEntireFile;
 #endif
 
-            Platform.FileError = Win32FileError;
-            Platform.GetAllFilesOfTypeBegin = Win32GetAllFilesOfTypeBegin;
-            Platform.GetAllFilesOfTypeEnd = Win32GetAllFilesOfTypeEnd;
-            Platform.OpenNextFile = Win32OpenNextFile;
-            Platform.ReadDataFromFile = Win32ReadDataFromFile;
-            Platform.WriteDataToFile = Win32WriteDataToFile;
+            GameMemory.PlatformAPI.FileError = Win32FileError;
+            GameMemory.PlatformAPI.GetAllFilesOfTypeBegin = Win32GetAllFilesOfTypeBegin;
+            GameMemory.PlatformAPI.GetAllFilesOfTypeEnd = Win32GetAllFilesOfTypeEnd;
+            GameMemory.PlatformAPI.OpenNextFile = Win32OpenNextFile;
+            GameMemory.PlatformAPI.ReadDataFromFile = Win32ReadDataFromFile;
+            GameMemory.PlatformAPI.WriteDataToFile = Win32WriteDataToFile;
 
             //
             //

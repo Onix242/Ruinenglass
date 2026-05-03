@@ -1,6 +1,9 @@
 @echo off
 
-REM IMPORTANT(chowie): Only x64 is supported for now!
+REM
+REM IMPORTANT(chowie): x64 build
+REM
+
 REM IMPORTANT(chowie): Check if all warnings are necessary
 set CommonWarningFlags=  -diagnostics:column -WX -W4 -wd4201 -wd4100 -wd4189 -wd4505 -wd4127 -wd4477
 set CommonOptimiseFlags= -Od -Gm- -GR- -EHa- -Oi -fp:except-
@@ -16,6 +19,8 @@ set CommonLinkerFlags=    %CommonLinkerShared% %CommonLibsFlags%
 set GameDLLExports=      -PDB:ruinenglass_%random%.pdb -EXPORT:GameUpdateAndRender -EXPORT:GameGetSoundSamples
 set GameDLLFlags=        -LD %CommonLinkerShared% %GameDLLExports%
 
+set ExecutableName=       machirepli
+
 IF NOT EXIST ..\..\build (
 mkdir ..\..\build
 )
@@ -23,27 +28,24 @@ pushd ..\..\build
 
 del *.pdb > NUL 2> NUL
 
-REM TODO(chowie): Custom executable name
-REM RESOURCE(theinternetftw): https://hero.handmade.network/forums/code-discussion/t/121-batch_script_notes
-set ExecutableName= MachiRepli
-
 REM ForAllTestingGrounds
 REM cl %CommonCompilerFlags% -D_CRT_SECURE_NO_WARNINGS ..\ruinenglass\code\test_gap_buffer.cpp %CommonLinkerFlags%
 
 REM Asset Builder
 cl %CommonCompilerFlags% -D_CRT_SECURE_NO_WARNINGS ..\ruinenglass\code\test_asset_builder.cpp %CommonLinkerFlags%
 
-REM TODO(chowie): Add .map file?
-REM GAME
+REM Game
 echo WAITING FOR PDB > lock.tmp
-cl %CommonCompilerFlags% ..\ruinenglass\code\ruinenglass.cpp       %GameDLLFlags%
+cl %CommonCompilerFlags% ..\ruinenglass\code\ruinenglass.cpp %GameDLLFlags%
 del lock.tmp
-cl %CommonCompilerFlags% ..\ruinenglass\code\win32_ruinenglass.cpp %CommonLinkerFlags%
+cl /Fe:%ExecutableName%_x64.exe %CommonCompilerFlags% ..\ruinenglass\code\win32_ruinenglass.cpp %CommonLinkerFlags%
 popd
 
 REM
 REM Batch Notes
 REM
+
+REM RESOURCE(theinternetftw): https://hero.handmade.network/forums/code-discussion/t/121-batch_script_notes
 
 REM STUDY(chowie): IMPORTANT(chowie): When compiling, we don't require
 REM platform calls to be inside the compilation boundary. We want to

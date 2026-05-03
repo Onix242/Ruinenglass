@@ -5,13 +5,12 @@
 
   ----------------8<-------------[ close future ]------------------
   In order!
-  - OpenGL prefix for functions -> just GL
   - cliprect -> resize window
   - Gimbal camera -> double check quaternions -> infinite far plane
   - Test-z
   - Sim Region again
   - Cubes
-  - Font bitmap / asset streaming
+//  - OpenGL prefix for functions -> just GL
 
   - Idea for sorting and to give the flat surfaces extra volume:
     Have ASCII faces shear slightly and point outwards like in HmH.
@@ -56,6 +55,10 @@
       with Eulerian fluid dynamics (navier strokes)
     = Alternate simulations for voxel data: vegetation growth,
       door flipping responses, weather dependent motion
+    = Use counting sort algorithm (sort entities by frequency in fixed array)
+      same as radix sort and bucket sort for spatial
+    = Minecraft for a 16x16x16 chunk (4096 blocks), samples 3 blocks
+      randomly to grow vegetation amongst other things e.g. redstone etc.
   * Developer art tools/editor that are also user-facing tools for
     semi-procedural content, all in-house but heavily restricted:
       1. Voxel 3D modelling with texture painting and orbiting camera
