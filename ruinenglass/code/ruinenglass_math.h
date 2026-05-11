@@ -1988,6 +1988,7 @@ RotorSlerp(v4 A, f32 t, v4 B)
     return(Result);
 }
 
+/*
 // TODO(chowie): Is this wrong? I think these only affects
 // bivectors, not scalar. See RotorReverse from Marc Ten Bosch.
 inline v4
@@ -2013,6 +2014,7 @@ Exp(v4 A)
 
     return(Result);
 }
+*/
 
 // TODO(chowie): Really no angles?
 // RESOURCE(): https://rastergraphics.wordpress.com/2022/04/12/geometric-algebra-rotor-average-in-closed-form/
@@ -2022,7 +2024,7 @@ RotorAverage(v4 A, f32 t, v4 B)
     // RESOURCE(): https://martin.ankerl.com/2007/02/11/optimized-exponential-functions-for-java/
     // TODO(chowie): Optimisations Exp(B*Log(A)) = Pow(A, B)
     v4 Delta = ReverseRotor(A)*B;
-    v4 Result = A*Exp(t*Log(Delta));
+    v4 Result = A*RotorExp(t*RotorLog(Delta));
     return(Result);
 }
 

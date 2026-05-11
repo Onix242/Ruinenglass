@@ -231,10 +231,29 @@ struct rui_font
     f32 ExternalLeading;
 };
 
+// IMPORTANT(chowie): Every Repligram (not fink hash) has a textured
+// "block theme" (overlapping colours palettes/textures that masks
+// over the base textures of block_id). Doesn't necessarily corresponds
+// 1-to-1 of how biomes are defined.
+enum block_theme : u16
+{
+    // NOTE(chowie): Block themes for environments
+    BlockTheme_Sterile,
+    BlockTheme_Snow,
+    BlockTheme_Ash,
+    BlockTheme_Ruins,
+
+    // NOTE(chowie): Block themes for characters
+    BlockTheme_EurolangCreatures,
+    BlockTheme_AsialangCreatures,
+    BlockTheme_CalclangCreatures,
+};
+
 struct rui_repligram
 {
     v3u Dim;
     v2u PriorityDim;
+    block_theme Theme;
 };
 
 // NOTE(chowie): References continguous range in a separate table

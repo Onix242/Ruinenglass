@@ -340,6 +340,50 @@ GetPairwiseRow64(u64 Ordinal)
     return(Result);
 }
 
+// TODO(chowie): Move this out!
+// IMPORTANT(chowie): Primitives (child nodes) must be even values!
+#define EvenSet(EnumValue) ((2*EnumValue))
+enum block_id : u16
+{
+    // ----------- FIRST 38 (including 0) 1/8th BLOCKS ---------
+    // OR "transition blocks" that can blend different materials together
+    // IMPORTANT(chowie): General blocks/colour palette useful in any build
+
+    Block_Air        = EvenSet(0),
+    Block_Water      = EvenSet(1),
+
+    // ----------- DO NOT REORDER THE ABOVE (SET PRECOMPUTED VALUES) ---------
+
+    Block_InvisWall = EvenSet(2),
+    Block_Sod       = EvenSet(3), // NOTE(chowie): More accurate than grass block
+    Block_Dirt      = EvenSet(4),
+    Block_Log       = EvenSet(5),
+    Block_Planks    = EvenSet(6),
+    Block_Bamboo    = EvenSet(7),
+    Block_Leaves    = EvenSet(8),
+    Block_Stone     = EvenSet(9),
+    Block_Concrete  = EvenSet(10),
+    Block_Sand      = EvenSet(11),
+    Block_Mud       = EvenSet(12),
+    Block_Ceramic   = EvenSet(13),
+    Block_Glass     = EvenSet(14),
+    Block_FracturedGlass = EvenSet(15),
+    Block_Cage      = EvenSet(16), // NOTE(chowie): Doubles as a chain
+    Block_Bone      = EvenSet(17),
+    Block_Brass     = EvenSet(18),
+
+//    Block_ = EvenSet(37),
+
+    // ----------- ONLY FULL 1m BLOCKS BELOW ---------
+
+//    Block_Grass = EvenSet(38),
+//    Block_Reed = EvenSet(39),
+//    Block_FloodLight = EvenSet(40),
+
+    Block_Marker,
+    Block_Count = (Block_Marker + 1)/2,
+};
+
 //
 // Remaley Hash (2D, pairwise)
 //
@@ -408,21 +452,11 @@ enum whittaker_biome : u16
 // NOTE(chowie): Triangle Number Usage: Pack -> Unpack
 // u32 EntityPairwise = MapPairToPairwise(TestHash_EntityType_Wall, TestHash_EntityType_Wall);
 // pairwise_index_result TestPair = GetPairFromPairwise(EntityPairwise);
-enum testhash_entity_type : u16
-{
-    TestHash_EntityType_Null,
-
-    TestHash_EntityType_Space,
-    TestHash_EntityType_Hero,
-    TestHash_EntityType_Wall,
-
-    TestHash_EntityType_Count,
-};
 
 #define PAIRWISE_TABLE_MAX(TableDim) (TableDim * (TableDim + 1) / 2)
-struct pairwise
+struct pairwise_table
 {
-    enum16(testhash_entity_type) TypeTable[PAIRWISE_TABLE_MAX(TestHash_EntityType_Count)];
+    enum16(block_id) BlockInteractionTable[PAIRWISE_TABLE_MAX(Block_Count)];
 };
 
 // COULDDO(chowie): Use for hash tables??
@@ -433,7 +467,7 @@ struct pairwise
 inline void
 IncrementOrdinal(u32 *Ordinal)
 {
-    *Ordinal = (*Ordinal + 1) % TestHash_EntityType_Count;
+    *Ordinal = (*Ordinal + 1) % Block_Count;
 }
 //    u32 *TriangleNumberOrdinal;
 //    Pairwise->TriangleNumberOrdinal = &Ordinal;
@@ -1126,26 +1160,6 @@ GetDepthFinkHashPerfectTree(u64 Hash)
     }
     return(Iter);
 }
-
-//
-// NOTE(chowie): First 38 (including 0) can be used for eighth blocks
-//
-// IMPORTANT(chowie): Primitives (child nodes) must be even values!
-#define EvenSet(EnumValue) ((2*EnumValue))
-enum block_id : u16
-{
-    Block_Air    = EvenSet(0),
-    Block_Water  = EvenSet(1),
-
-    // ----------- DO NOT REORDER THE ABOVE (USED TO PRECOMPUTATE VALUES) ---------
-
-    Block_Stone  = EvenSet(2),
-    Block_Leaves = EvenSet(3),
-
-    //
-    //
-    //
-};
 
 // COULDDO(chowie): Could take use .destleaf to save on a for loop?
 internal u64
