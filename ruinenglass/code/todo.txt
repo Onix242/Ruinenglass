@@ -45,7 +45,7 @@
     (only physical interaction on a per voxel level)
   - Voxel animation smears (for dynamic objects)
   - First person camera
-  - No voxel characters
+  - Voxel characters
   - Little physics and networking
   - No raytraced rendering for lighting
   * Heavy simulation elements

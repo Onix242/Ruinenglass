@@ -600,6 +600,16 @@ union v3u
     {
         u32 r, g, b;
     };
+    struct
+    {
+        v2u xy;
+        u32 Ignored0_;
+    };
+    struct
+    {
+        u32 Ignored1_;
+        v2u yz;
+    };
     u32 E[3];
 };
 
@@ -608,6 +618,20 @@ union v3s
     struct
     {
         s32 x, y, z;
+    };
+    struct
+    {
+        s32 r, g, b;
+    };
+    struct
+    {
+        v2s xy;
+        s32 Ignored0_;
+    };
+    struct
+    {
+        s32 Ignored1_;
+        v2s yz;
     };
     s32 E[3];
 };

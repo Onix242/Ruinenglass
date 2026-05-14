@@ -342,35 +342,36 @@ GetPairwiseRow64(u64 Ordinal)
 
 // TODO(chowie): Move this out!
 // IMPORTANT(chowie): Primitives (child nodes) must be even values!
-#define EvenSet(EnumValue) ((2*EnumValue))
+   #define EvenSet(EnumValue) ((2*EnumValue))
 enum block_id : u16
 {
     // ----------- FIRST 38 (including 0) 1/8th BLOCKS ---------
     // OR "transition blocks" that can blend different materials together
     // IMPORTANT(chowie): General blocks/colour palette useful in any build
 
-    Block_Air        = EvenSet(0),
-    Block_Water      = EvenSet(1),
+    Block_Air       = EvenSet(0),
+    Block_Water     = EvenSet(1),
+    Block_Smoke     = EvenSet(2),
 
     // ----------- DO NOT REORDER THE ABOVE (SET PRECOMPUTED VALUES) ---------
 
-    Block_InvisWall = EvenSet(2),
-    Block_Sod       = EvenSet(3), // NOTE(chowie): More accurate than grass block
-    Block_Dirt      = EvenSet(4),
-    Block_Log       = EvenSet(5),
-    Block_Planks    = EvenSet(6),
-    Block_Bamboo    = EvenSet(7),
-    Block_Leaves    = EvenSet(8),
-    Block_Stone     = EvenSet(9),
-    Block_Concrete  = EvenSet(10),
-    Block_Sand      = EvenSet(11),
-    Block_Mud       = EvenSet(12),
-    Block_Ceramic   = EvenSet(13),
-    Block_Glass     = EvenSet(14),
-    Block_FracturedGlass = EvenSet(15),
-    Block_Cage      = EvenSet(16), // NOTE(chowie): Doubles as a chain
-    Block_Bone      = EvenSet(17),
-    Block_Brass     = EvenSet(18),
+    Block_InvisWall = EvenSet(3),
+    Block_Sod       = EvenSet(4), // NOTE(chowie): More accurate than grass block
+    Block_Dirt      = EvenSet(5),
+    Block_Log       = EvenSet(6),
+    Block_Planks    = EvenSet(7),
+    Block_Bamboo    = EvenSet(8),
+    Block_Leaves    = EvenSet(9),
+    Block_Stone     = EvenSet(10),
+    Block_Concrete  = EvenSet(11),
+    Block_Sand      = EvenSet(12),
+    Block_Mud       = EvenSet(13),
+    Block_Ceramic   = EvenSet(14),
+    Block_Glass     = EvenSet(15),
+    Block_FracturedGlass = EvenSet(16),
+    Block_Cage      = EvenSet(17), // NOTE(chowie): Doubles as a chain
+    Block_Bone      = EvenSet(18),
+    Block_Brass     = EvenSet(19),
 
 //    Block_ = EvenSet(37),
 
@@ -477,6 +478,12 @@ IncrementOrdinal(u32 *Ordinal)
 // Fink Hash (3D, non-pairwise)
 //
 
+//       z
+//      / \
+//     y   y
+//    / \ / \
+//    x x x x
+
 // COULDDO(chowie): Can I do better than linear?
 // RESOURCE(alex fink & jorg rhiemeier): https://listserv.brown.edu/archives/cgi-bin/wa?A2=ind0907B&L=CONLANG&P=R12478
 // P.S. Original concept from 2009 amazingly! It's not even your main point??
@@ -533,12 +540,17 @@ struct finkhashtree
     //
 
     u32 LeafCount;
-    u16 Leaves[FINKHASHTREE_MAXLEAVES];
+    u16 Leaves[FINKHASHTREE_MAXLEAVES]; // TODO(chowie): Make this a u8!
 //    u64 StackCount;
 //    stack_entry *Stack; // COULDDO(chowie): Stack[StackCount] OR Stack[(MaxDepth*2 + 1)]
     // NOTE(onix242): Though I may change my mind later, I'm explicitly storing the leaves because
     // I think I'm specifically looking for a list of the nodes touched, but you could probably
     // remove it when optimising.
+};
+
+struct finkhashtree_cardinal_group
+{
+    finkhashtree Trees[6];
 };
 
 enum finkhashtree_type
@@ -1209,11 +1221,11 @@ FinkHashTreeBubbleupCommonLeafInPerfectTreeIfPossible(u64 Hash)
     return(Result);
 }
 
-// e.g.  x  ->   x
+// e.g.  x  ->   z
 //              / \
 //             y   y
 //            / \ / \
-//            2 2 2 2
+//            x x x x
 enum finkhash_expandmode
 {
     FinkHash_ExpandMode_2Depth,
@@ -1279,6 +1291,319 @@ RepairSourceFinkHashTree(u64 Source, u64 Copy)
     }
 
     u64 Result = Source;
+    return(Result);
+}
+
+//
+// Fink hash cardinal adjacent/neighbour voxels
+//
+
+// RESOURCE(): https://geidav.wordpress.com/2017/12/02/advanced-octrees-4-finding-neighbor-nodes/
+// NOTE(chowie): Because fink hash's max depth is 2x2x2, the 3rd case (different level,
+// different parent; subtree of neighbour deeper) doesn't need to be handled
+// Case 1: Same level, same parent & Same level, different parent
+//   ____________________
+//   |        |         |
+//   |        |         |
+//   |        |         |
+//   |        |         |
+//   |________|_________|
+//   | / / / /|         |
+//   |/ / / / |         |
+//   | / / / /|         |
+//   |/ / / / |         |
+//   |_/_/_/_/|_________|
+//   ____________________
+//   | / / / /|         |
+//   |/ / / / |         |
+//   | / / / /|         |
+//   |/ / / / |         |
+//   |_/_/_/_/|_________|
+//   |        |         |
+//   |        |         |
+//   |        |         |
+//   |        |         |
+//   |________|_________|
+
+// Case 2: Different level, different parent
+//   ____________________
+//   | / / / /| / / / / |
+//   |/ / / / |/ / / / /|
+//   | / / / /| / / / / |
+//   |/ / / / |/ / / / /|
+//   |_/_/_/_/|_/_/_/_/_|
+//   | / / / /| / / / / |
+//   |/ / / / |/ / / / /|
+//   | / / / /| / / / / |
+//   |/ / / / |/ / / / /|
+//   |_/_/_/_/|_/_/_/_/_|
+//   ____________________
+//   | / / / /|         |
+//   |/ / / / |         |
+//   | / / / /|         |
+//   |/ / / / |         |
+//   |_/_/_/_/|_________|
+//   |        |         |
+//   |        |         |
+//   |        |         |
+//   |        |         |
+//   |________|_________|
+
+// NOTE(chowie): Neighbour nodes should be the same on neighbour parents i.e.
+// if 0 was the source leaf node, a neighbour node is 2. The north parent
+// (fink hash tree) should also be 2!
+//        ____________________
+//       /         /         /|
+//      /    0    /   1     / |
+//     /_________/_________/  |
+//    /         /         /|  |
+//   /    2    /    3    / |  |
+//  /_________/_________/  | /|
+//  |         |         |  |/ |
+//  |         |         |  / 5|
+//  |         |         | /|  /
+//  |_________|_________|/ | /
+//  |         |         |  |/
+//  |    6    |    7    |  /
+//  |         |         | /
+//  |_________|_________|/
+//
+// | Z-order | Z-order [.x, .y, .z] | World space [.x, .y, .z] |
+// | 0       | 1, 2, 4              | -1,  1,  1               |
+// | 1       | 0, 3, 5              |  1,  1,  1               |
+// | 2       | 0, 3, 6              | -1, -1,  1               |
+// | 3       | 1, 2, 7              |  1, -1,  1               |
+// | 4       | 5, 6, 0              | -1,  1, -1               |
+// | 5       | 4, 7, 1              |  1,  1, -1               |
+// | 6       | 4, 7, 2              | -1, -1, -1               |
+// | 7       | 5, 6, 3              | -1, -1, -1               |
+//
+// STUDY(chowie): Replaces typical mortons encoding stored in voxel octree
+// RESOURCE(): https://fgiesen.wordpress.com/2015/02/22/triangular-numbers-mod-2n/
+// NOTE(chowie): Tk = TriangleNumber(n). I've used modulo triangle numbers to
+// "biject"/fit the sequence by the source leaf node .x, .y and .z
+// k      | 0   1   2   3   4   5   6   7   8   9   10  11
+// Tk     | 0   1   3   6   10  15  21  28  36  45  55  66
+// Tk % 2 | 0   1   1   0   0   1   1   0   0   1   1   0
+//
+// Reconstructing Patterns:
+// Z-order .x = (Tk + 2) % 2 | unless >= 4, Result + 4
+// Z-order .y = 2 + (Tk) % 2 | unless >= 4, Result + 4
+// Z-order .z = (Result + 4) % 8
+// World space .x = Odd()
+// World space .y = (Tk + 1) % 2
+// World space .z = >= 4
+
+// IMPORTANT(chowie): Parents = world space directions -> select children based
+// on respective .x, .y, .z. Unless neighbour only has a root node, iseven(finkhash)
+// IMPORTANT(chowie): To convert values from NeighbourChildren to world space
+// by inverting sign bit of NeighbourParents, applies vice versa
+struct leaf_neighbour_dir_result 
+{
+    v3u InternalNeighbours; // NOTE(chowie): In z-order curve
+    v3s ExternalNeighbours;  // NOTE(chowie): Parents, in world space
+};
+#define FINKHASHTREE_MAXLEAVESPITCH 4
+internal leaf_neighbour_dir_result
+FinkHashTreeGetLeafNodeNeighbourDir(u32 SourceLeafIndex)
+{
+    leaf_neighbour_dir_result Result = {};
+
+    Result.InternalNeighbours =
+    {
+        (TriangleNumber(SourceLeafIndex + 2) % 2),
+        (2 + (TriangleNumber(SourceLeafIndex) % 2)),
+        ((SourceLeafIndex + FINKHASHTREE_MAXLEAVESPITCH) % FINKHASHTREE_MAXLEAVES),
+    };
+    Result.ExternalNeighbours = V3S(1);
+
+    if(!Odd(SourceLeafIndex))
+    {
+        Result.ExternalNeighbours.x = -1;
+    }
+
+    s32 Offset = (TriangleNumber(SourceLeafIndex + 1) % 2);
+    if(Offset == 0)
+    {
+        Result.ExternalNeighbours.y = -1;
+    }
+
+    if(SourceLeafIndex >= FINKHASHTREE_MAXLEAVESPITCH)
+    {
+        Result.InternalNeighbours.xy += V2U(FINKHASHTREE_MAXLEAVESPITCH, FINKHASHTREE_MAXLEAVESPITCH);
+        Result.ExternalNeighbours.z = -1;
+    }
+
+    return(Result);
+}
+
+// NOTE(chowie): Best case, O(n^3)
+internal void
+FinkHashTreeGetRootNodeNeighbourDir(u32 SourceRootNode)
+{
+    // TODO(chowie): Add normal loop here!
+}
+
+struct cardinal_neighbours
+{
+    union
+    {
+        // TODO(chowie): Change v4u to a v4u8 or another compressed form like for colours?
+        struct
+        {
+            v4u Leaf; // NOTE(chowie): .x, -.x, .y, -.y, .z, -.z,
+            v4u ZOrder; // NOTE(chowie): .x, -.x, .y, -.y, .z, -.z,
+        };
+        struct
+        {
+            u64 Tree; // COULDDO(chowie): Remove union and save it out?
+        };
+    };
+
+    b32 IsFullBlock;
+};
+
+// TODO(chowie): This also wants FinkHashTree + v3s MullerHash position to reference
+// NOTE(chowie): Mirrors dir functions above
+struct neighbour_result
+{
+    cardinal_neighbours Neighbours[6];
+    b32 IsSourceNodeLeaf;
+};
+
+internal neighbour_result
+FinkHashTreeGetLeafNodeNeighbour(finkhashtree_cardinal_group FinkHashTree, leaf_neighbour_dir_result Neighbours)
+{
+    neighbour_result Result = {};
+    Result.IsSourceNodeLeaf = true;
+
+    // NOTE(chowie): Internal = z-order
+    for(u32 LeafCount = 0;
+        LeafCount < ArrayCount(Neighbours.InternalNeighbours.E);
+        ++LeafCount)
+    {
+        if(!Odd(LeafCount))
+        {
+        }
+
+        s32 Offset = (TriangleNumber(LeafCount + 1) % 2);
+        if(Offset == 0)
+        {
+        }
+
+        if(LeafCount >= FINKHASHTREE_MAXLEAVESPITCH)
+        {
+        }
+    }
+
+    // NOTE(chowie): External = world coords
+    for(u32 TreeCount = 0;
+        TreeCount < ArrayCount(Neighbours.ExternalNeighbours.E);
+        ++TreeCount)
+    {
+        if(IsParent(FinkHashTree.Trees[TreeCount].FinkHash))
+        {
+            for(u32 LeafCount = 0;
+                LeafCount < ArrayCount(FinkHashTree.Trees->Leaves);
+                ++LeafCount)
+            {
+                if(!Odd(LeafCount))
+                {
+                }
+
+                s32 Offset = (TriangleNumber(LeafCount + 1) % 2);
+                if(Offset == 0)
+                {
+                }
+
+                if(LeafCount >= FINKHASHTREE_MAXLEAVESPITCH)
+                {
+                }
+            }
+        }
+        else
+        {
+            Result.Neighbours[TreeCount].IsFullBlock = true;
+            Result.Neighbours[TreeCount].Tree = FinkHashTree.Trees[TreeCount].FinkHash;
+        }
+    }
+
+    return(Result);
+}
+
+// COULDDO(chowie): Clean up the difference between leafcount vs leafindex?
+// TODO(chowie): Test this rigorously!
+internal neighbour_result
+FinkHashTreeGetRootNodeNeighbour(finkhashtree_cardinal_group FinkHashTree)
+{
+    neighbour_result Result = {};
+    Result.IsSourceNodeLeaf = false;
+
+    for(u32 TreeCount = 0;
+        TreeCount < ArrayCount(FinkHashTree.Trees);
+        ++TreeCount)
+    {
+        // NOTE(chowie): FinkHashTrees that are odd = has
+        // children. Otherwise, it only has a root.
+        if(IsParent(FinkHashTree.Trees[TreeCount].FinkHash))
+        {
+            for(u32 LeafCount = 0;
+                LeafCount < ArrayCount(FinkHashTree.Trees->Leaves);
+                ++LeafCount)
+            {
+                u32 NeighbourIndex = 0;
+                v2u LeafIndexX = {};
+                v2u LeafIndexY = {};
+                v2u LeafIndexZ = {};
+
+                if(!Odd(LeafCount)) // (Dir.x == 1)
+                {
+                    NeighbourIndex = 0;
+                    Result.Neighbours[NeighbourIndex].Leaf.E[LeafIndexX.a++] = FinkHashTree.Trees[TreeCount].Leaves[LeafCount];
+                    Result.Neighbours[NeighbourIndex].ZOrder.E[LeafIndexX.a++] = LeafCount;
+                }
+                else
+                {
+                    NeighbourIndex = 1;
+                    Result.Neighbours[NeighbourIndex].Leaf.E[LeafIndexX.b++] = FinkHashTree.Trees[TreeCount].Leaves[LeafCount];
+                    Result.Neighbours[NeighbourIndex].ZOrder.E[LeafIndexX.b++] = LeafCount;
+                }
+
+                s32 Offset = (TriangleNumber(LeafCount + 1) % 2);
+                if(Offset == 0) // (Dir.y == 1)
+                {
+                    NeighbourIndex = 2;
+                    Result.Neighbours[NeighbourIndex].Leaf.E[LeafIndexY.a++] = FinkHashTree.Trees[TreeCount].Leaves[LeafCount];
+                    Result.Neighbours[NeighbourIndex].ZOrder.E[LeafIndexY.a++] = LeafCount;
+                }
+                else
+                {
+                    NeighbourIndex = 3;
+                    Result.Neighbours[NeighbourIndex].Leaf.E[LeafIndexY.b++] = FinkHashTree.Trees[TreeCount].Leaves[LeafCount];
+                    Result.Neighbours[NeighbourIndex].ZOrder.E[LeafIndexY.b++] = LeafCount;
+                }
+
+                if(LeafCount >= FINKHASHTREE_MAXLEAVESPITCH) // (Dir.z == 1)
+                {
+                    NeighbourIndex = 4;
+                    Result.Neighbours[NeighbourIndex].Leaf.E[LeafIndexZ.a++] = FinkHashTree.Trees[TreeCount].Leaves[LeafCount];
+                    Result.Neighbours[NeighbourIndex].ZOrder.E[LeafIndexZ.a++] = LeafCount;
+                }
+                else
+                {
+                    NeighbourIndex = 5;
+                    Result.Neighbours[NeighbourIndex].Leaf.E[LeafIndexZ.b++] = FinkHashTree.Trees[TreeCount].Leaves[LeafCount];
+                    Result.Neighbours[NeighbourIndex].ZOrder.E[LeafIndexZ.b++] = LeafCount;
+                }
+            }
+        }
+        else
+        {
+            Result.Neighbours[TreeCount].IsFullBlock = true;
+            Result.Neighbours[TreeCount].Tree = FinkHashTree.Trees[TreeCount].FinkHash;
+        }
+    }
+
     return(Result);
 }
 

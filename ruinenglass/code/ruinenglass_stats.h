@@ -42,6 +42,18 @@ IncrementalAvg(f32 Avg, f32 tNewSampleCount, f32 NewValue)
     return(Result);
 }
 
+// RESOURCE(christer ericson): https://realtimecollisiondetection.net/blog/?p=48
+// RESOURCE(john d cook): https://www.johndcook.com/blog/2026/04/04/kalman-bayes/
+// NOTE(chowie): m' = (n*m + x[n + 1])/(n + 1)
+// COULDDO(chowie): Use this equation if the below isn't playing nice!
+// "(Avg*(n/(n + 1)) + NextValue)/(n + 1)"
+inline f32
+IncrementalAvg2(f32 Avg, u32 n, f32 NextValue)
+{
+    f32 Result = (n*Avg + NextValue)/(n + 1);
+    return(Result);
+}
+
 //
 // Fairmath
 //

@@ -142,6 +142,13 @@ V3S(s32 X, s32 Y, s32 Z)
     return(Result);
 }
 
+inline v3s
+V3S(s32 Value)
+{
+    v3s Result = {Value, Value, Value};
+    return(Result);
+}
+
 inline v3
 V3(f32 X, f32 Y, f32 Z)
 {
@@ -959,6 +966,13 @@ AreEqual(v3u A, v3u B)
 }
 
 inline v3s
+operator*(s32 A, v3s B)
+{
+    v3s Result = {A*B.x, A*B.y, A*B.z};
+    return(Result);
+}
+
+inline v3s
 operator+(v3s A, v3s B)
 {
     v3s Result = {A.x + B.x, A.y + B.y, A.z + B.z};
@@ -971,6 +985,13 @@ operator*(v3s A, v3s B)
 {
     v3s Result = {A.x*B.x, A.y*B.y, A.z*B.z};
     return(Result);
+}
+
+inline v3s &
+operator+=(v3s &A, v3s B)
+{
+    A = A + B;
+    return(A);
 }
 
 inline v3
