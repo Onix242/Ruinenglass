@@ -34,8 +34,8 @@ TestOutputWilwaDialTone(audio_state *AudioState,
         SampleIndex < SoundBuffer->SampleCount;
         ++SampleIndex)
     {
-        Wave1->Value = Sin(AudioState->tSine1);
-        Wave2->Value = Sin(AudioState->tSine2);
+        Wave1->Value = Sin(TURNS(AudioState->tSine1));
+        Wave2->Value = Sin(TURNS(AudioState->tSine2));
 
         f32 TotalValue = 0;
         for(u32 ToneIndex = 0;

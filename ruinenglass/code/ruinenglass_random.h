@@ -487,7 +487,6 @@ Permute(pcg32_random_series *Series, u32 Index, u32 Length)
 internal v3
 SampleSphere(pcg32_random_series *Series)
 {
-    v3 Result = {};
     f32 X1, X2, SquaresSum, SquareRootTerm;
 
     do
@@ -498,26 +497,20 @@ SampleSphere(pcg32_random_series *Series)
     } while (SquaresSum >= 1.0f);
 
     SquareRootTerm = 2*Sqrt(1 - SquaresSum);
-    Result.x = X1*SquareRootTerm;
-    Result.y = X2*SquareRootTerm;
-    Result.z = 1 - 2*SquaresSum;
 
+    v3 Result = {X1*SquareRootTerm, X2*SquareRootTerm, 1 - 2*SquaresSum};
     return(Result);
 }
 
 internal v3
 SampleHemisphere(pcg32_random_series *Series)
 {
-    v3 Result = {};
-
     f32 z = RandomBilateral(Series);
     f32 r = Sqrt(1 - Sqr(z));
     f32 theta = RandomBilateral(Series)*Tau32;
+    v2 Angle = SinCos(TURNS(theta));
 
-    Result.x = r*Cos(theta);
-    Result.y = r*Sin(theta);
-    Result.z = z;
-
+    v3 Result = {r*Angle.Cos, r*Angle.Sin, z};
     return(Result);
 }
 
@@ -527,17 +520,13 @@ SampleHemisphere(pcg32_random_series *Series)
 internal v3
 CosineSampleHemisphere(pcg32_random_series *Series)
 {
-    v3 Result = {};
-
     f32 r2 = RandomBilateral(Series);
     f32 r = Sqrt(r2);
     f32 theta = RandomBilateral(Series)*Tau32;
+    v2 Angle = SinCos(TURNS(theta));
     f32 z = Sqrt(1 - r2);
 
-    Result.x = r*Cos(theta);
-    Result.y = r*Sin(theta);
-    Result.z = z;
-
+    v3 Result = {r*Angle.Cos, r*Angle.Sin, z};
     return(Result);
 }
 
@@ -600,12 +589,12 @@ SampleTriangle(v2 Sample)
 internal v3
 RandomUnitV3(pcg32_random_series *Series)
 {
-    f32 Z = RandomBilateral(Series);
-    f32 A = RandomBetween(Series, V2(0, Tau32));
+    f32 z = RandomBilateral(Series);
+    f32 r = Sqrt(1.0f - Sqr(z));
+    f32 a = RandomBetween(Series, V2(0, Tau32));
+    v2 Angle = SinCos(TURNS(a));
 
-    f32 R = Sqrt(1.0f - Sqr(Z));
-
-    v3 Result = V3(R*Cos(A), R*Sin(A), Z);
+    v3 Result = {r*Angle.Cos, r*Angle.Sin, z};
     return(Result);
 }
 

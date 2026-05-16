@@ -911,7 +911,7 @@ NormalisedRotationByCircleSector(f32 n)
     // IMPORTANT(chowie): An approximation where there's many
     // segments, so sin can be dropped. Might leave small gaps.
     f32 s3 = (Tau32 / n);
-    //f32 s3 = (Sin(Tau32 / n)); // NOTE(chowie): Change to this for more accuracy
+    //f32 s3 = (Sin(TURNS(Tau32 / n))); // NOTE(chowie): Change to this for more accuracy
 
     // NOTE(chowie): Cross Law
     f32 Gradient = s3 / (1.0f - Sqrt(1.0f - Sqr(s3)));
@@ -1426,9 +1426,10 @@ SLerp(v3 A, f32 t, v3 B)
 {
     f32 Dot = Inner(A, B);
     Dot = Clamp(-1.0f, Dot, 1.0f);
-    f32 Theta = acosf(Dot)*t;
+    f32 Theta = Acos(TURNS(Dot))*t;
     v3 Relative = Normalise(B - A*Dot);
-    v3 Result = ((A*Cos(Theta)) + (Relative*Sin(Theta)));
+    v2 Angle = SinCos(TURNS(Theta));
+    v3 Result = ((A*Angle.Cos) + (Relative*Angle.Sin));
     return(Result);
 }
 */
@@ -1446,8 +1447,8 @@ SLerp(v3 A, f32 t, v3 B)
     }
     else
     {
-        f32 Angle = acosf(Dot);
-        Result = (Sin((1 - t)*Angle)*A + Sin(t*Angle)*B) / Sin(Angle);
+        f32 Angle = Acos(TURNS(Dot));
+        Result = (Sin(TURNS((1 - t)*Angle))*A + Sin(TURNS(t*Angle))*B) / Sin(TURNS(Angle));
     }
 
     return(Result);
@@ -1805,10 +1806,11 @@ FromToRotor(v3 From, v3 To)
 inline v4
 RotorPlane(v3 Plane, f32 AngleRadians)
 {
+    v2 Angle = SinCos(TURNS(AngleRadians / 2.0f));
+
     v4 Result;
-    f32 SinAngle = Sin(AngleRadians / 2.0f);
-    Result.s = Cos(AngleRadians / 2.0f);
-    Result.bxyyzzx = -SinAngle*Plane; // NOTE(chowie): The left side of the products have b a, not a b
+    Result.s = Angle.Cos;
+    Result.bxyyzzx = -Angle.Sin*Plane; // NOTE(chowie): The left side of the products have b a, not a b
     return(Result);
 }
 
@@ -1958,9 +1960,9 @@ Slerp(v4 From, f32 t, v4 To)
         // then cos(Theta) = Dot(From, To)
         f32 CosTheta = Dot;
 
-        f32 Theta = acosf(CosTheta);
-        f32 FromFactor = sinf((1.0f - t)*Theta)/sinf(Theta);
-        f32 ToFactor = sinf(t*Theta)/sinf(Theta);
+        f32 Theta = Acos(TURNS(CosTheta));
+        f32 FromFactor = Sin(TURNS((1.0f - t)*Theta))/Sin(TURNS(Theta));
+        f32 ToFactor = Sin(TURNS(t*Theta))/Sin(TURNS(Theta));
 
         Result.bxy = SumOfProducts(FromFactor, From.bxy, ToFactor, To.bxy);
         Result.byz = SumOfProducts(FromFactor, From.byz, ToFactor, To.byz);
@@ -1979,10 +1981,9 @@ RotorLog(v4 A)
 {
     v3 Normal = Normalise(A.bxyyzzx);
     f32 Magnitude = LengthSq(A);
-    f32 Angle = acosf(A.s / Magnitude);
+    f32 Angle = Acos(TURNS(A.s / Magnitude));
 
     v4 Result = V4(Normal.x*Angle, Normal.y*Angle, Normal.z*Angle, Log(Magnitude));
-
     return(Result);
 }
 
@@ -1991,11 +1992,11 @@ RotorExp(v4 A)
 {
     v3 Normal = Normalise(A.bxyyzzx);
     f32 Magnitude = LengthSq(A.bxyyzzx);
-    f32 SinAngle = sinf(Magnitude);
+    v2 Angle = SinCos(TURNS(Magnitude));
     f32 ExpW = Exp(A.s);
 
-    v4 Result = V4(Normal.x*SinAngle*ExpW, Normal.y*SinAngle*ExpW, Normal.z*SinAngle*ExpW, cosf(Magnitude)*ExpW);
-
+    v4 Result = V4(Normal.x*Angle.Sin*ExpW, Normal.y*Angle.Sin*ExpW,
+                   Normal.z*Angle.Sin*ExpW, Angle.Cos*ExpW);
     return(Result);
 }
 
@@ -2154,16 +2155,15 @@ Identity(void)
 
 // IMPORTANT(chowie): STUDY(chowie): This is the instructive version, not optimised!
 inline m4x4
-XRotation(f32 Angle)
+XRotation(f32 Theta)
 {
-    f32 c = Cos(Angle);
-    f32 s = Sin(Angle);
+    v2 Angle = SinCos(TURNS(Theta));
 
     m4x4 Result =
     {
         {{1, 0, 0, 0},
-         {0, c,-s, 0},
-         {0, s, c, 0},
+         {0, Angle.Cos,-Angle.Sin, 0},
+         {0, Angle.Sin, Angle.Cos, 0},
          {0, 0, 0, 1}}
     };
 
@@ -2172,16 +2172,15 @@ XRotation(f32 Angle)
 
 // IMPORTANT(chowie): STUDY(chowie): This is the instructive version, not optimised!
 inline m4x4
-YRotation(f32 Angle)
+YRotation(f32 Theta)
 {
-    f32 c = Cos(Angle);
-    f32 s = Sin(Angle);
+    v2 Angle = SinCos(TURNS(Theta));
 
     m4x4 Result =
     {
-        {{ c, 0, s, 0},
+        {{ Angle.Cos, 0, Angle.Sin, 0},
          { 0, 1, 0, 0},
-         {-s, 0, c, 0},
+         {-Angle.Sin, 0, Angle.Cos, 0},
          { 0, 0, 0, 1}}
     };
 
@@ -2190,15 +2189,14 @@ YRotation(f32 Angle)
 
 // IMPORTANT(chowie): STUDY(chowie): This is the instructive version, not optimised!
 inline m4x4
-ZRotation(f32 Angle)
+ZRotation(f32 Theta)
 {
-    f32 c = Cos(Angle);
-    f32 s = Sin(Angle);
+    v2 Angle = SinCos(TURNS(Theta));
 
     m4x4 Result =
     {
-        {{c,-s, 0, 0},
-         {s, c, 0, 0},
+        {{Angle.Cos,-Angle.Sin, 0, 0},
+         {Angle.Sin, Angle.Cos, 0, 0},
          {0, 0, 1, 0},
          {0, 0, 0, 1}}
     };

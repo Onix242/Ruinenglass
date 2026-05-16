@@ -1394,6 +1394,7 @@ RepairSourceFinkHashTree(u64 Source, u64 Copy)
 // World space .y = (Tk + 1) % 2
 // World space .z = >= 4
 
+// TODO(chowie): Rename to not use internal to not conflict with grep!
 // IMPORTANT(chowie): Parents = world space directions -> select children based
 // on respective .x, .y, .z. Unless neighbour only has a root node, iseven(finkhash)
 // IMPORTANT(chowie): To convert values from NeighbourChildren to world space
@@ -1448,11 +1449,17 @@ struct cardinal_neighbours
 {
     union
     {
-        // TODO(chowie): Change v4u to a v4u8 or another compressed form like for colours?
         struct
         {
+            // TODO(chowie): Change v4u to a v4u8 or another compressed form like for colours?
             v4u Leaf; // NOTE(chowie): .x, -.x, .y, -.y, .z, -.z,
             v4u ZOrder; // NOTE(chowie): .x, -.x, .y, -.y, .z, -.z,
+        };
+        struct
+        {
+            // TODO(chowie): Change u32 to a u8
+            u32 InternalLeaf; // NOTE(chowie): .x, -.x, .y, -.y, .z, -.z,
+            u32 InternalZOrder; // NOTE(chowie): .x, -.x, .y, -.y, .z, -.z,
         };
         struct
         {
@@ -1467,59 +1474,64 @@ struct cardinal_neighbours
 // NOTE(chowie): Mirrors dir functions above
 struct neighbour_result
 {
-    cardinal_neighbours Neighbours[6];
+    cardinal_neighbours Neighbours[6]; // NOTE(chowie): .x, -.x, .y, -.y, .z, -.z,
     b32 IsSourceNodeLeaf;
 };
 
 internal neighbour_result
-FinkHashTreeGetLeafNodeNeighbour(finkhashtree_cardinal_group FinkHashTree, leaf_neighbour_dir_result Neighbours)
+FinkHashTreeGetLeafNodeNeighbour(finkhashtree_cardinal_group FinkHashTree, leaf_neighbour_dir_result NeighboursDir)
 {
     neighbour_result Result = {};
     Result.IsSourceNodeLeaf = true;
 
     // NOTE(chowie): Internal = z-order
     for(u32 LeafCount = 0;
-        LeafCount < ArrayCount(Neighbours.InternalNeighbours.E);
+        LeafCount < ArrayCount(NeighboursDir.InternalNeighbours.E);
         ++LeafCount)
     {
-        if(!Odd(LeafCount))
+        u32 NeighbourIndex = 0;
+        u32 InvDir = -NeighboursDir.ExternalNeighbours.E[LeafCount];
+        u32 ZOrderIndex = NeighboursDir.InternalNeighbours.E[LeafCount];
+
+        if(InvDir == 1)
         {
+            NeighbourIndex += 0;
+        }
+        else
+        {
+            NeighbourIndex += 1;
         }
 
-        s32 Offset = (TriangleNumber(LeafCount + 1) % 2);
-        if(Offset == 0)
-        {
-        }
+        Result.Neighbours[NeighbourIndex].InternalZOrder = ZOrderIndex;
+        Result.Neighbours[NeighbourIndex].InternalLeaf = FinkHashTree.Trees[NeighbourIndex].Leaves[ZOrderIndex];
 
-        if(LeafCount >= FINKHASHTREE_MAXLEAVESPITCH)
-        {
-        }
+        NeighbourIndex += 2;
     }
 
     // NOTE(chowie): External = world coords
     for(u32 TreeCount = 0;
-        TreeCount < ArrayCount(Neighbours.ExternalNeighbours.E);
+        TreeCount < ArrayCount(NeighboursDir.ExternalNeighbours.E);
         ++TreeCount)
     {
         if(IsParent(FinkHashTree.Trees[TreeCount].FinkHash))
         {
-            for(u32 LeafCount = 0;
-                LeafCount < ArrayCount(FinkHashTree.Trees->Leaves);
-                ++LeafCount)
+            u32 NeighbourIndex = 0;
+            u32 Dir = NeighboursDir.ExternalNeighbours.E[TreeCount];
+            u32 ZOrderIndex = NeighboursDir.InternalNeighbours.E[TreeCount];
+
+            if(Dir == 1)
             {
-                if(!Odd(LeafCount))
-                {
-                }
-
-                s32 Offset = (TriangleNumber(LeafCount + 1) % 2);
-                if(Offset == 0)
-                {
-                }
-
-                if(LeafCount >= FINKHASHTREE_MAXLEAVESPITCH)
-                {
-                }
+                NeighbourIndex += 0;
             }
+            else
+            {
+                NeighbourIndex += 1;
+            }
+
+            Result.Neighbours[NeighbourIndex].InternalZOrder = ZOrderIndex;
+            Result.Neighbours[NeighbourIndex].InternalLeaf = FinkHashTree.Trees[NeighbourIndex].Leaves[ZOrderIndex];
+
+            NeighbourIndex += 2;
         }
         else
         {
@@ -1547,54 +1559,56 @@ FinkHashTreeGetRootNodeNeighbour(finkhashtree_cardinal_group FinkHashTree)
         // children. Otherwise, it only has a root.
         if(IsParent(FinkHashTree.Trees[TreeCount].FinkHash))
         {
+            v2u LeafIndexX = {};
+            v2u LeafIndexY = {};
+            v2u LeafIndexZ = {};
+
             for(u32 LeafCount = 0;
                 LeafCount < ArrayCount(FinkHashTree.Trees->Leaves);
                 ++LeafCount)
             {
                 u32 NeighbourIndex = 0;
-                v2u LeafIndexX = {};
-                v2u LeafIndexY = {};
-                v2u LeafIndexZ = {};
+                u32 FillLeaves = 0;
 
                 if(!Odd(LeafCount)) // (Dir.x == 1)
                 {
                     NeighbourIndex = 0;
-                    Result.Neighbours[NeighbourIndex].Leaf.E[LeafIndexX.a++] = FinkHashTree.Trees[TreeCount].Leaves[LeafCount];
-                    Result.Neighbours[NeighbourIndex].ZOrder.E[LeafIndexX.a++] = LeafCount;
+                    FillLeaves = LeafIndexX.a++;
                 }
                 else
                 {
                     NeighbourIndex = 1;
-                    Result.Neighbours[NeighbourIndex].Leaf.E[LeafIndexX.b++] = FinkHashTree.Trees[TreeCount].Leaves[LeafCount];
-                    Result.Neighbours[NeighbourIndex].ZOrder.E[LeafIndexX.b++] = LeafCount;
+                    FillLeaves = LeafIndexX.b++;
                 }
+                Result.Neighbours[NeighbourIndex].Leaf.E[FillLeaves] = FinkHashTree.Trees[TreeCount].Leaves[LeafCount];
+                Result.Neighbours[NeighbourIndex].ZOrder.E[FillLeaves] = LeafCount;
 
                 s32 Offset = (TriangleNumber(LeafCount + 1) % 2);
                 if(Offset == 0) // (Dir.y == 1)
                 {
                     NeighbourIndex = 2;
-                    Result.Neighbours[NeighbourIndex].Leaf.E[LeafIndexY.a++] = FinkHashTree.Trees[TreeCount].Leaves[LeafCount];
-                    Result.Neighbours[NeighbourIndex].ZOrder.E[LeafIndexY.a++] = LeafCount;
+                    FillLeaves = LeafIndexY.a++;
                 }
                 else
                 {
                     NeighbourIndex = 3;
-                    Result.Neighbours[NeighbourIndex].Leaf.E[LeafIndexY.b++] = FinkHashTree.Trees[TreeCount].Leaves[LeafCount];
-                    Result.Neighbours[NeighbourIndex].ZOrder.E[LeafIndexY.b++] = LeafCount;
+                    FillLeaves = LeafIndexY.b++;
                 }
+                Result.Neighbours[NeighbourIndex].Leaf.E[FillLeaves] = FinkHashTree.Trees[TreeCount].Leaves[LeafCount];
+                Result.Neighbours[NeighbourIndex].ZOrder.E[FillLeaves] = LeafCount;
 
                 if(LeafCount >= FINKHASHTREE_MAXLEAVESPITCH) // (Dir.z == 1)
                 {
                     NeighbourIndex = 4;
-                    Result.Neighbours[NeighbourIndex].Leaf.E[LeafIndexZ.a++] = FinkHashTree.Trees[TreeCount].Leaves[LeafCount];
-                    Result.Neighbours[NeighbourIndex].ZOrder.E[LeafIndexZ.a++] = LeafCount;
+                    FillLeaves = LeafIndexZ.a++;
                 }
                 else
                 {
                     NeighbourIndex = 5;
-                    Result.Neighbours[NeighbourIndex].Leaf.E[LeafIndexZ.b++] = FinkHashTree.Trees[TreeCount].Leaves[LeafCount];
-                    Result.Neighbours[NeighbourIndex].ZOrder.E[LeafIndexZ.b++] = LeafCount;
+                    FillLeaves = LeafIndexZ.b++;
                 }
+                Result.Neighbours[NeighbourIndex].Leaf.E[FillLeaves] = FinkHashTree.Trees[TreeCount].Leaves[LeafCount];
+                Result.Neighbours[NeighbourIndex].ZOrder.E[FillLeaves] = LeafCount;
             }
         }
         else
