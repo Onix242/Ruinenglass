@@ -341,45 +341,68 @@ GetPairwiseRow64(u64 Ordinal)
 }
 
 // TODO(chowie): Move this out!
+// TODO(chowie): Build specific? Does it share block ids?
 // IMPORTANT(chowie): Primitives (child nodes) must be even values!
-   #define EvenSet(EnumValue) ((2*EnumValue))
+#define EvenSet(EnumValue) ((2*EnumValue))
 enum block_id : u16
 {
-    // ----------- FIRST 38 (including 0) 1/8th BLOCKS ---------
-    // OR "transition blocks" that can blend different materials together
-    // IMPORTANT(chowie): General blocks/colour palette useful in any build
+    // ----------- FIRST 38 (including 0) 1/8th BLOCKS (and can be 1m BLOCKS) ---------
+    // OR "comb blocks" that can tile/blend different materials together
+    // IMPORTANT(chowie): General blocks/colour palette useful in any build,
+    // only can face one direction.
 
-    Block_Air       = EvenSet(0),
-    Block_Water     = EvenSet(1),
-    Block_Smoke     = EvenSet(2),
+    Block_Air        = EvenSet(0),
+    Block_Water      = EvenSet(1),
+    Block_Smoke      = EvenSet(2),
+    Block_FloodLight = EvenSet(3),
+    Block_InvisWall  = EvenSet(4),
 
     // ----------- DO NOT REORDER THE ABOVE (SET PRECOMPUTED VALUES) ---------
 
-    Block_InvisWall = EvenSet(3),
-    Block_Sod       = EvenSet(4), // NOTE(chowie): More accurate than grass block
-    Block_Dirt      = EvenSet(5),
-    Block_Log       = EvenSet(6),
-    Block_Planks    = EvenSet(7),
-    Block_Bamboo    = EvenSet(8),
-    Block_Leaves    = EvenSet(9),
-    Block_Stone     = EvenSet(10),
-    Block_Concrete  = EvenSet(11),
-    Block_Sand      = EvenSet(12),
-    Block_Mud       = EvenSet(13),
-    Block_Ceramic   = EvenSet(14),
-    Block_Glass     = EvenSet(15),
-    Block_FracturedGlass = EvenSet(16),
-    Block_Cage      = EvenSet(17), // NOTE(chowie): Doubles as a chain
-    Block_Bone      = EvenSet(18),
-    Block_Brass     = EvenSet(19),
+    Block_Sod        = EvenSet(5), // NOTE(chowie): More accurate than grass block
+    Block_Dirt       = EvenSet(6),
+    Block_Sand       = EvenSet(7),
+    Block_Mud        = EvenSet(8), // NOTE(chowie): Ancient architecture uses it
+    Block_Log        = EvenSet(9),
+    Block_Planks     = EvenSet(10),
+    Block_BundledBamboo = EvenSet(11),
+    Block_Paper      = EvenSet(12), // NOTE(chowie): Asian architecture
+    Block_Thatch     = EvenSet(13),
+    Block_Leaves     = EvenSet(14),
+    Block_Stone      = EvenSet(15),
+    Block_Limestone  = EvenSet(16),
+    Block_Concrete   = EvenSet(17),
+    Block_Chukum     = EvenSet(18), // NOTE(chowie): Like Stucco
+    Block_Marble     = EvenSet(19),
+    Block_Basalt     = EvenSet(20),
+    Block_ResinBrick = EvenSet(21),
+    Block_Purpur     = EvenSet(22),
+    Block_Glass      = EvenSet(23),
+    Block_Acrylic    = EvenSet(24), // NOTE(chowie): Alternative to glass, bendable
+    Block_Polycarbonate = EvenSet(25), // NOTE(chowie): Alternative to glass, Greenhouse/office/roofs
+    Block_Brass      = EvenSet(26),
+    Block_Bronze     = EvenSet(27),
+    Block_Aluminum   = EvenSet(28),
+    Block_CorrugatedMetal = EvenSet(29),
+    Block_Steel      = EvenSet(30),
+    Block_Cage       = EvenSet(31), // NOTE(chowie): Doubles as a chain
+    Block_Cork       = EvenSet(32),
+    Block_Bone       = EvenSet(33),
+    Block_Ceramic    = EvenSet(34),
+    // NOTE(chowie): Small decorative blocks
+    Block_Vines      = EvenSet(35),
+    Block_Grass      = EvenSet(36),
+    Block_Flower     = EvenSet(37), // NOTE(chowie): Random colours based on block location
 
-//    Block_ = EvenSet(37),
+    // ----------- ONLY FULL 1m BLOCKS BELOW (decorative, simulation, interactive) ---------
+    // IMPORTANT(chowie): Pathfinding prioritises 1m blocks
 
-    // ----------- ONLY FULL 1m BLOCKS BELOW ---------
-
-//    Block_Grass = EvenSet(38),
-//    Block_Reed = EvenSet(39),
-//    Block_FloodLight = EvenSet(40),
+    Block_Fire       = EvenSet(38),
+    Block_Reed       = EvenSet(39),
+    Block_Lilypad    = EvenSet(40),
+    Block_BundledCarrots = EvenSet(41),
+    Block_BundledPotatoes = EvenSet(42),
+    Block_BundledMushrooms = EvenSet(43),
 
     Block_Marker,
     Block_Count = (Block_Marker + 1)/2,
