@@ -119,6 +119,21 @@ RandomUnilateral(pcg32_random_series *Series)
     return(Result);
 }
 
+// RESOURCE(tyler glaiel): Mewgenics - https://www.youtube.com/watch?v=grY-1x7Z40k
+// NOTE(chowie): Example usage, "if(RandomChance(Series, .75))"
+internal b32x
+RandomChance(pcg32_random_series *Series, f32 Threshold)
+{
+    b32x Result = false;
+    f32 Check = RandomUnilateral(Series);
+    if(RandomUnilateral(Series) <= Threshold)
+    {
+        Result = true;
+    }
+
+    return(Result);
+}
+
 // NOTE(chowie): [0, 1)
 // NOTE(chowie): Backstep amount PCG32Backstep(&PCG, 1)
 internal f64

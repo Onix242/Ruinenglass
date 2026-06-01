@@ -26,10 +26,23 @@ enum entity_flags
 
 struct entity;
 
+#define MAX_ENTITY_ID U32Max
+// TODO(chowie): Use stack (not queue) to reuse the most recently used
+// free slot. Generate entity ids (1 to max) at startup. Removing an
+// entity increment generation and push it back on stack. Pass
+// entities around as indices to not worry about deletion. A risk of
+// deletion needs a persistent reference, to validate compare value
+// (array index) matches with current generation slot. If overflows,
+// ban index and never use until safe e.g. new level resets everything
+// NOTE(chowie): Generation is like a goblin holding a jar is
+// defeated, an unrelated chicken takes fills it's spot in memory to
+// not confuse the jar is held by the chicken. In other words,
+// protects against deleted handle points to a newly occupying entity.
 // IMPORTANT(chowie): Reserve 0 for null entity
 struct entity_id
 {
     u32 Value;
+    u16 Generation; // NOTE(chowie): Entropy, array index incremented when deleted.
 };
 union entity_ref
 {
@@ -57,7 +70,6 @@ struct entity
     v2 dP;
 //    v2 ddP;
 };
-
 
 /*
 inline b32x

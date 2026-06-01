@@ -1420,6 +1420,9 @@ Win32MainWindowCallback(HWND   Window,
 //
 //
 
+// RESOURCE(): https://medium.com/@tglaiel/how-to-make-your-game-run-at-60fps-24c61210fe75
+// TODO(chowie): Fix timestep better!
+
 // NOTE(chowie): wWinMain is the newer version and not necessary!
 int CALLBACK
 WinMain(HINSTANCE Instance,

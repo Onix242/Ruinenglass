@@ -165,7 +165,7 @@ ChunkPosFromTilePos(world *World, v3s AbsTile, v3 AdditionalOffset = V3(0, 0, 0)
 {
     world_pos BasePos = {};
 
-    v3 Offset = Hadamard(World->ChunkDimInMeters, V3i(AbsTile));
+    v3 Offset = World->ChunkDimInMeters*V3i(AbsTile);
     world_pos Result = MapIntoChunkSpace(World, BasePos, AdditionalOffset + Offset);
     Assert(IsCanonical(World, Result.Offset_));
     return(Result);
@@ -177,7 +177,7 @@ inline v3
 Subtract(world *World, world_pos *A, world_pos *B)
 {
     v3 dTile = {V3i(A->Chunk) - V3i(B->Chunk)};
-    v3 Result = Hadamard(World->ChunkDimInMeters, dTile) + (A->Offset_ - B->Offset_);
+    v3 Result = World->ChunkDimInMeters*dTile + (A->Offset_ - B->Offset_);
     return(Result);
 }
 

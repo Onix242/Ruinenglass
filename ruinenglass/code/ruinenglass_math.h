@@ -3135,6 +3135,7 @@ D7samNormalisedMul(u8 A, u8 B)
 // TODO(chowie): Use this for gameplay (calculating a scheduling
 // system), animation systems and ring buffers.
 
+// TODO(chowie): Remove of ModN and have wrapping intentional and merge with RLEJoin?
 // NOTE(chowie): Must be non-negative intervals
 #define ModN(Value, N) (Value % N)
 
@@ -3163,6 +3164,9 @@ ClosedIntervalsOverlap(v2u IntervalA, v2u IntervalB, u32 Base = 12)
     return(Result);
 }
 
+// NOTE(chowie): HalfOpen is for scheduling, timed intervals that are abutt e.g.
+// |--------|
+//          |----------|
 // NOTE(chowie): [a, b) [c, d)
 inline b32x
 HalfOpenIntervalsOverlap(v2u IntervalA, v2u IntervalB, u32 Base = 12)

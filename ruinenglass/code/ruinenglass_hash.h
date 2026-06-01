@@ -317,6 +317,9 @@ IsTriangleNumber(u32 Value)
     return(Result);
 }
 
+// COULDDO(chowie): Could I not delay "-1)/2" later until after
+// FloorF64toU64?, then don't need CurrentTriangleNumber? Yes you can,
+// but I don't understand how to simplify everything.
 inline f64
 IsTriangleNumber64(u64 Value)
 {
@@ -353,32 +356,32 @@ enum block_id : u16
 
     Block_Air        = EvenSet(0),
     Block_Water      = EvenSet(1),
-    Block_Smoke      = EvenSet(2),
-    Block_FloodLight = EvenSet(3),
-    Block_InvisWall  = EvenSet(4),
+    Block_Lava       = EvenSet(2),
+    Block_Ice        = EvenSet(3),
+    Block_Smoke      = EvenSet(4),
+    Block_InvisWall  = EvenSet(5),
 
     // ----------- DO NOT REORDER THE ABOVE (SET PRECOMPUTED VALUES) ---------
 
-    Block_Sod        = EvenSet(5), // NOTE(chowie): More accurate than grass block
-    Block_Dirt       = EvenSet(6),
-    Block_Sand       = EvenSet(7),
-    Block_Mud        = EvenSet(8), // NOTE(chowie): Ancient architecture uses it
-    Block_Log        = EvenSet(9),
-    Block_Planks     = EvenSet(10),
-    Block_BundledBamboo = EvenSet(11),
-    Block_Paper      = EvenSet(12), // NOTE(chowie): Asian architecture
-    Block_Thatch     = EvenSet(13),
-    Block_Leaves     = EvenSet(14),
-    Block_Stone      = EvenSet(15),
-    Block_Limestone  = EvenSet(16),
-    Block_Concrete   = EvenSet(17),
-    Block_Chukum     = EvenSet(18), // NOTE(chowie): Like Stucco
-    Block_Marble     = EvenSet(19),
-    Block_Basalt     = EvenSet(20),
-    Block_ResinBrick = EvenSet(21),
-    Block_Purpur     = EvenSet(22),
-    Block_Glass      = EvenSet(23),
-    Block_Acrylic    = EvenSet(24), // NOTE(chowie): Alternative to glass, bendable
+    Block_Sod        = EvenSet(6), // NOTE(chowie): More accurate than grass block
+    Block_Dirt       = EvenSet(7),
+    Block_Snow       = EvenSet(8),
+    Block_Sand       = EvenSet(9),
+    Block_Mud        = EvenSet(10), // NOTE(chowie): Ancient architecture uses it
+    Block_Log        = EvenSet(11),
+    Block_Planks     = EvenSet(12),
+    Block_BundledBamboo = EvenSet(13),
+    Block_Paper      = EvenSet(14), // NOTE(chowie): Asian architecture
+    Block_Thatch     = EvenSet(15),
+    Block_Leaves     = EvenSet(16),
+    Block_Cobblestone = EvenSet(17),
+    Block_Limestone  = EvenSet(18),
+    Block_Chukum     = EvenSet(19), // NOTE(chowie): Like Stucco
+    Block_Marble     = EvenSet(20),
+    Block_Basalt     = EvenSet(21),
+    Block_ResinBrick = EvenSet(22),
+    Block_Purpur     = EvenSet(23),
+    Block_Glass      = EvenSet(24), // COULDDO(chowie): Add acrylic? Alternative to glass, bendable
     Block_Polycarbonate = EvenSet(25), // NOTE(chowie): Alternative to glass, Greenhouse/office/roofs
     Block_Brass      = EvenSet(26),
     Block_Bronze     = EvenSet(27),
@@ -398,11 +401,13 @@ enum block_id : u16
     // IMPORTANT(chowie): Pathfinding prioritises 1m blocks
 
     Block_Fire       = EvenSet(38),
-    Block_Reed       = EvenSet(39),
-    Block_Lilypad    = EvenSet(40),
-    Block_BundledCarrots = EvenSet(41),
-    Block_BundledPotatoes = EvenSet(42),
-    Block_BundledMushrooms = EvenSet(43),
+    Block_FloodLight = EvenSet(39),
+    Block_Reed       = EvenSet(40),
+    Block_Lilypad    = EvenSet(41),
+    Block_BundledCarrots = EvenSet(42),
+    Block_BundledPotatoes = EvenSet(43),
+    Block_BundledMushrooms = EvenSet(44),
+    Block_Crystal    = EvenSet(45),
 
     Block_Marker,
     Block_Count = (Block_Marker + 1)/2,
@@ -1180,6 +1185,25 @@ FinkHashTreeReadWritePerfectTree(finkhashtree_group *TreeGroup)
     }
 }
 
+// NOTE(chowie): Tries to get a non-reserved/non-special block when
+// possible, easiest is to get the top/bot.
+// COULDDO(chowie): If top/bot isn't enough, to get the sides try
+// sampling leaf index.
+internal u8
+GetFinkHashTreeLODLeafApprox(u64 Hash, b32x TopFaceBlock)
+{
+    u64 Acc = TopFaceBlock ? InvertFinkHash(Hash).a : InvertFinkHash(Hash).b;
+    for(;
+        IsParent(Acc);
+        )
+    {
+        v2u64 Pair = InvertFinkHash(Acc);
+        Acc = Max(Pair.a, Pair.b);
+    }
+
+    return(SafeTruncateToU8(Acc));
+}
+
 internal u32
 GetDepthFinkHashPerfectTree(u64 Hash)
 {
@@ -1193,19 +1217,34 @@ GetDepthFinkHashPerfectTree(u64 Hash)
         v2u64 Pair = InvertFinkHash(Acc);
         Acc = Pair.x;
     }
+
     return(Iter);
 }
 
+// TODO(chowie): Do the same for block_air?
 // COULDDO(chowie): Could take use .destleaf to save on a for loop?
 internal u64
 FinkHashTreeBubbleupCommonLeafInPerfectTreeIfPossibleInternal(u64 Hash)
 {
     u64 Result = Hash;
     // NOTE(chowie): The most-likely block ID to be filled in the tree
+#define PRECOMPUTED_BLOCKAIRHASH 361 // NOTE(chowie): f(0) or 0
 #define PRECOMPUTED_BLOCKWATERHASH 27071209 // NOTE(chowie): f(1) or 2
-    if(Result == PRECOMPUTED_BLOCKWATERHASH)
+#define PRECOMPUTED_BLOCKLAVAHASH 2823753321
+#define PRECOMPUTED_BLOCKICEHASH 52827804649
+#define PRECOMPUTED_BLOCKSMOKEHASH 449547453289
+#define PRECOMPUTED_BLOCKINVISWALLHASH 2431662865641
+    if(Result == PRECOMPUTED_BLOCKAIRHASH)
+    {
+        Result = (u64)Block_Air;
+    }
+    else if(Result == PRECOMPUTED_BLOCKWATERHASH)
     {
         Result = (u64)Block_Water;
+    }
+    else if(Result == PRECOMPUTED_BLOCKLAVAHASH)
+    {
+        Result = (u64)Block_Lava;
     }
     else
     {
@@ -1221,24 +1260,17 @@ FinkHashTreeBubbleupCommonLeafInPerfectTreeIfPossibleInternal(u64 Hash)
     return(Result);
 }
 
+// NOTE(chowie): For water/sand/mud with a "moving = still/calm" state while keeping
+// the eighth blocks intact (no bubble up)
+// if(CommonLeaf == (u64)Block_Water) // NOTE(chowie): Do not recombine for particle-related/fluid sim stuff
+// NOTE(chowie): Complete branch optimisation, e.g. Breaking the last block, recombines all air into an air block
 internal u64
 FinkHashTreeBubbleupCommonLeafInPerfectTreeIfPossible(u64 Hash)
 {
     u64 Result = Hash;
     if(IsPerfectSqr(Result))
     {
-        u64 CommonLeaf = FinkHashTreeBubbleupCommonLeafInPerfectTreeIfPossibleInternal(Result);
-        // NOTE(chowie): For water/sand/mud with a "moving = still/calm" state while keeping
-        // the eighth blocks intact (no bubble up)
-        if(CommonLeaf == (u64)Block_Water)
-        {
-            // NOTE(chowie): Do not recombine for particle-related/fluid sim stuff
-        }
-        else
-        {
-            // NOTE(chowie): E.g. Breaking the last block, recombines all air into an air block
-            Result = CommonLeaf;
-        }
+        Result = FinkHashTreeBubbleupCommonLeafInPerfectTreeIfPossibleInternal(Result);
     }
 
     return(Result);
@@ -2340,7 +2372,7 @@ ProcessFinkHashTree(void)
     // 1. FinkHashTreeReadAllParams();
     // 2. FinkHashTreeReadParams(FinkHashTree_Mode_FirstOfValue, 16);
     // 3. FinkHashTreeReadParams(FinkHashTree_Mode_Index, 7);
-    finkhashtree_params TreeParams = FinkHashTreeReplaceParams(FinkHashTree_Mode_FirstOfValue, 16, 14);
+    finkhashtree_params TreeParams = FinkHashTreeReplaceParams(FinkHashTree_Mode_FirstOfValue, 16, 14, true);
     
     // IMPORTANT(chowie): Allowed trees:
     // 1. Full tree with leaves (of at least _one different leaf value_)

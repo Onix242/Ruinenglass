@@ -156,7 +156,7 @@ struct builder_loaded_font
 struct builder_loaded_repligram
 {
     v3u Dim;
-    block_theme Theme;
+    block_palette Palette;
 
     // TODO(chowie): IMPORTANT(chowie): Hash priorities as an ID
     // somehow, so title can change freely. It's safe to hash as it

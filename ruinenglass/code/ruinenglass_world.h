@@ -7,6 +7,9 @@
    $Notice: $
    ======================================================================== */
 
+// COULDDO(chowie): Fink Hash could instead be a low-entity; not in
+// world_pos. I'm worried about implications of GI, shadows,
+// pathfinding etc...
 // TODO(chowie): It seems like we have store ChunkX/Y/Z with each
 // entity because even though the sim region gather doesn't need it at
 // first, and we could get by without it, entity references pull in
@@ -14,8 +17,9 @@
 // to know the chunk X,Y,Z.
 struct world_pos
 {
+    u64 FinkHash; // NOTE(chowie): 2x2x2 tree
     v3s Chunk; // NOTE(chowie): Absolute pos
-    v3 Offset_; // NOTE(chowie): Relative Offsets from chunk center
+    v3 Offset_; // NOTE(chowie): Relative offset from chunk center
 };
 
 // NOTE(chowie): Invert reference from world, but most of the

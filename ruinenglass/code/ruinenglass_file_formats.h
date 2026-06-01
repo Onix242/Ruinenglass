@@ -235,25 +235,49 @@ struct rui_font
 // "block theme" (overlapping colours palettes/textures that masks
 // over the base textures of block_id). Doesn't necessarily corresponds
 // 1-to-1 of how biomes are defined.
-enum block_theme : u16
+enum block_palette : u16
 {
     // NOTE(chowie): Block themes for environments
-    BlockTheme_Sterile,
-    BlockTheme_Snow,
-    BlockTheme_Ash,
-    BlockTheme_Ruins,
+    BlockPalette_Sterile,
+    BlockPalette_Snow,
+    BlockPalette_Ash,
+    BlockPalette_Ruins,
 
     // NOTE(chowie): Block themes for characters
-    BlockTheme_EurolangCreatures,
-    BlockTheme_AsialangCreatures,
-    BlockTheme_CalclangCreatures,
+    BlockPalette_EurolangCreatures,
+    BlockPalette_AsialangCreatures,
+    BlockPalette_CalclangCreatures,
 };
 
+// RESOURCE(): https://github.com/stefalie/shapeml
+// RESOURCE(): https://www.youtube.com/watch?v=f6ra024-ASY
+// STUDY(chowie): Extended idea of "shape grammar"/"L-system" fitted
+// to nonograms/Picross. (Less flexible, but easier to understand and
+// more performant)!
+// Has these exact (or similar) ops:
+// - Extrude/Scale
+// - Repeat
+// - Split = inverted "join" (implicit)
+// - Translate (implicit = extrude air blocks)
+// - Indexed palette
+// - Inc/Dec
+// - RandomChoice() of blocks
+// Has these unique ops:
+// - "Priority" = frames until extrude (works in x,y,z rows/columns)
+// Doesn't have these ops:
+// - Rotate
+// - Meta layer to connect all these repligram
+// It's different because:
+// - It's for real-time animation (smear animation = extrudes). You
+//   work with a timeline
+// - Fairly straight-forward to implement
+// - Doesn't work with strings (patterns)
+// - Not state-based or node-based
 struct rui_repligram
 {
     v3u Dim;
     v2u PriorityDim;
-    block_theme Theme;
+    block_palette Palette;
 };
 
 // NOTE(chowie): References continguous range in a separate table
@@ -295,22 +319,108 @@ struct rui_asset
 //
 //
 
-// NOTE(chowie): Rep = Repeat
+// TODO(chowie): Find a more elegant solution
+// NOTE(chowie): Rep = Repeat (like in compression context i.e. LZ4)
 enum repligram_op_type : u8
 {
-    RepligramOp_None = BitSet(0),
+    RepligramOp_None   = BitSet(0),
 
-    RepligramOp_Modulo = BitSet(1),
-    RepligramOp_RepAdd = BitSet(2),
-    RepligramOp_RepSub = BitSet(3),
-    RepligramOp_Joined = BitSet(4), // NOTE(chowie): Requires ops to be adjacent to each other, includes formbanks' bars and blanks
+    RepligramOp_Inc    = BitSet(1), // NOTE(chowie): Like math repeating symbol
+    RepligramOp_Dec    = BitSet(2), // NOTE(chowie): Like math repeating symbol
+    RepligramOp_Random = BitSet(3), // NOTE(chowie): For debugging
+//    RepligramOp_Rep    = BitSet(4), // NOTE(chowie): Requires ops to be adjacent to each other, includes formbanks' bars and blanks
+//    RepligramOp_Modulo = BitSet(5),
+};
+struct repligram_priority_clue
+{
+    u8 Priority; // NOTE(chowie): 0 maps to 'x'
+    enum8(repligram_op_type) Op;
 };
 struct repligram_priority
 {
-    u8 Priority[2]; // NOTE(chowie): 0 maps to 'x'
-    enum8(repligram_op_type) Op;
-    u8 JoinedMax; // NOTE(chowie): Requires op_joined
+    repligram_priority_clue Clue[2];
+    u8 RLERep; // NOTE(chowie): Runs or offset from base (current row/col index)
 };
+struct repligram_priority_group
+{
+    repligram_priority *Priorities;
+    u32 Count;
+    u8 NonIntervalOverlapRasteriseBitmask; // NOTE(chowie): Only for editor
+};
+// NOTE(chowie): RLERep, gets converted to a range/v2u at runtime
+// |-------------------------|
+// | Index, 0                |
+// |-------------------------|
+// | Index, RLERep (3, 2)    | For closed interval [3, 5], in other words [3, 3+2]
+// |-------------------------|
+// | Index, 0                |
+// |-------------------------|
+// 1) Read row/col index as usual (in order)
+// 2) Testing point to closed interval e.g. cursor on row/col to move finds the interval
+//    __Intervals cannot overlap__
+//    "for(; (TestRowColIndex < RepligramDim); ++Index)
+//    {
+//        if(RLERep != 0)
+//        {
+//            if(IsRLERepPointInClosedInterval(TestRowColIndex,
+//                                             V2U(TestRowColIndex, TestRowColIndex + RLERep)))
+//            {...}
+//        }
+//    }"
+// 3) Test with cursor buffer at start and end of interval to know how
+//    to move/cut surrounding intervals and cut repligram dim
+
+// NOTE(chowie): How rasterise bitmask works (make sure to check for op_rep)
+// Adding group on left-most side needs to always start with 0
+// 1) 0 0 1 1 1 0 0 0 (default)
+// 2) 0 0 1 1 1 0 1 1 (add new group = NOT ~)
+
+// 1) 0 0 1 1 1 0 0 0 (default)
+// 2) 0 0 1 1 0 0 0 0 (trim = NOT ~)
+
+// 1) 0 0 1 1 1 0 1 1 (default)
+// 2) 0 0 1 1 1 1 1 1 (union/merge = copy bit)
+
+// 1) 0 1 1 1 1 0 0 0 (default)
+// 2) 0 1 1 0 0 0 1 1 (split = for loop NOT ~ at split)
+// 2) 0 1 1 0 0 1 1 1 (split and don't union = for loop NOT ~ at split)
+
+// 1) 0 1 1 1 0 1 1 0 (default)
+// 2) 0 1 1 1 1 0 0 1 (extrude and don't union = for loop NOT ~ end point)
+
+// 1) 0 1 1 1 0 1 1 0 (default)
+// 2) 0 0 1 1 1 0 0 1 (move and don't union = for loop NOT ~ end point)
+
+// TODO(chowie): Repligram edit ops (like video editors)
+// - Merge/Join
+// - Extrude
+// - Split
+// - Duplicate
+// - Delete
+// - Move/Trim
+
+// COULDDO(chowie): I could instead use FinkHash for subranges? Or
+// RemaleyHash for combinatorics? Or rasterise into bitmasks if < 32
+// Or what if there's something that exists that "when you add a number
+// the other side decreases"?
+
+// NOTE(chowie): "Point - Interval" will intentionally wrap!
+// [a, b]
+inline b32x
+IsRLERepPointInClosedInterval(u32 Point, v2u Interval)
+{
+    b32x Result = (Point - Interval.Start) <= (Interval.End - Interval.Start);
+    return(Result);
+}
+
+// NOTE(chowie): [a, b] [c, d]
+inline b32x
+IsRLERepClosedIntervalsOverlap(v2u IntervalA, v2u IntervalB)
+{
+    b32x Result = ((IntervalB.Start - IntervalA.Start) <= (IntervalA.End - IntervalA.Start)) ||
+                  ((IntervalA.Start - IntervalB.Start) <= (IntervalB.End - IntervalB.Start));
+    return(Result);
+}
 
 // NOTE(chowie): Static = Non-moving animation, easily toggleable to have animation
 // TODO(chowie): Decal = Assert (Dim == (.x == 1) || (.y == 1) || (.z == 1))
@@ -321,25 +431,31 @@ enum repligram_anim_type : u8
     AnimType_AnimatedDecal,
     AnimType_StaticDecal,
 };
-enum repligram_anim_stretch_dir : u8
+enum repligram_anim_stretch_dir : u16
 {
-    AnimDir_Up = BitSet(0),
-    AnimDir_Down = BitSet(1),
-    AnimDir_Left = BitSet(2),
-    AnimDir_Right = BitSet(3),
+    AnimDir_X = BitSet(0),
+    AnimDir_nX = BitSet(1),
+    AnimDir_Y = BitSet(2),
+    AnimDir_nY = BitSet(3),
+    AnimDir_Z = BitSet(4),
+    AnimDir_nZ = BitSet(5),
 
-    AnimDir_FlipUp = BitSet(4),
-    AnimDir_FlipDown = BitSet(5),
-    AnimDir_FlipLeft = BitSet(6),
-    AnimDir_FlipRight = BitSet(7),
+    AnimDir_FlipX = BitSet(6),
+    AnimDir_FlipnX = BitSet(7),
+    AnimDir_FlipY = BitSet(8),
+    AnimDir_FlipnY = BitSet(9),
+    AnimDir_FlipZ = BitSet(10),
+    AnimDir_FlipnZ = BitSet(11),
 
-    AnimDir_SimulUpDown = AnimDir_Up | AnimDir_Down,
-    AnimDir_SimulLeftRight = AnimDir_Left | AnimDir_Right,
+    AnimDir_SyncX = AnimDir_X | AnimDir_nX,
+    AnimDir_SyncY = AnimDir_Y | AnimDir_nY,
+    AnimDir_SyncZ = AnimDir_Z | AnimDir_nZ,
+    AnimDir_SyncUniform = AnimDir_SyncX | AnimDir_SyncY | AnimDir_SyncZ,
 };
 struct repligram_timeline_entry
 {
     u32 P;
-    enum8(repligram_anim_stretch_dir) Dir;
+    enum16(repligram_anim_stretch_dir) Dir;
 };
 
 // NOTE(chowie): Constant = bones doesn't change value from prev keyframe
