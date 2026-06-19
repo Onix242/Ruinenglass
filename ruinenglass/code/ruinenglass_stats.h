@@ -58,39 +58,63 @@ IncrementalAvg2(f32 Avg, u32 n, f32 NextValue)
 // Fairmath
 //
 
-// RESOURCE(): https://emshort.blog/2016/02/15/set-check-or-gate-a-problem-in-personality-stats/
-// RESOURCE(): https://www.reddit.com/r/choiceofgames/comments/k92tbs/survey_that_no_one_asked_for/
-// NOTE(from emshort): Not a good way for a system that rewards the
-// extremes to define a character's personality. Averaging systems
-// tends to moderates themselves (but could appropriate for others).
-// NOTE(chowie): Example use-case is each action is less effective
-// than the previous with the same trait/ability. In other words,
-// diminishing returns for repeat actions, prevents min/max of stats.
+/********************************
+        WHAT IS FAIRMATH?
+   ******************************
 
-// RESOURCE(): https://web.archive.org/web/20150815012902/http://community.failbettergames.com/topic20369-favours-and-renown.aspx
-// RESOURCE(inkle): https://gdcvault.com/play/1021774/Adventures-in-Text-Innovating-in
-// COULDDO(chowie): Don't need sub if you're using an always using an
-// increasing system like Inkle (choice for impact + easier to debug):
-// Tension-Up and Tension-Down are always saved. A renown system is
-// always increasing, favours can decrease = exchanging currency.
+   A percentage-based incremental averaging using LERP. That
+   effectively, moderates itself +tive or -tive change towards the
+   centre, 50%. "Moderates itself" meaning, no manual if() oversight
 
-// RESOURCE(): https://choicescriptdev.fandom.com/wiki/Arithmetic_operators
-// RESOURCE(): https://emshort.blog/2016/02/15/set-check-or-gate-a-problem-in-personality-stats/
-// NOTE(from cvaneseltine): "The idea of fairmath is the closer to 100
-// (the higher it is), the harder it is to increase. The closer to 0
-// (the lower it is), the harder it is to decrease." Outputs values
-// heavily towards the center! (Never increases past 100 or decreases
-// past 1 unless if either are set as the starting value)
-// IMPORTANT(chowie): Fairmath is a percentage-based incremental
-// averaging, XCOM would tie this to shooting chance and map this to
-// distance, setting 100 and 0 manually (for close and long distances
-// especially shotguns and snipers)! I think it's used for High Elo
-// ranking systems. Gain little with higher rank, lose much more!
+   Like ELO systems, any changes at the absolutes pulls you towards
+   the average, 50%. E.g. At 100%, a loss might be -20%, compared to
+   at 70% a loss might be -5% (because it's closest to 50%).
+   In other words,
+      RESOURCE(): https://choicescriptdev.fandom.com/wiki/Arithmetic_operators
+      RESOURCE(): https://emshort.blog/2016/02/15/set-check-or-gate-a-problem-in-personality-stats/
+      NOTE(from cvaneseltine): "The idea of fairmath is the closer to 100
+      (the higher it is), the harder it is to increase. The closer to 0
+      (the lower it is), the harder it is to decrease." Outputs values
+      heavily towards the center! (Never increases past 100 or decreases
+      past 1 unless if either are set as the starting value)
+
+   Select different kinds of LERP, EERP which determines how dramatic
+   any gain/loss is.
+
+   A defining "tell" is: it can never hit at the absolutes, 0% or 100%
+   and must be set manually. In other words, at most 1% or 99%. I
+   suspect XCOM uses this (relevant at the time).
+
+   - Personality stats e.g. happy-to-sad, hygenic-to-stinky
+   - Binary morality system like Fable
+   - XCOM is really good example, shooting average is 50% with a dramatic
+   falloff for shotguns and sniper rifles. LERP is mapped to distances.
+   - Season/Temperature/Rain system. Drammatic drop to normal/clear
+   - Renown system
+   - Any diminishing returns for repeated actions
+
+   RESOURCE(): https://emshort.blog/2016/02/15/set-check-or-gate-a-problem-in-personality-stats/
+   RESOURCE(): https://www.reddit.com/r/choiceofgames/comments/k92tbs/survey_that_no_one_asked_for/
+   NOTE(from emshort): Not a good way for a system that rewards the
+   extremes to define a character's personality. Averaging systems
+   tends to moderates themselves (but could appropriate for others).
+   NOTE(chowie): Example use-case is each action is less effective
+   than the previous with the same trait/ability. In other words,
+   diminishing returns for repeat actions, prevents min/max of stats.
+  
+   RESOURCE(): https://web.archive.org/web/20150815012902/http://community.failbettergames.com/topic20369-favours-and-renown.aspx
+   RESOURCE(inkle): https://gdcvault.com/play/1021774/Adventures-in-Text-Innovating-in
+   COULDDO(chowie): Don't need sub if you're using an always using an
+   increasing system like Inkle (choice for impact + easier to debug):
+   Tension-Up and Tension-Down are always saved. A renown system is
+   always increasing, favours can decrease = exchanging currency.
+  
+*/
 
 struct fairmath
 {
     // NOTE(chowie): These are split to lerp if you want to visualise as a bar
-    v2 Norm;
+    v2 Norm; // .Avg = Original value, .t Raw amount/delta
 };
 
 enum fairmath_op

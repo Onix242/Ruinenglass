@@ -1238,6 +1238,16 @@ Cross(v3 A, v3 B)
     return(Result);
 }
 
+// STUDY(chowie): For determinate of a 3x3 matrix, test if
+// transformation has been flipped. 0 means coplanar (lies in same 2D
+// plane). Convex hull checks if points is in front or behind a face
+inline f32
+TripleScalar(v3 A, v3 B, v3 C)
+{
+    f32 Result = Inner(Cross(A, B), C);
+    return(Result);
+}
+
 inline f32
 LengthSq(v3 A)
 {
@@ -3125,15 +3135,28 @@ D7samNormalisedMul(u8 A, u8 B)
     return (((u16)A + 1)*B) >> 8;
 }
 
-//
-// Interval Overlap
-//
+/********************************
+     WHAT IS INTERVAL OVERLAP?
+   ******************************
 
-// RESOURCE(): https://fgiesen.wordpress.com/2015/09/24/intervals-in-modular-arithmetic/
+   Take the timeline below:
+   0               12
+   |---------------|
 
-// RESOURCE(): https://www.drmaciver.com/2017/05/a-hybrid-voting-system-for-scheduling/
-// TODO(chowie): Use this for gameplay (calculating a scheduling
-// system), animation systems and ring buffers.
+   And you want to calculate a wrapping overlap
+   0               12
+   |###---------###|
+
+   For point-overlap and multi-overlap test.
+
+   Please use this for time systems, animation systems
+
+   RESOURCE(): https://fgiesen.wordpress.com/2015/09/24/intervals-in-modular-arithmetic/
+  
+   RESOURCE(): https://www.drmaciver.com/2017/05/a-hybrid-voting-system-for-scheduling/
+   TODO(chowie): Use this for gameplay (calculating a scheduling
+   system), animation systems and ring buffers.
+*/
 
 // TODO(chowie): Remove of ModN and have wrapping intentional and merge with RLEJoin?
 // NOTE(chowie): Must be non-negative intervals

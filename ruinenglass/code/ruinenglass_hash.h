@@ -343,6 +343,355 @@ GetPairwiseRow64(u64 Ordinal)
     return(Result);
 }
 
+//
+// Remaley Hash (2D, pairwise)
+//
+
+/********************************
+        WHAT IS REMALEY HASH?
+   ******************************
+
+   2->1 perfect hash
+   Doesn't store data within hash, just possible combinations. Used for IDs
+   Input order agnostic (pairwise means swaps min or max)
+
+   For pairwise interaction, remaley hash stores only the necessary
+   data of a matrix. While still indexing linearly with an array:
+   - 0 = 0x0
+   - 1 = 0x1
+   - 2 = 1x0
+   - 3 = 0x2
+   - 4 = 1x2
+   - 5 = 2x2
+
+   You can still process these with "+= 1" when looping through as usual
+
+   #
+   # #
+   # # #
+   # # # #
+   # # # # #
+   # # # # # #
+
+   - Stores undirected graph edges and update simultaneously on both ends
+     = As standard, serialise a node list and edge list separately.
+     = Use Remaley hash to avoid double dispatch problem i.e. updating
+     edges between nodes usually means updating on both ends. Remaley
+     hash stores a single edge as a number and updates both ends
+     simultaneously by altering the number, O(n). It can be streamed
+     in too! (for ease, nodes should store a separate number_id enum)
+     = Supports self-loop edges (diagonal of matrix), e.g. RemaleyHash(1, 1)
+     = Supports null edges, e.g. RemaleyHash(1, 0)
+     = Use search O(n) pairwise by row/col to get a list of all
+     connections (if available)
+   - OR can be used to store combinatorics (matrix) in a linear array
+
+   Please use this for:
+   - Narrative Simulation:
+     = Map social NPC relationship web(s) e.g. Who knows who
+     = Emotional matrix for narrative/story games
+     = You may combine/nest all of the above!
+       e.g. struct NarrativeRemaleyHashEdge { u32 SocialRelations; u32 EmotionMatrix; u32 FAVVE; }
+   - Spatial connections between towns/cities (most 4x games/MMOs/Metroidvanias), 
+   (for level design) if the player can access it from their locations.
+   It could mean if a road should be procedurally generated or not.
+   OR just as documentation like Breath of the Wild.
+     = On a micro-scale, random generation of buildings/houses? E.g. should
+     the kitchen be connected to the living room or not?
+   - Correlation between different parameters (for procedural animation systems),
+   maybe you want to cut down on the total number of parameters (to simplify).
+   - Expand out settings e.g. [software render  render by Win GDI]
+                              [opengl render    render by Opengl]
+   - Collision response system handled differently for each type
+   - Type knockout chart like in a tournament, to check if everyone beat each other
+   - Pairwise Comparison Surveys, "what out of two options do you like more?"
+     = Winrate
+     = Probabilistic: Bayesian/Glicko/Trueskill ELO score in competitive games
+     = Binary: If only one person votes
+
+   COULDDO(chowie): Partial pairwise comparison 3n(n-1)/2?
+*/
+
+// RESOURCE(mason remaley): https://gamesbymason.com/2020/03/30/symmetric-matrices/
+internal u32
+RemaleyHash(u16 A, u16 B)
+{
+    v2u Pair = {(u32)B, (u32)A}; // NOTE(chowie): In general, most will automatically write A > B
+    if(A < B)
+    {
+        Swap(u32, Pair.a, Pair.b);
+    }
+
+    u32 Result = TriangleNumberMat(Pair);
+    return(Result);
+}
+
+// NOTE(chowie): Pairwise diagonal
+internal u32
+RemaleyHash(u16 A)
+{
+    u32 Result = TriangleNumberMat(A);
+    return(Result);
+}
+
+// COULDDO(chowie): Diagonal for trigraphs (3-variable diagrams)?
+// #
+// # #
+// # # #
+// # # A #
+// # A # # #
+// A # # # # #
+
+// NOTE(chowie): Alternative trick to get row if I need this later!
+// STUDY(chowie): Trick I made to avoid floating point precision with
+// IsInteger() Signof check ensures it's always past the first index!
+// (SignOf(Ordinal - TriangleNumber((u32)Result.Row)) == -1) ? false : true;
+struct pairwise_index_result
+{
+    b32x IsTriangleNumber;
+    u16 Row;
+    u16 Col;
+};
+internal pairwise_index_result
+InvertRemaleyHash(u32 Ordinal)
+{
+    u16 Row = GetPairwiseRow16(Ordinal);
+    u16 Pitch = (u16)TriangleNumber(Row); // STUDY(chowie): Neat way I found to handle 0th case without a clamp
+
+    pairwise_index_result Result = {};
+    Result.Row = Row;
+    Result.Col = (u16)Ordinal - Pitch;
+    Result.IsTriangleNumber = (Ordinal == TriangleNumberMat((u32)Result.Row));
+    return(Result);
+}
+
+// Makes a upside down L-shape of triangle numbers
+// #
+// A A
+// # A #
+// # A # #
+// NOTE(chowie): To show the range/permutations?
+// e.g. Anger has Anger-Null, Anger-Love, Anger-Indifferent, Anger-Hate,
+// Anger-Anger, Anger-Stress, Anger-Calm ... etc
+// NOTE(chowie): Searching is O(n)
+internal u32 *
+RemaleyHashTableOppositeRows(u16 Row, u32 PairwiseTableCount)
+{
+    u32 *Result = 0;
+    for(u32 RemaleyHashIndex = 0;
+        RemaleyHashIndex < PairwiseTableCount;
+        ++RemaleyHashIndex)
+    {
+        Result[RemaleyHashIndex] = RemaleyHash(Row, (u16)RemaleyHashIndex);
+    }
+
+    return(Result);
+}
+
+// NOTE(chowie): Random combination
+internal u32
+RandomRemaleyHashTableRow(pcg32_random_series *Series, u16 Row, u32 PairwiseTableCount)
+{
+    u32 Result = RemaleyHash(Row, (u16)RandomBounds(Series, PairwiseTableCount));
+    return(Result);
+}
+
+internal u32
+SampleRemaleyHashTable(pcg32_random_series *Series, u32 PairwiseTableCount)
+{
+    u32 Result = RemaleyHash((u16)RandomBounds(Series, PairwiseTableCount), (u16)RandomBounds(Series, PairwiseTableCount));
+    return(Result);
+}
+
+internal u32
+SampleRemaleyHashTableDiagonal(pcg32_random_series *Series, u32 PairwiseTableCount)
+{
+    u32 Result = RemaleyHash((u16)RandomBounds(Series, PairwiseTableCount));
+    return(Result);
+}
+
+internal b32x
+IsRowInRemaleyHash(u32 RemaleyHash, u16 SourceRow)
+{
+    b32x Result = false;
+    pairwise_index_result Pairwise = InvertRemaleyHash(RemaleyHash);
+    if((Pairwise.Row == SourceRow) || (Pairwise.Col == SourceRow))
+    {
+        Result = true;
+    }
+
+    return(Result);
+}
+
+#define PAIRWISE_TABLE_MAX(TableDim) (TableDim * (TableDim + 1) / 2)
+
+// TODO(chowie): Change this to a u16 percentage with a 2D invlerp!
+enum whittaker_biome : u8
+{
+    Whittaker_Biome_Null,
+
+    Whittaker_Biome_Rainforest,
+    Whittaker_Biome_Seasonalforest,
+    Whittaker_Biome_Forest,
+    Whittaker_Biome_Swampland,
+    Whittaker_Biome_Plains,
+    Whittaker_Biome_Shrubland,
+    Whittaker_Biome_Taiga,
+    Whittaker_Biome_Desert,
+    Whittaker_Biome_Savanna,
+    Whittaker_Biome_Tundra,
+
+    Whittaker_Biome_Count,
+};
+#define WHITTAKER_BIOME_COUNT_MAX PAIRWISE_TABLE_MAX(Whittaker_Biome_Count)
+
+// NOTE(chowie): Inspired by Event[0] game
+enum emotion_matrix : u8
+{
+    Emotion_Matrix_Null,
+
+    Emotion_Matrix_Love,
+    Emotion_Matrix_Indifferent,
+    Emotion_Matrix_Hate,
+
+    Emotion_Matrix_Anger,
+    Emotion_Matrix_Stress,
+    Emotion_Matrix_Calm,
+
+    Emotion_Matrix_Fear,
+    Emotion_Matrix_Apprehension,
+    Emotion_Matrix_Confident,
+
+    Emotion_Matrix_Surprise,
+    Emotion_Matrix_Curious,
+    Emotion_Matrix_Confused,
+
+    Emotion_Matrix_Count,
+};
+#define EMOTION_MATRIX_COUNT_MAX PAIRWISE_TABLE_MAX(Emotion_Matrix_Count)
+
+// RESOURCE(): The conceptual structure of human relationships across modern and historical culture (2025)
+// NOTE(chowie): Always symbiotic relationship, never one-sided! Very child-like
+enum relationship_favee : u8
+{
+    Relationship_FAVEE_Null,
+
+    Relationship_FAVEE_Formality, // "Cultural Animal" - Public (Large-scale cooperation)
+    Relationship_FAVEE_ActiveAffiliative, // "Social Animal" - Private (Small-scale cooperation)
+    Relationship_FAVEE_ActiveRomantic, // "Social Animal" - Private (Small-scale cooperation)
+    Relationship_FAVEE_ActiveFamilial, // "Social Animal" - Private (Small-scale cooperation)
+    Relationship_FAVEE_Valence, // "Animal" - Hostile (no cooperation)
+    Relationship_FAVEE_Exchange, // "Cultural Animal" - Public (Large-scale cooperation) i.e. Transactional
+    Relationship_FAVEE_Equality, // "Cultural Animal" - Public (Large-scale cooperation) i.e. Power
+
+    Relationship_FAVEE_Count,
+};
+#define RELATIONSHIP_FAVEE_COUNT_MAX PAIRWISE_TABLE_MAX(Relationship_FAVEE_Count)
+
+enum animal_order : u8
+{
+    Animal_Order_Eurolang,
+    Animal_Order_Asialang,
+    Animal_Order_Calclang,
+};
+
+// NOTE(chowie): Where are you from?
+enum animal_origin : u8
+{
+    Animal_Origin_Plains,
+    Animal_Origin_Taiga,
+    Animal_Origin_Swamp,
+};
+
+enum animal_lang : u8
+{
+    Animal_Lang_Euro = BitSet(0),
+    Animal_Lang_Asia = BitSet(1),
+    Animal_Lang_Calc = BitSet(2),
+};
+
+// TODO(chowie): Put this in entity struct?
+// NOTE(chowie): Metadata
+// enum8(animal_order) Order;
+// enum8(animal_origin) Origin;
+
+// TODO(chowie): Try this undirected graph out for story/narrative?
+struct social_network_id
+{
+    u32 ID;
+};
+
+struct social_network_node
+{
+    // NOTE(chowie): Graph
+    u32 SocialNetworkID; // NOTE(chowie): Separate ID compared to entity_id and entity_ref
+};
+
+// NOTE(chowie): u16 RemaleyHashes gets rounded down from u32.
+struct social_network_remaleyhash_edge
+{
+    // NOTE(chowie): Graph
+    u32 SocialNetworkID;
+
+    // NOTE(chowie): Metadata - for sorting via Emotion, FAVVE etc,
+    u16 AnimalOrder; // Who are you?
+    u16 AnimalOrigin; // Where do you come from?
+    u16 FAVVE; // What is our relationship?
+    u16 EmotionMatrix; // How do we emotionally feel about each other?
+    // {
+    f32 CommFreq; // How regularly do we speak/interact?
+    // } Doesn't use Remaley hash 
+};
+
+//
+// Fink Hash (3D, non-pairwise)
+//
+
+/********************************
+         WHAT IS FINK HASH?
+   ******************************
+
+   2->1 rolling perfect hash
+   Store all tree data within hash, and used for IDs too
+   Input order dependent (non-pairwise)
+
+   An implicit binary tree (Merkle tree) packed into a u64. Makes a 2x2x2 voxel block.
+
+   When reading a fink hash tree like a k-d tree, it guarantees:
+   - If it's odd = tree (2x2x2)
+   - If it's even = leaf (1x1x1)
+
+         z      --- odd
+        / \
+       y   y    --- odd
+      / \ / \
+      x x x x   --- even
+
+   IMPORTANT(chowie): Fink hash trees have complete branch
+   optimisation. They're automatically pruned into a leaf (even) if
+   they all share the same value. This is checked with a sqrt() to
+   determine if the value is a perfect square.
+
+   Appropriate places to utilise this:
+   - For pathfinding: Entities should prioritise even (1x1x1) (greater
+   control for players), odd for stairs/half-slabs
+   - For meshing: Even (1x1x1) is a whole voxel cube mesh, odd is for complex meshes
+   e.g. stairs, corner-stairs, half, checkered
+
+   When unpacking a fink hash tree
+   - Interpret leaves via block_id (enum) and texture atlas probably
+
+   When packing a fink hash tree, for now it only supports changing
+   existing values (no add/delete nodes yet). Either by index or first
+   instance of said block_id.
+
+   When serialising a fink hash tree, copy the u64.
+
+   When validating the integrity of a fink hash tree, compare u64 source vs dest.
+   Use for networking and any VCS.
+
+*/
+
 // TODO(chowie): Move this out!
 // TODO(chowie): Build specific? Does it share block ids?
 // IMPORTANT(chowie): Primitives (child nodes) must be even values!
@@ -408,109 +757,12 @@ enum block_id : u16
     Block_BundledPotatoes = EvenSet(43),
     Block_BundledMushrooms = EvenSet(44),
     Block_Crystal    = EvenSet(45),
+    Block_Geyser     = EvenSet(46),
+    Block_Cobweb     = EvenSet(47),
 
     Block_Marker,
     Block_Count = (Block_Marker + 1)/2,
 };
-
-//
-// Remaley Hash (2D, pairwise)
-//
-
-// COULDDO(chowie): Where to take these next:
-// - Hash this?
-// - Convert numbers to enum
-// - Figure out how this integrates with (debug) UI/chart?
-
-// RESOURCE(mason remaley): https://gamesbymason.com/2020/03/30/symmetric-matrices/
-internal u32
-RemaleyHash(u16 A, u16 B)
-{
-    v2u Pair = {(u32)B, (u32)A}; // NOTE(chowie): In general, most will automatically write A > B
-    if(A < B)
-    {
-        Swap(u32, Pair.a, Pair.b);
-    }
-
-    u32 Result = TriangleNumberMat(Pair);
-    return(Result);
-}
-
-// NOTE(chowie): Alternative trick to get row if I need this later!
-// STUDY(chowie): Trick I made to avoid floating point precision with
-// IsInteger() Signof check ensures it's always past the first index!
-// (SignOf(Ordinal - TriangleNumber((u32)Result.Row)) == -1) ? false : true;
-struct pairwise_index_result
-{
-    b32x IsTriangleNumber;
-    u16 Row;
-    u16 Col;
-};
-internal pairwise_index_result
-InvertRemaleyHash(u32 Ordinal)
-{
-    u16 Row = GetPairwiseRow16(Ordinal);
-    u16 Pitch = (u16)TriangleNumber(Row); // STUDY(chowie): Neat way I found to handle 0th case without a clamp
-
-    pairwise_index_result Result = {};
-    Result.Row = Row;
-    Result.Col = (u16)Ordinal - Pitch;
-    Result.IsTriangleNumber = (Ordinal == TriangleNumberMat((u32)Result.Row));
-    return(Result);
-}
-
-// TODO(chowie): Change this to a u16 percentage with a 2D invlerp!
-enum whittaker_biome : u16
-{
-    Whittaker_Biome_Null,
-
-    Whittaker_Biome_Rainforest,
-    Whittaker_Biome_Seasonalforest,
-    Whittaker_Biome_Forest,
-    Whittaker_Biome_Swampland,
-    Whittaker_Biome_Plains,
-    Whittaker_Biome_Shrubland,
-    Whittaker_Biome_Taiga,
-    Whittaker_Biome_Desert,
-    Whittaker_Biome_Savanna,
-    Whittaker_Biome_Tundra,
-
-    Whittaker_Biome_Count,
-};
-
-// NOTE(chowie): Triangle Number Usage: Pack -> Unpack
-// u32 EntityPairwise = MapPairToPairwise(TestHash_EntityType_Wall, TestHash_EntityType_Wall);
-// pairwise_index_result TestPair = GetPairFromPairwise(EntityPairwise);
-
-#define PAIRWISE_TABLE_MAX(TableDim) (TableDim * (TableDim + 1) / 2)
-struct pairwise_table
-{
-    enum16(block_id) BlockInteractionTable[PAIRWISE_TABLE_MAX(Block_Count)];
-};
-
-// COULDDO(chowie): Use for hash tables??
-// TODO(chowie): Could hold next - 1 to get the current and to prevent
-// wrapping. e.g. See debug system (DebugState->NextFreeFrame - 1) %
-// DEBUG_FRAME_COUNT.
-// TODO(chowie): Refer to HmH Day 354 29:50 for how to look back to a prev value!
-inline void
-IncrementOrdinal(u32 *Ordinal)
-{
-    *Ordinal = (*Ordinal + 1) % Block_Count;
-}
-//    u32 *TriangleNumberOrdinal;
-//    Pairwise->TriangleNumberOrdinal = &Ordinal;
-//    printf("Not at a triangle number: I'm here at ordinal %d!\n", *Pairwise->TriangleNumberOrdinal);
-
-//
-// Fink Hash (3D, non-pairwise)
-//
-
-//       z
-//      / \
-//     y   y
-//    / \ / \
-//    x x x x
 
 // COULDDO(chowie): Can I do better than linear?
 // RESOURCE(alex fink & jorg rhiemeier): https://listserv.brown.edu/archives/cgi-bin/wa?A2=ind0907B&L=CONLANG&P=R12478

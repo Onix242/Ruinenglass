@@ -249,30 +249,157 @@ enum block_palette : u16
     BlockPalette_CalclangCreatures,
 };
 
-// RESOURCE(): https://github.com/stefalie/shapeml
-// RESOURCE(): https://www.youtube.com/watch?v=f6ra024-ASY
-// STUDY(chowie): Extended idea of "shape grammar"/"L-system" fitted
-// to nonograms/Picross. (Less flexible, but easier to understand and
-// more performant)!
-// Has these exact (or similar) ops:
-// - Extrude/Scale
-// - Repeat
-// - Split = inverted "join" (implicit)
-// - Translate (implicit = extrude air blocks)
-// - Indexed palette
-// - Inc/Dec
-// - RandomChoice() of blocks
-// Has these unique ops:
-// - "Priority" = frames until extrude (works in x,y,z rows/columns)
-// Doesn't have these ops:
-// - Rotate
-// - Meta layer to connect all these repligram
-// It's different because:
-// - It's for real-time animation (smear animation = extrudes). You
-//   work with a timeline
-// - Fairly straight-forward to implement
-// - Doesn't work with strings (patterns)
-// - Not state-based or node-based
+/********************************
+         WHAT IS REPLIGRAM?
+   ******************************
+
+   A player-facing 'toy' used for the art production pipeline.
+   In the process of creating a Repligram as the artist, you also:
+   - Create a procedural/'compressed' 3D voxel model
+   - Apply smear animation automatically
+   - Make valid nonogram/Picross puzzles (contribute directly to gameplay)
+
+   Used to create environment assets or character assets.
+
+   The player works their way backwards from the final animation loop
+
+   For example, assume you as the artist produce the 2D house below:
+   1) Make the model and assign materials, # = Brick, W = Window, D = Door
+
+       ###
+      #####
+     #######
+     W     #
+     #     D
+     #######
+
+   2) Add up to 2 'priorities' (numbers) to animate (smear) the model
+   for each row on the x,y axis. x = don't smear, [number] = smear nth
+   frame e.g. [1] = smear every frame, [4] smear every 4th, [1, 5] =
+   smear every frame and every 5th.
+
+      5
+      2xxx1xx
+
+  7,3   ###
+    2  #####
+    x #######
+    1 W     #
+    4 #     D
+    x #######
+
+   3) Assign a direction to smear on an animation timeline
+
+      5
+      2xxx1xx
+
+  7,3   ###
+    2  #####
+    x #######
+    1 W     #
+    4 #     D
+    x #######
+
+   |>----------|
+   First smear is to the right
+
+      5
+      2xxx1 xx
+
+  7,3   ####
+    2  ######
+    x ########
+    1 W      #
+    4 #      D
+    x ########
+
+   The house was smeared one place to the right, it affected the column:
+   roof and floor
+
+   |>^---------|
+   Next smear is up
+
+      5
+      2xxx1 xx
+
+  7,3   ####
+    2  ######
+    x ########
+      W      #
+    1 W      #
+    4 #      D
+    x ########
+
+   The window and opposite wall is now smeared.
+
+   |>^^--------|
+   Next smear is up again
+
+      5
+      2xxx1 xx
+
+  7,3   ####
+       ######
+    2  ######
+    x ########
+      W      #
+      W      #
+    1 W      #
+    4 #      D
+    x ########
+
+   The window and opposite wall is now smeared. And now part of the
+   roof (because it's now the second smear on the y-axis)
+
+   You can use this to make tiny little objects and blow up to be
+   gigantic! I've used this to make the smallest house, but when an
+   entity stops by, it blows up to the size of their body to fit
+   through the door. Or a house that turns into an high-rise apartment?
+
+   3) Serialise the animation timeline with the final model. This
+   becomes the player's reference model and attempt to replicate.
+   - They also make their own compressed model and assign priorities.
+   - There's possibly multiple answers! As long as they reach the same
+   animation state.
+
+   4) Successfully replicating the reference model plays some fanfare,
+   and presents a conlang word that describes the model. The player
+   attempts to guess the word by typing.
+
+   The technical:
+
+   Extends idea of "shape grammar" and "L-systems" using
+   nonograms/Picross. Comparatively less flexible, but easier to
+   understand (for both player and developers) and more performant!
+
+   It's different to "shape grammar" and "L-systems" because:
+   - It's for real-time animation (smear animation = extrudes). You
+     work with a timeline
+   - Fairly straight-forward to implement
+   - Doesn't work with strings (patterns) as the interface
+   - Not state-based or node-based
+
+   Has these exact (or similar) ops to "shape grammar" and "L-systems":
+   - Extrude/Scale
+   - Repeat
+   - Split = inverted "join" (implicit)
+   - Translate (implicit = extrude air blocks)
+   - Indexed palette
+   - Inc++/Dec--
+   - RandomChoice() of blocks
+
+   Has these unique ops:
+   - "Priority" = frames until extrude (must be in x,y,z whole rows/columns)
+
+   Doesn't have these ops:
+   - Rotate
+   - Meta layer to connect select repligrams
+
+   RESOURCE(): https://github.com/stefalie/shapeml
+   RESOURCE(): https://www.youtube.com/watch?v=f6ra024-ASY
+
+*/
+
 struct rui_repligram
 {
     v3u Dim;
@@ -372,26 +499,31 @@ struct repligram_priority_group
 
 // NOTE(chowie): How rasterise bitmask works (make sure to check for op_rep)
 // Adding group on left-most side needs to always start with 0
-// 1) 0 0 1 1 1 0 0 0 (default)
-// 2) 0 0 1 1 1 0 1 1 (add new group = NOT ~)
+// IMPORTANT(chowie): Always need check index before and after to determine
+// if it's a range (interval) or not (a point). Needs parity checks!
+// IMPORTANT(chowie): Always init new rows/cols to "0 1 0 1 0 1 0 1"
+// 1) 0 1 0 0 0 1 0 1 (default)
+// 2) 0 1 0 0 0 1 0 0 (add new group = NOT ~)
 
-// 1) 0 0 1 1 1 0 0 0 (default)
-// 2) 0 0 1 1 0 0 0 0 (trim = NOT ~)
+// 1) 0 1 0 0 0 1 1 1 (default)
+// 2) 0 1 0 0 1 0 1 0 (trim = NOT ~)
 
-// 1) 0 0 1 1 1 0 1 1 (default)
-// 2) 0 0 1 1 1 1 1 1 (union/merge = copy bit)
+// 1) 0 1 0 0 0 1 0 0 (default)
+// 2) 0 1 0 0 0 0 0 0 (union/merge = copy bit)
 
-// 1) 0 1 1 1 1 0 0 0 (default)
-// 2) 0 1 1 0 0 0 1 1 (split = for loop NOT ~ at split)
-// 2) 0 1 1 0 0 1 1 1 (split and don't union = for loop NOT ~ at split)
+// 1) 0 1 1 1 1 0 1 0 (default)
+// 2) 0 1 1 0 1 0 1 1 (split = for loop NOT ~ at split)
+// 2) 0 1 1 0 1 0 0 0 (split and don't union = for loop NOT ~ at split)
 
 // 1) 0 1 1 1 0 1 1 0 (default)
 // 2) 0 1 1 1 1 0 0 1 (extrude and don't union = for loop NOT ~ end point)
 
 // 1) 0 1 1 1 0 1 1 0 (default)
-// 2) 0 0 1 1 1 0 0 1 (move and don't union = for loop NOT ~ end point)
+// 2) 0 1 0 0 0 1 1 0 (move and don't union = for loop NOT ~ end point)
 
-// TODO(chowie): Repligram edit ops (like video editors)
+// TODO(chowie): Create Repligram's hash by using conlang word name (CRC32)!
+
+// NOTE(chowie): Repligram edit ops (like video editors)
 // - Merge/Join
 // - Extrude
 // - Split
@@ -403,6 +535,16 @@ struct repligram_priority_group
 // RemaleyHash for combinatorics? Or rasterise into bitmasks if < 32
 // Or what if there's something that exists that "when you add a number
 // the other side decreases"?
+
+// COULDDO(chowie): Could hold next - 1 to get the current and to prevent
+// wrapping. e.g. See debug system (DebugState->NextFreeFrame - 1) %
+// DEBUG_FRAME_COUNT.
+// COULDDO(chowie): Refer to HmH Day 354 29:50 for how to look back to a prev value!
+// inline void
+// IncrementOrdinal(u32 *Ordinal)
+// {
+//     *Ordinal = (*Ordinal + 1) % Block_Count;
+// }
 
 // NOTE(chowie): "Point - Interval" will intentionally wrap!
 // [a, b]

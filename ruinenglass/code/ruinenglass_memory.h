@@ -363,7 +363,6 @@ struct stack_entry
     u64 Entry;
 };
 
-// TODO(chowie): Use memory arenas!!
 // RESOURCE(): https://guide.handmadehero.org/code/day641/#2876
 // COULDDO(chowie): In theory I could replace with array-based? With proper depth!
 struct stack
@@ -400,6 +399,7 @@ StackIsEmpty(stack* Stack)
     return(Result);
 }
 
+// TODO(chowie): Use memory arenas with this!!
 internal stack *
 Push(stack *Stack, stack_entry Data)
 {
