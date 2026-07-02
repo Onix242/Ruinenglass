@@ -6,7 +6,6 @@
    $Notice: $
    ======================================================================== */
 
-/*
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -338,8 +337,8 @@ main(void)
 }
 
 #endif
-*/
 
+/*
 #include <stdlib.h>
 #include <windows.h>
 #include <stdio.h>
@@ -451,4 +450,5 @@ main(void)
 
     return(0);
 }
+*/
 

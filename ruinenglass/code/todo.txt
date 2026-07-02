@@ -615,6 +615,12 @@
   ----------------8<-------------[ production / game ]------------------
   Voxel ASCII is like the faces of toy blocks.
 
+  - Game start
+    = Utilise game localisation - ask the player if they learning to
+    speak a second language or knows a second language. Replace, all
+    non-important background text with that language e.g. text on a
+    train, labels on bottles, stuff in fine print etc..
+
   - Procedural World Generation?
     = Biomes
     = Growing ivy around non-growable structure

@@ -62,9 +62,10 @@ IncrementalAvg2(f32 Avg, u32 n, f32 NextValue)
         WHAT IS FAIRMATH?
    ******************************
 
-   A percentage-based incremental averaging using LERP. That
-   effectively, moderates itself +tive or -tive change towards the
-   centre, 50%. "Moderates itself" meaning, no manual if() oversight
+   A percentage-based incremental averaging using LERP (vector-based
+   ish system). That effectively, moderates itself +tive or -tive
+   change towards the centre, 50%. "Moderates itself" means, no manual
+   if() oversight
 
    Like ELO systems, any changes at the absolutes pulls you towards
    the average, 50%. E.g. At 100%, a loss might be -20%, compared to
@@ -92,6 +93,7 @@ IncrementalAvg2(f32 Avg, u32 n, f32 NextValue)
    - Season/Temperature/Rain system. Drammatic drop to normal/clear
    - Renown system
    - Any diminishing returns for repeated actions
+   - Pity system (if you're at the bottom and less on the top)
 
    RESOURCE(): https://emshort.blog/2016/02/15/set-check-or-gate-a-problem-in-personality-stats/
    RESOURCE(): https://www.reddit.com/r/choiceofgames/comments/k92tbs/survey_that_no_one_asked_for/
@@ -238,6 +240,15 @@ FairmathOp01(fairmath_op Op, v2 Value, fairmath_stat_outcome StatOutcome = StatO
 // NOTE(chowie): User-facing percent v2 - can do this for the first time
 inline fairmath_result
 FairmathOp(fairmath_op Op, v2 Value, fairmath_stat_outcome StatOutcome = StatOutcome_Punchy)
+{
+    Assert((Value.x >= 0.0f) && (Value.x <= 100.0f) &&
+           (Value.y >= 0.0f) && (Value.y <= 100.0f));
+    fairmath_result Result = FairmathOp01(Op, Value, StatOutcome);
+    return(Result);
+}
+
+inline fairmath_result
+FairmathOpClamp(fairmath_op Op, v2 Value, fairmath_stat_outcome StatOutcome = StatOutcome_Punchy)
 {
     fairmath_result Result = FairmathOp01(Op, Clamp01MapToRange(0, Value, 100), StatOutcome);
     return(Result);

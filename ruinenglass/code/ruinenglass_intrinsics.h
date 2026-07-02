@@ -10,7 +10,7 @@
 #if !defined _MSC_VER
 #define B_NAN __builtin_nanf("")
 #else
-#define B_NAN (-(float)(1e300 * 1e300 * 0))
+#define B_NAN (-(f32)(1e300 * 1e300 * 0))
 #endif
 
 inline s32

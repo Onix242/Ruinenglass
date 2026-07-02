@@ -7,25 +7,19 @@
    $Notice: $
    ======================================================================== */
 
-// STUDY(chowie): RNG used to use a LUT (Lookup Table), LUT are less
-// favourable for RNG because it's a lot harder to fully SIMD.
-
-// RESOURCE(): https://www.flipcode.com/archives/Random_Unit_Vectors.shtml
-// TODO(chowie): Lot more useful than you would think to test
-// reliability, give something a new direction, slerp between random
-// orientations
-// TODO(chowie): See quaternion implementation here!
+// STUDY(chowie): Don't ever use a LUT (Lookup Table) for RNG, LUT are
+// less favourable (for RNG) because it's a lot harder to fully SIMD.
 
 //
 // PCG
 //
 
+// RESOURCE(o'neill): https://www.pcg-random.org/download.html
+// RESOURCE(): More complete PCG - https://gist.github.com/mmozeiko/1561361cd4105749f80bb0b9223e9db8
 // RESOURCE(inigo quilez): https://iquilezles.org/articles/sfrand/
 // STUDY(chowie): Passing in Series/Seed has benefits of
 // multithreading, compared to C-standard rand(), one for each thread
 // on the stack
-// RESOURCE(o'neill): https://www.pcg-random.org/download.html
-// RESOURCE(): More complete PCG - https://gist.github.com/mmozeiko/1561361cd4105749f80bb0b9223e9db8
 #define PCG32_DEFAULT_MULTIPLIER 6364136223846793005ULL
 #define PCG32_DEFAULT_INCREMENT  1442695040888963407ULL
 struct pcg32_random_series
@@ -212,7 +206,7 @@ RandomBetween(pcg32_random_series *Series, v2 Range)
 internal f32
 RandomExpUnilateral(pcg32_random_series *Series, f32 Rate)
 {
-    f32 Result = Log((1 - RandomUnilateral(Series))/(-Rate));
+    f32 Result = Log((1.0f - RandomUnilateral(Series))/(-Rate));
     return(Result);
 }
 
@@ -399,7 +393,7 @@ LCGPossiblePhaseCancelling(u32 x, u32 A, u32 B, u32 Pow2C)
   i.e. no duplicates) from a huge array - think 10,000 unique.
   
   3) Compute something - like an average - over a large random sample
-  from an even huger array, neither of which can fit in memory, and
+  from an even larger array, neither of which can fit in memory, and
   important that there are no duplicate values.
 
   Fisher-Yates - an implace shuffle, doesn't work well when you must
@@ -461,7 +455,7 @@ InvertibleHash(u32 Seed, u32 Index, u32 Mask)
     return(Result);
 }
 
-// TODO(chowie): Use for Perlin noise!
+// TODO(chowie): Use for Perlin noise and shuffling a POSET!
 // IMPORTANT(chowie): Length must be power-of-two
 // NOTE(chowie): Mask = hashing domain < 2x size of array. Hash
 // has 50% chance to flip the MostSignificantBit (hash to value
@@ -539,11 +533,13 @@ CosineSampleHemisphere(pcg32_random_series *Series)
     f32 r = Sqrt(r2);
     f32 theta = RandomBilateral(Series)*Tau32;
     v2 Angle = SinCos(TURNS(theta));
-    f32 z = Sqrt(1 - r2);
 
-    v3 Result = {r*Angle.Cos, r*Angle.Sin, z};
+    v3 Result = {r*Angle.Cos, r*Angle.Sin, Sqrt(1 - r2)};
     return(Result);
 }
+
+// RESOURCE(): https://www.johndcook.com/blog/2025/10/11/ball-rng/
+// COULDDO(chowie): Do I need to sample _inside_ a sphere? Most is _on_ a sphere!
 
 // RESOURCE(): https://pharr.org/matt/blog/2019/02/27/triangle-sampling-1
 // RESOURCE(): https://pharr.org/matt/blog/2019/03/13/triangle-sampling-1.5
@@ -578,20 +574,59 @@ SampleTriangle(v2 Sample)
 //     return(Result);
 // }
 
+// RESOURCE(): https://andrewdcampbell.github.io/rasterizer/
 // RESOURCE(): https://www.johndcook.com/blog/2025/09/11/random-inside-triangle/
 // NOTE(chowie): Random distribution of a triangle using barycentric
 // with exponential distribution
-// TODO(chowie): Double check this is correct + check if this is
-// better than the standard SampleTriangle()
-// inline f32
-// SampleTriangleAltInternal(pcg32_random_series *Series)
-// {
-//     v3 Sample = {RandomExpUnilateral(Series, 1), RandomExpUnilateral(Series, 1), RandomExpUnilateral(Series, 1)};
-//     v3 NormSample = Normalise(Sample);
-// 
-//     f32 Result = Sample.x*NormSample.x + Sample.y*NormSample.y + Sample.z*NormSample.z;
-//     return(Result);
-// }
+// TODO(chowie): Double check this is correct + compare if this is
+// better than the standard SampleTriangle(). Is this meant to be a v2 Vert + v3 Random?
+// NOTE(chowie): Returns a random sample point!
+inline v3
+SampleTriangleBarycentric(v3 VertA, v3 VertB, v3 VertC, pcg32_random_series *Series)
+{
+    v3 Random = {RandomExpUnilateral(Series, 1), RandomExpUnilateral(Series, 1), RandomExpUnilateral(Series, 1)};
+
+    v3 Sum = VertA + VertB + VertC;
+    v3 NormSampleA = VertA/(Sum);
+    v3 NormSampleB = VertB/(Sum);
+    v3 NormSampleC = VertC/(Sum);
+
+    v3 Result = Random.x*NormSampleA + Random.y*NormSampleB + Random.z*NormSampleC;
+    return(Result);
+}
+
+// TODO(chowie): Sample square?
+
+// RESOURCE(): https://www.johndcook.com/blog/2025/10/11/random-samples-from-a-tetrahedron/
+// NOTE(chowie): Generalises to tetrahedron (and in n-dimensions!)
+inline v3
+SampleTetrahedronBarycentric(v3 VertA, v3 VertB, v3 VertC, v3 VertD, pcg32_random_series *Series)
+{
+    v4 Random = {RandomExpUnilateral(Series, 1), RandomExpUnilateral(Series, 1), RandomExpUnilateral(Series, 1), RandomExpUnilateral(Series, 1)};
+
+    v3 Sum = VertA + VertB + VertC + VertD;
+    v3 NormSampleA = VertA/(Sum);
+    v3 NormSampleB = VertB/(Sum);
+    v3 NormSampleC = VertC/(Sum);
+    v3 NormSampleD = VertD/(Sum);
+
+    v3 Result = Random.x*NormSampleA + Random.y*NormSampleB + Random.z*NormSampleC + Random.w*NormSampleD;
+    return(Result);
+}
+
+// NOTE(chowie): Rejection method
+// TODO(chowie): Replace this because rejection method can be unbounded
+inline v2
+SampleDiscNaive(v2 Sample, pcg32_random_series *Series)
+{
+    v2 Result = {};
+    do
+    {
+        Result = V2(RandomBilateral(Series), RandomBilateral(Series));
+    } while ((Sqr(Result.x) + Sqr(Result.y)) > 1);
+
+    return(Result);
+}
 
 //
 // RANDOM UNIT VECTORS
@@ -601,6 +636,7 @@ SampleTriangle(v2 Sample)
 // NOTE(from n capens): Lot more useful than you would think to test
 // reliability, give something a new direction, slerp between random
 // orientations.
+// COULDDO(chowie): See quaternion implementation here!
 internal v3
 RandomUnitV3(pcg32_random_series *Series)
 {
@@ -612,6 +648,11 @@ RandomUnitV3(pcg32_random_series *Series)
     v3 Result = {r*Angle.Cos, r*Angle.Sin, z};
     return(Result);
 }
+
+// TODO(chowie): Random (2 -> 1) for GPU?
+// float rand(vec2 co) {
+//    return fract(sin(dot(co.xy, vec2(12.9898, 78.233))) * 43758.5453);
+// }
 
 #define RUINENGLASS_RANDOM_H
 #endif

@@ -129,6 +129,13 @@ V2(f32 Value)
 }
 
 inline v3u
+V3U(u32 Value)
+{
+    v3u Result = {Value, Value, Value};
+    return(Result);
+}
+
+inline v3u
 V3U(u32 X, u32 Y, u32 Z)
 {
     v3u Result = {X, Y, Z};
@@ -188,6 +195,13 @@ inline v4u
 V4U(u32 X, u32 Y, u32 Z, u32 W)
 {
     v4u Result = {X, Y, Z, W};
+    return(Result);
+}
+
+inline v4u
+V4U(u32 Value)
+{
+    v4u Result = {Value, Value, Value, Value};
     return(Result);
 }
 
@@ -541,6 +555,21 @@ inline v2u
 operator*(u32 A, v2u B)
 {
     v2u Result = {A*B.x, A*B.y};
+    return(Result);
+}
+
+inline v2u
+operator*(v2u B, u32 A)
+{
+    v2u Result = A*B;
+    return(Result);
+}
+
+// NOTE(chowie): This is hadamard
+inline v2u
+operator*(v2u A, v2u B)
+{
+    v2u Result = {A.x*B.x, A.y*B.y};
     return(Result);
 }
 
@@ -950,10 +979,47 @@ RationalDirection(v2 From, v2 To)
 //
 
 inline v3u
+operator*(u32 A, v3u B)
+{
+    v3u Result = {A*B.x, A*B.y, A*B.z};
+    return(Result);
+}
+
+inline v3u
+operator*(v3u B, u32 A)
+{
+    v3u Result = A*B;
+    return(Result);
+}
+
+// NOTE(chowie): This is hadamard
+inline v3u
+operator*(v3u A, v3u B)
+{
+    v3u Result = {A.x*B.x, A.y*B.y, A.z*B.z};
+    return(Result);
+}
+
+// NOTE(chowie): Calls operator*
+inline v3u &
+operator*=(v3u &B, u32 A)
+{
+    B = A*B;
+    return(B);
+}
+
+inline v3u
 operator+(v3u A, v3u B)
 {
     v3u Result = {A.x + B.x, A.y + B.y, A.z + B.z};
     return(Result);
+}
+
+inline v3u &
+operator+=(v3u &A, v3u B)
+{
+    A = A + B;
+    return(A);
 }
 
 inline b32x
@@ -973,9 +1039,9 @@ operator*(s32 A, v3s B)
 }
 
 inline v3s
-operator+(v3s A, v3s B)
+operator*(v3s B, s32 A)
 {
-    v3s Result = {A.x + B.x, A.y + B.y, A.z + B.z};
+    v3s Result = A*B;
     return(Result);
 }
 
@@ -984,6 +1050,21 @@ inline v3s
 operator*(v3s A, v3s B)
 {
     v3s Result = {A.x*B.x, A.y*B.y, A.z*B.z};
+    return(Result);
+}
+
+// NOTE(chowie): Calls operator*
+inline v3s &
+operator*=(v3s &B, s32 A)
+{
+    B = A*B;
+    return(B);
+}
+
+inline v3s
+operator+(v3s A, v3s B)
+{
+    v3s Result = {A.x + B.x, A.y + B.y, A.z + B.z};
     return(Result);
 }
 
@@ -1749,6 +1830,11 @@ FresnelSphericalOutline(v4 NormalisedNormal, v4 NormalisedView, f32 Power)
 //
 // NOTE(chowie): Rotors
 //
+
+// TODO(chowie): Read up on this
+// RESOURCE(): https://www.reedbeta.com/blog/normals-inverse-transpose-part-1/
+// RESOURCE(): https://www.reedbeta.com/blog/normals-inverse-transpose-part-2/
+// RESOURCE(): https://www.reedbeta.com/blog/normals-inverse-transpose-part-3/
 
 // RESOURCE(): https://marctenbosch.com/quaternions/
 // NOTE(chowie): Small benefits of rotors over quaternions:

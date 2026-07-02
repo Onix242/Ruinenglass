@@ -6,6 +6,11 @@
    $Notice: $
    ======================================================================== */
 
+// RESOURCE(): https://www.reedbeta.com/blog/quadrilateral-interpolation-part-1/
+// RESOURCE(): https://www.reedbeta.com/blog/quadrilateral-interpolation-part-2/
+// RESOURCE(): Curved texture mapping - https://www.reedbeta.com/blog/conformal-texture-mapping/
+// TODO(chowie): Interpolation for texture stretching
+
 GL_DEBUG_CALLBACK(OpenGLDebugCallback)
 {
     // TODO(chowie): Check severity for medium/high messages?

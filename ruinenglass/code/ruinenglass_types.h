@@ -558,6 +558,21 @@ union rect2i
     s32 E[4];
 };
 
+union rect2u
+{
+    struct
+    {
+        v2u Min;
+        v2u Max;
+    };
+    struct
+    {
+        v2u Min;
+        v2u MaxN; // NOTE(chowie): N is negative
+    };
+    u32 E[4];
+};
+
 // RESOURCE(): https://zeux.io/2010/10/17/aabb-from-obb-with-component-wise-abs/
 // TODO(chowie): Support OBB?
 // RESOURCE(): https://ktstephano.github.io/rendering/stratusgfx/aabbs
@@ -676,8 +691,19 @@ MinMax64(v2u64 Value)
 #define FILE_FORMAT_CODE(a, b, c, d) (((u32)(a) << 0) | ((u32)(b) << 8) | ((u32)(c) << 16) | ((u32)(d) << 24))
 
 //
+// String 
 //
-//
+
+// IMPORTANT(chowie): TODO(chowie): Separate system to mark all
+// strings to localise and write out to excel file. Secondary lang
+// text is to mark unimportant text in the environment, flavour text.
+// Ideally allow nesting! ToLocaliseText("Stuff ToSecondaryLangText(Things)")
+#define ToLocaliseText(string)
+#define ToSecondaryLangText(string)
+
+// TODO(chowie): IMPORTANT(chowie): Unicode????? Use w16 (wchar_t)
+// RESOURCE(): https://www.reedbeta.com/blog/programmers-intro-to-unicode/
+// RESOURCE(): C/C++ headers - https://icu.unicode.org/
 
 // TODO(chowie): Debug View
 #define FILE_AND_LINE__(A, B) A "|" #B

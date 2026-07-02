@@ -10,7 +10,7 @@
 // TODO(chowie): Better hash functions
 
 //
-// GENERAL
+// GENERAL (N -> N)
 //
 
 // RESOURCE(reed): https://www.reedbeta.com/blog/hash-functions-for-gpu-rendering/
@@ -22,6 +22,77 @@ PCGHash(u32 Value)
     u32 Word = ((State >> ((State >> 28u) + 4u)) ^ State)*277803737u;
     u32 Result = (Word >> 22u) ^ Word;
     return(Result);
+}
+
+// RESOURCE(): https://www.jcgt.org/published/0009/03/02/paper.pdf
+// RESOURCE(): https://web.archive.org/web/20240610235256/https://rene.ruhr/gfx/gpuhash/
+// NOTE(chowie): For multi-threading, SIMD
+// NOTE(chowie): These are also good for just generating random numbers
+inline v2u
+PCGHash2D(v2u Value)
+{
+    Value = Value*1664525u + V2U(1013904223u);
+
+    Value.x += Value.y*1664525u;
+    Value.y += Value.x*1664525u;
+
+    Value.x ^= Value.x >> 16u;
+    Value.y ^= Value.y >> 16u;
+
+    Value.x += Value.y*1664525u;
+    Value.y += Value.x*1664525u;
+
+    Value.x ^= Value.x >> 16u;
+    Value.y ^= Value.y >> 16u;
+
+    return Value;
+}
+
+// NOTE(chowie): For multi-threading, SIMD
+// NOTE(chowie): These are also good for just generating random numbers
+inline v3u
+PCGHash3D(v3u Value)
+{
+    Value = Value*1664525u + V3U(1013904223u);
+
+    Value.x += Value.y*Value.z;
+    Value.y += Value.z*Value.x;
+    Value.z += Value.x*Value.y;
+
+    Value.x ^= Value.x >> 16u;
+    Value.y ^= Value.y >> 16u;
+    Value.z ^= Value.z >> 16u;
+
+    Value.x += Value.y*Value.z;
+    Value.y += Value.z*Value.x;
+    Value.z += Value.x*Value.y;
+
+    return(Value);
+}
+
+// NOTE(chowie): For multi-threading, SIMD
+// NOTE(chowie): These are also good for just generating random numbers
+inline v4u
+PCGHash4D(v4u Value)
+{
+    Value = Value*1664525u + V4U(1013904223u);
+
+    Value.x += Value.y*Value.w;
+    Value.y += Value.z*Value.x;
+    Value.z += Value.x*Value.y;
+    Value.w += Value.y*Value.z;
+
+    Value.x ^= Value.x >> 16u;
+    Value.y ^= Value.y >> 16u;
+    Value.z ^= Value.z >> 16u;
+    Value.w ^= Value.w >> 16u;
+
+    Value.x += Value.y*Value.w;
+    Value.y += Value.z*Value.x;
+    Value.z += Value.x*Value.y;
+    Value.w += Value.y*Value.z;
+
+    return(Value);
 }
 
 //
@@ -57,7 +128,7 @@ CRC32(void *Data, umm Size)
 }
 
 //
-// SPATIAL
+// SPATIAL (N -> 1)
 //
 
 // NOTE(by mauro): Using Szudnik Pairing.
@@ -335,6 +406,14 @@ GetPairwiseRow16(u32 Ordinal)
     return(Result);
 }
 
+inline u32
+GetPairwiseRow32(u32 Ordinal)
+{
+    f32 Row = IsTriangleNumber(Ordinal);
+    u32 Result = FloorF32ToU32(Row); // STUDY(chowie): New technique I observed to quickly get the row!
+    return(Result);
+}
+
 inline u64
 GetPairwiseRow64(u64 Ordinal)
 {
@@ -344,7 +423,7 @@ GetPairwiseRow64(u64 Ordinal)
 }
 
 //
-// Remaley Hash (2D, pairwise)
+// Remaley Hash (2 -> 1 perfect) for pairwise
 //
 
 /********************************
@@ -352,8 +431,9 @@ GetPairwiseRow64(u64 Ordinal)
    ******************************
 
    2->1 perfect hash
+   It's like triangular matrices but functions more like mapping values.
    Doesn't store data within hash, just possible combinations. Used for IDs
-   Input order agnostic (pairwise means swaps min or max)
+   Input order agnostic (pairwise means swaps min to ensure ID is consistent).
 
    For pairwise interaction, remaley hash stores only the necessary
    data of a matrix. While still indexing linearly with an array:
@@ -373,7 +453,7 @@ GetPairwiseRow64(u64 Ordinal)
    # # # # #
    # # # # # #
 
-   - Stores undirected graph edges and update simultaneously on both ends
+   - Stores undirected graph edges and update simultaneously on both ends (pathfinding)
      = As standard, serialise a node list and edge list separately.
      = Use Remaley hash to avoid double dispatch problem i.e. updating
      edges between nodes usually means updating on both ends. Remaley
@@ -545,30 +625,44 @@ enum whittaker_biome : u8
 };
 #define WHITTAKER_BIOME_COUNT_MAX PAIRWISE_TABLE_MAX(Whittaker_Biome_Count)
 
+// TODO(chowie): Specialised text to represent the mood.
+// e.g. 99% has love hearts, 1% has an arrow through the heart
 // NOTE(chowie): Inspired by Event[0] game
-enum emotion_matrix : u8
+enum mood_matrix : u8
 {
-    Emotion_Matrix_Null,
+    Mood_Matrix_Null,
 
-    Emotion_Matrix_Love,
-    Emotion_Matrix_Indifferent,
-    Emotion_Matrix_Hate,
+    Mood_Matrix_Love,
+    Mood_Matrix_Indifferent,
+    Mood_Matrix_Hate,
 
-    Emotion_Matrix_Anger,
-    Emotion_Matrix_Stress,
-    Emotion_Matrix_Calm,
+    Mood_Matrix_Calm,
+    Mood_Matrix_Stress,
+    Mood_Matrix_Anger,
 
-    Emotion_Matrix_Fear,
-    Emotion_Matrix_Apprehension,
-    Emotion_Matrix_Confident,
+    Mood_Matrix_Confidence,
+    Mood_Matrix_Apprehension,
+    Mood_Matrix_Fear,
 
-    Emotion_Matrix_Surprise,
-    Emotion_Matrix_Curious,
-    Emotion_Matrix_Confused,
+    Mood_Matrix_Homely, // Hygge
+    Mood_Matrix_Fleeting,
+    Mood_Matrix_Uncomfortable,
 
-    Emotion_Matrix_Count,
+    Mood_Matrix_Playful,
+    Mood_Matrix_Distracted,
+    Mood_Matrix_Bored,
+
+    Mood_Matrix_Bonding,
+    Mood_Matrix_Stranger,
+    Mood_Matrix_Suspicious,
+
+//    Mood_Matrix_Surprised,
+//    Mood_Matrix_Curious,
+//    Mood_Matrix_Confused,
+
+    Mood_Matrix_Count,
 };
-#define EMOTION_MATRIX_COUNT_MAX PAIRWISE_TABLE_MAX(Emotion_Matrix_Count)
+#define MOOD_MATRIX_COUNT_MAX PAIRWISE_TABLE_MAX(Mood_Matrix_Count)
 
 // RESOURCE(): The conceptual structure of human relationships across modern and historical culture (2025)
 // NOTE(chowie): Always symbiotic relationship, never one-sided! Very child-like
@@ -587,6 +681,50 @@ enum relationship_favee : u8
     Relationship_FAVEE_Count,
 };
 #define RELATIONSHIP_FAVEE_COUNT_MAX PAIRWISE_TABLE_MAX(Relationship_FAVEE_Count)
+
+// NOTE(chowie): Includes both +tive and -tive risks
+enum relationship_risk : u8
+{
+    Relationship_Risk_Null,
+
+    Relationship_Risk_Financial, // Includes switching occupation prospects
+    Relationship_Risk_MentalHealth,
+    Relationship_Risk_PhysicalHealth,
+    Relationship_Risk_SocialOutcast,
+    Relationship_Risk_SocialPublicIntegration, // Is relationship outwardly presentable in the public eye?
+    Relationship_Risk_Trust,
+    Relationship_Risk_Autonomy, // Alone time, balance other relationships
+    Relationship_Risk_QualityTime,
+    Relationship_Risk_Commitment,
+
+    Relationship_Risk_Count,
+};
+
+// NOTE(chowie): Uses animal boldness-shyness model
+enum animal_personality : u8
+{
+    Animal_Personality_Null,
+
+    Animal_Personality_Social,
+    Animal_Personality_Antisocial,
+
+    Animal_Personality_Active,
+    Animal_Personality_Inactive,
+
+    Animal_Personality_Aggressive,
+    Animal_Personality_Peaceful,
+
+    Animal_Personality_Explorative,
+    Animal_Personality_Unexplorative,
+
+    Animal_Personality_Bold,
+    Animal_Personality_Shy,
+
+    Animal_Personality_Dominant,
+    Animal_Personality_Submissive,
+
+    Animal_Personality_Count,
+};
 
 enum animal_order : u8
 {
@@ -610,48 +748,537 @@ enum animal_lang : u8
     Animal_Lang_Calc = BitSet(2),
 };
 
-// TODO(chowie): Put this in entity struct?
-// NOTE(chowie): Metadata
-// enum8(animal_order) Order;
-// enum8(animal_origin) Origin;
-
-// TODO(chowie): Try this undirected graph out for story/narrative?
-struct social_network_id
+enum animal_occupation : u8
 {
-    u32 ID;
+    Occupation_Clockmaker,
+    Occupation_GraffitiArtist,
+    Occupation_Builder,
+    Occupation_ToyMaker,
+    Occupation_Guide,
+    Occupation_WeatherGirl,
+    Occupation_Librarian,
+    Occupation_Confidant,
+    Occupation_FieldLinguist,
+    Occupation_Interpreter,
 };
 
-struct social_network_node
+enum inhabitant_name : u16
+{
+    Inhabitant_Name_IXI,
+    Inhabitant_Name_IVVI,
+    Inhabitant_Name_IOTHI,
+
+    Inhabitant_Name_Count,
+};
+
+// TODO(chowie): Make sure this undirected graph for story/narrative is good
+
+/********************************
+       WHAT IS SOCIAL WEB?
+   ******************************
+
+   A remaley hash symmetric matrix + fairmath pity system (lerp & variants) model.
+
+   Uses pairwise matrices (remaley hash) for both an undirected graph
+   and to store two-axis data, and lerp as the resolution structure
+   (fairmath). Fairmath is stored as a _percent_ uses base, t, impact
+   (at either extremes, 1% and 99% is bounded and any changes are very
+   impactful and tries move you to the middle, 50%). 0% and 100% are
+   thresholds that can only be set manually.
+
+   COULDDO(chowie): Save last bit of fairmath? 7-bits data, 1-bit b32?
+
+   RESOURCE(jon ingold): https://medium.com/@inklestudios/changable-minds-d5d434772462
+   Character -> Belief -> Event
+
+   RESOURCE(emily short): https://emshort.blog/how-to-play/writing-if/my-articles/conversation/
+   IMPORTANT(chowie): Trying an emotive conversational model (rather
+   than verbal). Seek a series of quips that represents to an emotive
+   movement to lead to the desired emotional outcome.
+*/
+
+// IMPORTANT(chowie): This includes you (ID 1), NPCs should always
+// treat you more than equally (but everyone else equally). So it
+// doesn't seem like you're being ignored.
+struct socialweb_node_id
+{
+    u8 Value;
+};
+
+// NOTE(chowie): CAF framework for proficiency
+struct lang_profiency
+{
+    u8 FairmathComplexity; // Range of vocab (lexical) and sentence structures (syntactic)
+    u8 FairmathAccuracy; // How many mistakes one makes (and corrects themselves) e.g. Pentiment game rewrites text spelling/grammar
+    u8 FairmathFluency; // Articulation rate and pauses (for writing, flow and connection of ideas)
+    u8 FairmathAcquisitionRate;
+};
+
+// TODO(chowie): Hash this with PCGHash(SourceID)
+// NOTE(chowie): Separate ID compared to entity_id and entity_ref
+struct socialweb_node
 {
     // NOTE(chowie): Graph
-    u32 SocialNetworkID; // NOTE(chowie): Separate ID compared to entity_id and entity_ref
+    string ConlangName; // NOTE(chowie): Grab entity id's name, stable serialisation/search criteria
+    socialweb_node_id SourceID; // NOTE(chowie): Converts conlang name to a smaller ID
+    u8 FairmathMentalStability; // How stable am I as a person?
+    u8 FairmathSociallyImportant; // How important are you to your connections?
+
+    // COULDDO(chowie): Put this metadata in entity struct?
+    // NOTE(chowie): Matrix metadata - used to affect edge matrices
+    // Mostly static
+    u16 AnimalOrigin;
+    u8 AnimalOrder;
+    u8 RemaleyPersonality;
+
+    // Dynamic
+    u16 RemaleyOccupation; // Up to 2 occupations (dual occupations), day-night occupations (auto-assigned)
+    u8 RemaleyMoodAlone; // What emotion do I feel when I'm alone currently?
+    u8 FairmathFatigue; // Builds up from events, wanting to talk etc..
+    f32 Age;
+    lang_profiency LangProficency;
+};
+
+struct socialweb_edge_id
+{
+    u16 Value;
 };
 
 // NOTE(chowie): u16 RemaleyHashes gets rounded down from u32.
-struct social_network_remaleyhash_edge
+struct socialweb_edge
 {
     // NOTE(chowie): Graph
-    u32 SocialNetworkID;
+    socialweb_edge_id RemaleyID;
+    u8 FairmathRelationshipStability; // How stable is our relationship i.e. cut each other off?
+    u8 FairmathSociallyImportant;
 
-    // NOTE(chowie): Metadata - for sorting via Emotion, FAVVE etc,
-    u16 AnimalOrder; // Who are you?
-    u16 AnimalOrigin; // Where do you come from?
-    u16 FAVVE; // What is our relationship?
-    u16 EmotionMatrix; // How do we emotionally feel about each other?
-    // {
-    f32 CommFreq; // How regularly do we speak/interact?
-    // } Doesn't use Remaley hash 
+    // NOTE(chowie): Matrix metadata - sort criteria
+    // COULDDO(chowie): Can use criteria as edge weights e.g. FAVVE relationship = number
+    // Mostly static
+    u16 RemaleyAnimalOrigin; // How do you address the other where they're from?
+    u8 RemaleyAnimalOrder; // Who are you?
+    u8 FairmathPadding0_;
+
+    // Dynamic
+    u16 RemaleyCommunity; // Who do you align with?
+    u8 RemaleyFAVVE; // What type is our relationship?
+    u8 FairmathCommFreq; // How regularly do we speak/interact?
+    u8 RemaleyMood; // How do we emotionally feel about each other?
+    u8 FairmathMood; // NOTE(chowie): Fairmath caps at 1% & 99% = "on the brink" status, manually set 0% & 100% to show completion
+    u8 RemaleyRisk; // Belief: What type of risk from an event would it put on our relationship?
+    u8 FairmathRisk; // Belief: Would what I'll do risk/strain our relationship?
 };
 
+// NOTE(chowie): This doesn't run frequently and doesn't need that much optimisation
+// COULDDO(chowie): Use edge's sort criteria e.g. FAVVE
+// NOTE(chowie): IMPORTANT(chowie): To reference certain characters in conversation
+struct socialweb_degreeofseparation
+{
+    socialweb_node_id Source;
+    socialweb_node_id Dest;
+
+    u32 SearchDist; // Default 3
+    b32x IsClose;
+};
+
+struct socialweb_node_hash
+{
+    socialweb_node *Ptr;
+};
+struct socialweb_edge_hash
+{
+    socialweb_edge *Ptr;
+};
+struct socialweb
+{
+    u32 MaxNodeCount;
+    u32 NodeCount;
+    socialweb_node *Nodes;
+
+    u32 MaxEdgeCount;
+    u32 EdgeCount;
+    socialweb_edge *Edges;
+
+    // STUDY(chowie): These hashes do have an upfront cost (the
+    // clearing) if done every frame. Prevents the max number from
+    // being arbitrary. But can implement incremental clearing.
+    socialweb_node_hash NodeInternalChainHash[64]; // Triangle number would be 64 max
+    socialweb_edge_hash EdgeInternalChainHash[2048]; // Triangle number edge would be 2016 max
+
+    // NOTE(chowie): Bitfields avoids clearing out the entire hash
+    u64 NodeInternalChainHashOccupancy[64/64];
+    u64 EdgeInternalChainHashOccupancy[2048/64];
+};
+
+internal void
+MarkBit(u64 *Array, umm Index)
+{
+    umm OccIndex = Index / 64;
+    umm BitIndex = Index % 64;
+    Array[OccIndex] |= ((u64)1 << BitIndex); // STUDY(chowie): By default bitshift always assumes 32-bit, use ULL or cast with (u64)
+}
+
+internal b32x
+IsEmpty(u64 *Array, umm Index)
+{
+    umm OccIndex = Index / 64;
+    umm BitIndex = Index % 64;
+    b32x Result = !(Array[OccIndex] & ((u64)1 << BitIndex)); // STUDY(chowie): By default bitshift always assumes 32-bit, use ULL or cast with (u64)
+    // NOTE(chowie): Alternatively write this as "Array[OccIndex] &= ~((u64)1 << BitIndex);"
+    return(Result);
+}
+
+internal void
+MarkOccupied(socialweb *SocialWeb, socialweb_node_hash *Entry)
+{
+    umm Index = Entry - SocialWeb->NodeInternalChainHash;
+    MarkBit(SocialWeb->NodeInternalChainHashOccupancy, Index);
+}
+
+internal void
+MarkOccupied(socialweb *SocialWeb, socialweb_edge_hash *Entry)
+{
+    umm Index = Entry - SocialWeb->EdgeInternalChainHash;
+    MarkBit(SocialWeb->EdgeInternalChainHashOccupancy, Index);
+}
+
+internal socialweb_node_hash *
+GetHashFromID(socialweb *SocialWeb, socialweb_node_id SourceID)
+{
+    socialweb_node_hash *Result = 0;
+
+    u32 HashValue = (u32)SourceID.Value;
+    for(u32 Offset = 0;
+        Offset < ArrayCount(SocialWeb->NodeInternalChainHash);
+        ++Offset)
+    {
+        u32 HashSlot = ((HashValue + Offset) & ArrayCount(SocialWeb->NodeInternalChainHash) - 1);
+        socialweb_node_hash *Entry = SocialWeb->NodeInternalChainHash + HashSlot;
+        if(IsEmpty(SocialWeb->NodeInternalChainHashOccupancy, HashSlot))
+        {
+            Result = Entry;
+            Result->Ptr = 0;
+            break;
+        }
+        else if(Entry->Ptr->SourceID.Value == SourceID.Value)
+        {
+            Result = Entry;
+            break;
+        }
+    }
+    Assert(Result);
+
+    return(Result);
+}
+
+internal socialweb_edge_hash *
+GetHashFromID(socialweb *SocialWeb, socialweb_edge_id RemaleyID)
+{
+    socialweb_edge_hash *Result = 0;
+
+    // NOTE(chowie): Perfect hash value, never hash collisions, no chaining needed
+    u32 HashSlot = RemaleyID.Value; // NOTE(chowie): RemaleyID also acts as hash value
+    socialweb_edge_hash *Entry = SocialWeb->EdgeInternalChainHash + HashSlot;
+    if(IsEmpty(SocialWeb->EdgeInternalChainHashOccupancy, HashSlot))
+    {
+        Result = Entry;
+        Result->Ptr = 0;
+    }
+    else if(Entry->Ptr->RemaleyID.Value == RemaleyID.Value)
+    {
+        Result = Entry;
+    }
+    Assert(Result);
+
+    return(Result);
+}
+
+internal socialweb_node *
+GetNodeByID(socialweb *SocialWeb, socialweb_node_id SourceID)
+{
+    socialweb_node_hash *Entry = GetHashFromID(SocialWeb, SourceID);
+    socialweb_node *Result = Entry ? Entry->Ptr : 0;
+    return(Result);
+}
+
+internal socialweb_edge *
+GetEdgeByID(socialweb *SocialWeb, socialweb_edge_id RemaleyID)
+{
+    socialweb_edge_hash *Entry = GetHashFromID(SocialWeb, RemaleyID);
+    socialweb_edge *Result = Entry ? Entry->Ptr : 0;
+    return(Result);
+}
+
+internal void
+AddNodeToHash(socialweb *SocialWeb, socialweb_node *Node)
+{
+    socialweb_node_hash *Entry = GetHashFromID(SocialWeb, Node->SourceID);
+    Assert(IsEmpty(SocialWeb->NodeInternalChainHashOccupancy, Entry - SocialWeb->NodeInternalChainHash));
+    // NOTE(chowie): Either nothing in the hash slot before, which we
+    // were trying to set, or it's equal to the one we are trying to
+    // put in. Thus, can overset hash slots.
+    Entry->Ptr = Node;
+    MarkOccupied(SocialWeb, Entry);
+}
+
+internal void
+AddEdgeToHash(socialweb *SocialWeb, socialweb_edge *Edge)
+{
+    socialweb_edge_hash *Entry = GetHashFromID(SocialWeb, Edge->RemaleyID);
+    Assert(IsEmpty(SocialWeb->EdgeInternalChainHashOccupancy, Entry - SocialWeb->EdgeInternalChainHash));
+    // NOTE(chowie): Either nothing in the hash slot before, which we
+    // were trying to set, or it's equal to the one we are trying to
+    // put in. Thus, can overset hash slots.
+    Entry->Ptr = Edge;
+    MarkOccupied(SocialWeb, Entry);
+}
+
+internal socialweb *
+BeginSocialWeb(memory_arena *SocialWebArena)
+{
+    // IMPORTANT(chowie): When you pass no clear into pushstruct or
+    // pusharray, you must _initialise everything_ and look
+    // side-by-side of the struct. However, we cannot do this as the
+    // hashes must be cleared else we cannot use them for lookups!
+    socialweb *SocialWeb = PushStruct(SocialWebArena, socialweb, NoClear());
+
+    ZeroStruct(SocialWeb->NodeInternalChainHashOccupancy);
+    ZeroStruct(SocialWeb->EdgeInternalChainHashOccupancy);
+
+    SocialWeb->MaxNodeCount = 64;
+    SocialWeb->NodeCount = 0;
+    SocialWeb->Nodes = PushArray(SocialWebArena, socialweb_node, SocialWeb->MaxNodeCount, NoClear());
+
+    SocialWeb->MaxEdgeCount = 2048;
+    SocialWeb->EdgeCount = 0;
+    SocialWeb->Edges = PushArray(SocialWebArena, socialweb_edge, SocialWeb->MaxEdgeCount, NoClear());
+
+    //
+}
+
+internal f32
+SocialWebSparsity(u32 EdgeCount, u32 MaxNodeCount)
+{
+    f32 Result = 1.0f - (f32)(EdgeCount/TriangleNumber(MaxNodeCount));
+    return(Result);
+}
+
+internal void
+SocialWebAddNode(u16 Node)
+{
+    // Push to hash table? / array
+}
+
+internal void
+SocialWebAddEdge(u16 NodeA, u16 NodeB)
+{
+    RemaleyHash(NodeA, NodeB);
+
+    // Push to hash table? / array
+}
+
+internal void
+SocialWebAddEdge(u32 Edge)
+{
+    // Push to hash table? / array
+}
+
+// IMPORTANT(chowie): TODO(chowie): +1 because you don't want the null node
+// COULDDO(chowie): Does it make sense to add a random node?
+// COULDDO(chowie): A function to validate that this is the kind of
+// edge you want to add?
+
+// RESOURCE(): https://www.johndcook.com/blog/2025/09/11/random-inside-triangle/
+// NOTE(chowie): Accept-flip model (variation on accept-reject).
+// Because this method uses RemaleyHash, creates a square, any points
+// outside of bound of square will always fall within the triangle.
+internal void
+SocialWebAddRandomEdge(pcg32_random_series *Series, u32 NodeMax)
+{
+    for(;;)
+    {
+        // NOTE(chowie): This 1D sampling works because of how
+        // RemaleyHash is mapped to a triangle!
+        u32 SampleEdge = RandomBounds(Series, NodeMax);
+        if(!SampleEdge) // 
+        {
+            // Push to hash table? / array
+
+            break;
+        }
+    }
+}
+
 //
-// Fink Hash (3D, non-pairwise)
+// #
+// # #
+// # # #
+// # # # #_________ Sampling rect
+// # # # #|#      |
+// # # # #|# #    |
+// # # # #|# # #  |
+// # # # #|# # # #|
+// TODO(chowie): Double-check this is all correct
+inline u32
+SampleRemaleyHash(pcg32_random_series *Series, rect2i Rect)
+{
+    u32 RowOffset = GetPairwiseRow32((u32)Rect.Min.x);
+    u32 Bounds = TriangleNumber((u32)GetWidth(Rect));
+
+    // NOTE(chowie): This 1D sampling works because of how
+    // RemaleyHash is mapped to a triangle!
+    u32 SampleEdge = RandomBounds(Series, Bounds);
+    u32 Result = RowOffset + SampleEdge; // Sampled Triangle
+
+    return(Result);
+}
+
+// RectMinDim(v2s Min, v2s Dim);
+internal void
+SocialWebAddRandomEdge(pcg32_random_series *Series, rect2i Rect)
+{
+    for(;;)
+    {
+        u32 SampleEdge = SampleRemaleyHash(Series, Rect);
+        if(!SampleEdge) //
+        {
+            // Push to hash table? / array
+
+            break;
+        }
+    }
+}
+
+internal void
+SocialWebAddRandomEdge(pcg32_random_series *Series, v2s Min, v2s Dim)
+{
+    SocialWebAddRandomEdge(Series, RectMinDim(Min, Dim));
+}
+
+internal void
+SocialWebAddRandomEdge(pcg32_random_series *Series, u16 NodeA, u32 NodeMax)
+{
+    for(;;)
+    {
+        u32 SampleEdge = RemaleyHash(NodeA, (u16)RandomBounds(Series, NodeMax));
+        if(!SampleEdge) // 
+        {
+            // Push to hash table? / array
+
+            break;
+        }
+    }
+
+    // Push to hash table? / array
+}
+
+internal void
+SocialWebAddRandomEdge(pcg32_random_series *Series, u32 Edge, u32 NodeMax)
+{
+    // Push to hash table? / array
+}
+
+// NOTE(chowie): Deletes related edges too
+internal void
+SocialWebRemoveNode(u16 Node)
+{
+    for(u32 PairIndex = 0;
+        PairIndex < Inhabitant_Name_Count;
+        PairIndex++)
+    {
+        RemaleyHash(Node, (u16)PairIndex);
+        // Finds all matrix edges
+    }
+}
+
+internal void
+SocialWebRemoveEdge(u16 NodeA, u16 NodeB)
+{
+    RemaleyHash(NodeA, NodeB);
+
+    // Push to hash table? / array
+}
+
+internal b32x
+SocialWebHasEdge(u16 NodeA, u16 NodeB)
+{
+    b32x Result = false;
+    for(;;)
+    {
+        u32 TestEdge = RemaleyHash(NodeA, NodeB);
+        if(TestEdge)
+        {
+            Result = true;
+            break;
+        }
+    }
+
+    return(Result);
+}
+
+internal b32x
+SocialWebHasEdge(u32 Edge)
+{
+    b32x Result = false;
+    for(;;)
+    {
+        u32 TestEdge = Edge;
+        if(TestEdge)
+        {
+            Result = true;
+            break;
+        }
+    }
+
+    return(Result);
+}
+
+// NOTE(chowie): O(n) currently
+internal void
+SocialWebGetAllNeighboursAndDegree(u16 Node)
+{
+}
+
+// NOTE(chowie): O(n) currently
+// NOTE(chowie): For a relationship, find all neighbours for
+// both. E.g. lovers might want to sever other relationships?
+internal void
+SocialWebGetAllNeighboursAndDegree(u16 NodeA, u16 NodeB)
+{
+}
+
+// NOTE(chowie): O(n) currently
+internal void
+SocialWebGetAllNeighboursAndDegree(u32 Edge)
+{
+}
+
+enum remaleyhashsampling_type
+{
+    RemaleyHashSampling_Type_All,
+    RemaleyHashSampling_Type_Row,
+    RemaleyHashSampling_Type_Edge,
+};
+// RESOURCE(): https://www.drmaciver.com/2017/05/a-hybrid-voting-system-for-scheduling/
+internal void
+SocialWebVoting(pcg32_random_series *Series, u32 Index, u32 Length)
+{
+    // 1. Select sampling type
+//    u32 SampleEdge = RandomBounds(Series, NodeMax);
+
+    // 2. Select sampling type
+    Permute(Series, Index, Length);
+}
+
+//
+// Fink Hash (3->1 rolling perfect) for non-pairwise
 //
 
 /********************************
          WHAT IS FINK HASH?
    ******************************
 
-   2->1 rolling perfect hash
+   3->1 rolling perfect hash
    Store all tree data within hash, and used for IDs too
    Input order dependent (non-pairwise)
 
@@ -690,6 +1317,7 @@ struct social_network_remaleyhash_edge
    When validating the integrity of a fink hash tree, compare u64 source vs dest.
    Use for networking and any VCS.
 
+   // TODO(chowie): IMPORTANT(chowie): LRU (Least Recently Used) to track voxel data probably
 */
 
 // TODO(chowie): Move this out!
@@ -1923,6 +2551,56 @@ FinkHashTreeGetRootNodeNeighbour(finkhashtree_cardinal_group FinkHashTree)
             Result.Neighbours[TreeCount].IsFullBlock = true;
             Result.Neighbours[TreeCount].Tree = FinkHashTree.Trees[TreeCount].FinkHash;
         }
+    }
+
+    return(Result);
+}
+
+//
+// Fink hash rotate/reflect adjacent/neighbour voxels
+//
+
+// IMPORTANT(chowie): If using for voxels, doesn't swap the texture face!
+// TODO(chowie): Support all rot axis, not just .z!
+enum finkhashtree_rot
+{
+    FINKHASHTREE_ROT_Z_CLOCKWISE,
+    FINKHASHTREE_ROT_Z_ANTICLOCKWISE,
+    FINKHASHTREE_ROT_Z_REFLECT,
+};
+
+internal u32
+FinkHashTreeGetLeafNodeNeighbourRot(u32 SourceLeafIndex, finkhashtree_rot Rot)
+{
+    u32 Result = 0;
+    v3u InternalNeighbours =
+    {
+        (TriangleNumber(SourceLeafIndex + 2) % 2),
+        (2 + (TriangleNumber(SourceLeafIndex) % 2)),
+        ((SourceLeafIndex + FINKHASHTREE_MAXLEAVESPITCH) % FINKHASHTREE_MAXLEAVES),
+    };
+
+    switch(Rot)
+    {
+        case FINKHASHTREE_ROT_Z_CLOCKWISE:
+        case FINKHASHTREE_ROT_Z_ANTICLOCKWISE:
+        {
+            if(Odd(SourceLeafIndex))
+            {
+                Result = InternalNeighbours.y;
+            }
+            else
+            {
+                Result = InternalNeighbours.x;
+            }
+        } break;
+
+        case FINKHASHTREE_ROT_Z_REFLECT:
+        {
+            Result = InternalNeighbours.z;
+        } break;
+
+        InvalidDefaultCase;
     }
 
     return(Result);
