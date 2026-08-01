@@ -13,6 +13,10 @@
 #include "ruinenglass_hash.h"
 #include "ruinenglass_stats.h"
 
+//
+// String
+//
+
 inline b32x
 IsEndOfLine(char C)
 {
@@ -448,6 +452,267 @@ f64 string_to_float(char* str)
    "Last Frame Time: %.02fms/f\n", MSPerFrame);
    OutputDebugStringA(TextBuffer);
 */
+
+//
+// Sort
+//
+// RESOURCE(): https://web.archive.org/web/20190821115842/https://gist.github.com/mmozeiko/0bd42648536b164f5dc8
+// RESOURCE(): https://www.toptal.com/developers/sorting-algorithms
+// RESOURCE(): https://hero.handmade.network/forums/code-discussion/t/984-day_229__what_about_radix_sort
+
+internal void
+InsertionSort(f32* Entries, u32 Start, u32 End)
+{
+    for(u32 Index = Start + 1;
+        Index < End;
+        Index++)
+    {
+        f32 Value = Entries[Index];
+        if(Entries[Index - 1] > Value)
+        {
+            u32 Index2 = Index;
+            do
+            {
+                Entries[Index2] = Entries[Index2 - 1];
+            }
+            while(--Index2 > Start && Entries[Index2 - 1] > Value);
+            Entries[Index2] = Value;
+        }
+    }
+}
+
+internal void
+InsertionSort(u32* Entries, u32 Start, u32 End)
+{
+    for(u32 Index = Start + 1;
+        Index < End;
+        ++Index)
+    {
+        u32 Value = Entries[Index];
+        if(Entries[Index - 1] > Value)
+        {
+            u32 Index2 = Index;
+            do
+            {
+                Entries[Index2] = Entries[Index2 - 1];
+            }
+            while(--Index2 > Start && Entries[Index2 - 1] > Value);
+            Entries[Index2] = Value;
+        }
+    }
+}
+
+inline u32
+F32ToU32Key(f32 Key)
+{
+    u32 KeyBits = *((u32*)&Key);
+    u32 Mask = -(s32)(KeyBits >> 31) | 0x80000000;
+    KeyBits ^= Mask;
+    return(KeyBits);
+}
+
+inline u32
+GetByteN(u32 Value, u32 ByteIndex)
+{
+    return((Value >> (8*ByteIndex)) & 0xFF);
+}
+
+// NOTE(chowie): Unstable and is a little slower than just normal
+// radix, but you have to allocate memory of course...
+internal void
+RadixSortInPlaceImplOpt(f32 *Entries, u32 Start, u32 End, u32 DigitIndex)
+{
+    u32 Counts[256] = {};
+
+    // NOTE(chowie): First pass - count how many of each key
+    for(u32 Index = Start;
+        Index < End;
+        ++Index)
+    {
+         u32 Key = F32ToU32Key(Entries[Index]);
+         u32 Digit = GetByteN(Key, DigitIndex);
+         Counts[Digit]++;
+    }
+
+    // NOTE(chowie): Change counts to offset
+    // NOTE(chowie): E.g. SortKey 0 -> 3 of them, SortKey 2 -> 5.
+    // 0 | 0 | 0 | 2 | 2 | 2 | 2 | 2
+    u32 Offsets[256];
+    Offsets[0] = Start;
+    for(u32 Index = 1;
+        Index < 256;
+        ++Index)
+    {
+        Offsets[Index] = Counts[Index - 1] + Offsets[Index - 1];
+    }
+
+    // NOTE(chowie): Second pass - place elements into the right location
+    for(u32 Index = 0;
+        Index < 256;
+        ++Index)
+    {
+        while(Counts[Index] > 0)
+        {
+            u32 Original = Offsets[Index];
+            u32 Source = Original;
+            f32 Key = Entries[Source];
+            do
+            {
+                u32 Digit = GetByteN(F32ToU32Key(Key), DigitIndex);
+                u32 Target = Offsets[Digit]++;
+                Counts[Digit]--;
+
+                Swap(f32, Entries[Target], Key);
+
+                Source = Target;
+            }
+            while(Source != Original);
+        }
+    }
+
+    if(DigitIndex > 0)
+    {
+        for(u32 Index = 0;
+            Index < 256;
+            ++Index)
+        {
+            u32 NewStart = (Index == 0 ? Start : Offsets[Index - 1]);
+            u32 NewEnd = Offsets[Index];
+            if(NewEnd - NewStart > 1)
+            {
+                if(NewEnd - NewStart < 64)
+                {
+                    InsertionSort(Entries, NewStart, NewEnd);
+                }
+                else
+                {
+                    RadixSortInPlaceImplOpt(Entries, NewStart, NewEnd, DigitIndex - 1);
+                }
+            }
+        }
+    }
+}
+
+// RESOURCE(): https://www.codercorner.com/RadixSortRevisited.htm
+// NOTE(chowie): Use for:
+// - Sorting transparent polygons
+// - Collision detection e.g. sweep and prune
+// - Histograms
+internal void
+RadixSortInPlaceOpt(f32 *Entries, u32 Count)
+{
+    RadixSortInPlaceImplOpt(Entries, 0, Count, 3);
+}
+
+// COULDDO(chowie): If the list gets larger, transforms this into 4
+// passes. 256->2048 to process 11-bits at a time. Thus you only need,
+// 3 arrays, not 4. (for million+ data to sort).
+// NOTE(chowie): Improves over radix at count = 4096
+internal void
+RadixSort5n(f32 *Entries, f32* Temp, u32 Count)
+{
+    f32 *Source = Entries;
+
+    // NOTE(chowie): First pass - count how many of each key
+    u32 Counts[4][256] = {};
+    for(u32 Index = 0;
+        Index < Count;
+        ++Index)
+    {
+        u32 Key = F32ToU32Key(Source[Index]);
+        Counts[0][GetByteN(Key, 0)]++;
+        Counts[1][GetByteN(Key, 1)]++;
+        Counts[2][GetByteN(Key, 2)]++;
+        Counts[3][GetByteN(Key, 3)]++;
+    }
+
+    for(u32 DigitIndex = 0;
+        DigitIndex < 4;
+        ++DigitIndex)
+    {
+        u32 TotalCount = 0;
+        for(u32 Index = 0;
+            Index < 256;
+            ++Index)
+        {
+            u32 CurrentCount = Counts[DigitIndex][Index];
+            Counts[DigitIndex][Index] = TotalCount;
+            TotalCount += CurrentCount;
+        }
+    }
+
+    // NOTE(chowie): Second pass - place elements into the right location
+    for(u32 DigitIndex = 0;
+        DigitIndex < 4;
+        ++DigitIndex)
+    {
+        for(u32 Index = 0;
+            Index < Count;
+            ++Index)
+        {
+            u32 Key = F32ToU32Key(Source[Index]);
+            u32 Digit = GetByteN(Key, DigitIndex);
+
+            Temp[Counts[DigitIndex][Digit]++] = Source[Index];
+        }
+
+        f32 *Swap = Source;
+        Source = Temp;
+        Temp = Swap;
+    }
+}
+
+internal void
+RadixSort5n(u32 *Entries, u32* Temp, u32 Count)
+{
+    u32 *Source = Entries;
+
+    // NOTE(chowie): First pass - count how many of each key
+    u32 Counts[4][256] = {};
+    for(u32 Index = 0;
+        Index < Count;
+        ++Index)
+    {
+        Counts[0][GetByteN(Source[Index], 0)]++;
+        Counts[1][GetByteN(Source[Index], 1)]++;
+        Counts[2][GetByteN(Source[Index], 2)]++;
+        Counts[3][GetByteN(Source[Index], 3)]++;
+    }
+
+    for(u32 DigitIndex = 0;
+        DigitIndex < 4;
+        ++DigitIndex)
+    {
+        u32 TotalCount = 0;
+        for(u32 Index = 0;
+            Index < 256;
+            ++Index)
+        {
+            u32 CurrentCount = Counts[DigitIndex][Index];
+            Counts[DigitIndex][Index] = TotalCount;
+            TotalCount += CurrentCount;
+        }
+    }
+
+    // NOTE(chowie): Second pass - place elements into the right location
+    for(u32 DigitIndex = 0;
+        DigitIndex < 4;
+        ++DigitIndex)
+    {
+        for(u32 Index = 0;
+            Index < Count;
+            ++Index)
+        {
+            u32 Digit = GetByteN(Source[Index], DigitIndex);
+
+            Temp[Counts[DigitIndex][Digit]++] = Source[Index];
+        }
+
+        u32 *Swap = Source;
+        Source = Temp;
+        Temp = Swap;
+    }
+}
 
 #define RUINENGLASS_SHARED_H
 #endif

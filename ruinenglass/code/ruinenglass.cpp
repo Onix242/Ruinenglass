@@ -28,13 +28,6 @@ platform_api Platform;
 // TODO(chowie): Center cubes too?
 // TODO(chowie): Use for all dim!
 #define TileSide 1.0f
-#define HoneycombBox      0.8f*V3(TileSide, TileSide, TileSide)
-#define HoneycombBlock    0.2f*V3(TileSide, TileSide, TileSide)
-#define HoneycombTile     V3(0.8f*TileSide, 0.2f*TileSide, 0.8f*TileSide)
-#define HoneycombWebSlab  V3(0.8f*TileSide, 0.8f*TileSide, 0.2f*TileSide)
-#define HoneycombDrySlab  V3(0.2f*TileSide, 0.8f*TileSide, 0.8f*TileSide)
-#define HoneycombWebBlank V3(0.8f*TileSide, 0.2f*TileSide, 0.2f*TileSide)
-#define HoneycombDryBlank V3(0.2f*TileSide, 0.2f*TileSide, 0.8f*TileSide)
 
 // TODO(chowie): Buckle down entity "index"/ID!
 internal entity *
@@ -394,11 +387,25 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     }
 }
 
-// TODO(chowie): Reenable this once have proper spatial partitioning!
-#if 0
-    v3 Offset = {};
+extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)
+{
+    game_state *GameState = (game_state *)Memory->Permanent.Base; // TODO(chowie): Replace with an dedicated Audio.Base
 
-    /*
+    // TODO(chowie): Allow sample offsets here for more robust
+    // platform options!
+    // TODO(chowie): OutputPlayingSounds() Mixer
+//    TestOutputWilwaDialTone(&GameState->AudioState, SoundBuffer);
+}
+
+/*
+#define HoneycombBox      0.8f*V3(TileSide, TileSide, TileSide)
+#define HoneycombBlock    0.2f*V3(TileSide, TileSide, TileSide)
+#define HoneycombTile     V3(0.8f*TileSide, 0.2f*TileSide, 0.8f*TileSide)
+#define HoneycombWebSlab  V3(0.8f*TileSide, 0.8f*TileSide, 0.2f*TileSide)
+#define HoneycombDrySlab  V3(0.2f*TileSide, 0.8f*TileSide, 0.8f*TileSide)
+#define HoneycombWebBlank V3(0.8f*TileSide, 0.2f*TileSide, 0.2f*TileSide)
+#define HoneycombDryBlank V3(0.2f*TileSide, 0.2f*TileSide, 0.8f*TileSide)
+
       RESOURCE(): https://www.livescience.com/50027-tessellation-tiling.html
       RESOURCE(): https://en.wikipedia.org/wiki/Honeycomb_(geometry)
       RESOURCE(shawcross): https://grahamshawcross.com/2012/10/12/periodic-and-non-periodic-tiling/
@@ -499,7 +506,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
       |                                      |
       |                                      |
       |______________________________________|
-    */
+
+    v3 Offset = {};
 
     // TODO(chowie): Is it easier to make these a m3x3 matrix?
     // TODO(chowie): Express this as a ratio, clamp01?
@@ -554,41 +562,30 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
             Max.x = Min.x + BlankDim.x*Odd(Column) + BlockDim.x*!Odd(Column);
             Max.y = Min.y + BarDim.y*Odd(Row) + BlockDim.y*!Odd(Row);
 
-            /*
-            if(!Odd(Row))
-            {
-                Min.y = (Row / 2)*HoneycombDim.y;
-                Max.y = Min.y + BlockDim.y;
-            }
-            else
-            {
-                Min.y = ((Row - 1) / 2)*HoneycombDim.y + BlockDim.y;
-                Max.y = Min.y + BarDim.y;
-            }
-
-            if(!Odd(Column))
-            {
-                Min.x = (Column / 2)*HoneycombDim.x;
-                Max.x = Min.x + BlockDim.x;
-            }
-            else
-            {
-                Min.x = ((Column - 1) / 2)*HoneycombDim.x + BlockDim.x;
-                Max.x = Min.x + BlankDim.x;
-            }
-            */
+//            if(!Odd(Row))
+//            {
+//                Min.y = (Row / 2)*HoneycombDim.y;
+//                Max.y = Min.y + BlockDim.y;
+//            }
+//            else
+//            {
+//                Min.y = ((Row - 1) / 2)*HoneycombDim.y + BlockDim.y;
+//                Max.y = Min.y + BarDim.y;
+//            }
+//
+//            if(!Odd(Column))
+//            {
+//                Min.x = (Column / 2)*HoneycombDim.x;
+//                Max.x = Min.x + BlockDim.x;
+//            }
+//            else
+//            {
+//                Min.x = ((Column - 1) / 2)*HoneycombDim.x + BlockDim.x;
+//                Max.x = Min.x + BlankDim.x;
+//            }
 
             PushRect(RenderGroup, Offset, RectMinMax(Min, Max), BaseColour);
         }
     }
-#endif
+*/
 
-extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)
-{
-    game_state *GameState = (game_state *)Memory->Permanent.Base; // TODO(chowie): Replace with an dedicated Audio.Base
-
-    // TODO(chowie): Allow sample offsets here for more robust
-    // platform options!
-    // TODO(chowie): OutputPlayingSounds() Mixer
-//    TestOutputWilwaDialTone(&GameState->AudioState, SoundBuffer);
-}

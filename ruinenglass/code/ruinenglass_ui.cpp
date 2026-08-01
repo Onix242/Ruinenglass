@@ -200,7 +200,7 @@ RectCutExtendBorder(rect2 *Rect, v2 Radius)
 inline rect2
 RectCutContractBorder(rect2 *Rect, v2 Radius)
 {
-    rect2 Result = SubtractRadiusTo(*Rect, Radius);
+    rect2 Result = SubRadiusTo(*Rect, Radius);
     return(Result);
 }
 

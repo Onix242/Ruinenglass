@@ -437,7 +437,7 @@ ClampAboveZero(f32 Value)
     return(Result);
 }
 
-// STUDY(chowie): Inverval inclusion, 1D rect if point in between two bounds
+// STUDY(chowie): Interval inclusion, 1D rect if point in between two bounds
 inline b32x
 IsInRange(f32 Min, f32 Value, f32 Max)
 {
@@ -1177,7 +1177,7 @@ Perp(v3 A)
 inline v3
 GeneratePerp(v3 A)
 {
-    v3 Result = (AbsoluteValue(A.x) > AbsoluteValue(A.z))
+    v3 Result = (Abs(A.x) > Abs(A.z))
         ? V3(-A.y, A.x, 0.0) : V3(0.0, -A.z, A.y);
     return(Result);
 }
@@ -2590,7 +2590,7 @@ AddRadiusTo(rect2 A, v2 Radius)
 }
 
 inline rect2
-SubtractRadiusTo(rect2 A, v2 Radius)
+SubRadiusTo(rect2 A, v2 Radius)
 {
     rect2 Result = {A.Min + Radius, A.Max - Radius};
     return(Result);
@@ -2967,7 +2967,7 @@ AddRadiusTo(rect3 A, v3 Radius)
 }
 
 inline rect3
-SubtractRadiusTo(rect3 A, v3 Radius)
+SubRadiusTo(rect3 A, v3 Radius)
 {
     rect3 Result = {A.Min + Radius, A.Max - Radius};
     return(Result);
@@ -3201,6 +3201,27 @@ RGBAPack4x8(v4 Unpacked)
     return(Result);
 }
 
+// NOTE(chowie): For non-f32 data
+inline v4u
+Unpack4x8(u32 Packed)
+{
+    v4u Result = {((Packed >> 0) & 0xFF),
+                  ((Packed >> 8) & 0xFF),
+                  ((Packed >> 16) & 0xFF),
+                  ((Packed >> 24) & 0xFF)};
+    return(Result);
+}
+
+inline u32
+Pack4x8(v4u Unpacked)
+{
+    u32 Result = ((Unpacked.x << 24) |
+                  (Unpacked.y << 16) |
+                  (Unpacked.z << 8) |
+                  (Unpacked.w << 0));
+    return(Result);
+}
+
 // TODO(chowie): Try to use this!
 // RESOURCE: https://gist.github.com/d7samurai/f98cb2aa30a6d73e62a65a376d24c6da
 // NOTE(from d7sam): Storing argb color in various compact forms, either
@@ -3250,26 +3271,48 @@ D7samNormalisedMul(u8 A, u8 B)
 
 // NOTE(chowie): [a, b]
 inline b32x
-PointInClosedInterval(u32 Point, v2u Interval, u32 Base = 12)
+PointInClosedIntervalBase(u32 Point, v2u Interval, u32 Base = 12)
 {
     b32x Result = (ModN(Point - Interval.Start, Base) <= ModN(Interval.End - Interval.Start, Base));
     return(Result);
 }
 
+inline b32x
+PointInClosedInterval(u32 Point, v2u Interval)
+{
+    b32x Result = (Point - Interval.Start) <= (Interval.End - Interval.Start);
+    return(Result);
+}
+
 // NOTE(chowie): [a, b)
 inline b32x
-PointInHalfOpenInterval(u32 Point, v2u Interval, u32 Base = 12)
+PointInHalfOpenIntervalBase(u32 Point, v2u Interval, u32 Base = 12)
 {
     b32x Result = (ModN(Point - Interval.Start, Base) < ModN(Interval.End - Interval.Start, Base));
     return(Result);
 }
 
+inline b32x
+PointInHalfOpenInterval(u32 Point, v2u Interval)
+{
+    b32x Result = (Point - Interval.Start) < (Interval.End - Interval.Start);
+    return(Result);
+}
+
 // NOTE(chowie): [a, b] [c, d]
 inline b32x
-ClosedIntervalsOverlap(v2u IntervalA, v2u IntervalB, u32 Base = 12)
+ClosedIntervalsOverlapBase(v2u IntervalA, v2u IntervalB, u32 Base = 12)
 {
     b32x Result = (ModN(IntervalB.Start - IntervalA.Start, Base) <= ModN(IntervalA.End - IntervalA.Start, Base)) ||
                   (ModN(IntervalA.Start - IntervalB.Start, Base) <= ModN(IntervalB.End - IntervalB.Start, Base));
+    return(Result);
+}
+
+inline b32x
+ClosedIntervalsOverlap(v2u IntervalA, v2u IntervalB)
+{
+    b32x Result = ((IntervalB.Start - IntervalA.Start) <= (IntervalA.End - IntervalA.Start)) ||
+                  ((IntervalA.Start - IntervalB.Start) <= (IntervalB.End - IntervalB.Start));
     return(Result);
 }
 
@@ -3278,13 +3321,24 @@ ClosedIntervalsOverlap(v2u IntervalA, v2u IntervalB, u32 Base = 12)
 //          |----------|
 // NOTE(chowie): [a, b) [c, d)
 inline b32x
-HalfOpenIntervalsOverlap(v2u IntervalA, v2u IntervalB, u32 Base = 12)
+HalfOpenIntervalsOverlapBase(v2u IntervalA, v2u IntervalB, u32 Base = 12)
 {
     v2u Coeff = V2U(ModN(IntervalA.End - IntervalA.Start, Base),
                     ModN(IntervalB.End - IntervalB.Start, Base));
 
     b32x Result = ((Coeff.b != 0) && (ModN(IntervalB.Start - IntervalA.Start, Base) < Coeff.a)) ||
                   ((Coeff.a != 0) && (ModN(IntervalA.Start - IntervalB.Start, Base) < Coeff.b));
+    return(Result);
+}
+
+inline b32x
+HalfOpenIntervalsOverlap(v2u IntervalA, v2u IntervalB)
+{
+    v2u Coeff = V2U((IntervalA.End - IntervalA.Start),
+                    (IntervalB.End - IntervalB.Start));
+
+    b32x Result = ((Coeff.b != 0) && ((IntervalB.Start - IntervalA.Start) < Coeff.a)) ||
+                  ((Coeff.a != 0) && ((IntervalA.Start - IntervalB.Start) < Coeff.b));
     return(Result);
 }
 

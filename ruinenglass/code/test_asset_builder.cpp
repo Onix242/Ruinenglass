@@ -229,10 +229,10 @@ AddBitmapAsset(loaded_rui *RUI, char *FileName, v2 AlignPercentage = {0.5f, 0.5f
 }
 
 internal repligram_id
-AddRepligramAsset(loaded_rui *RUI, char *FileName, v3u Dim)
+AddRepligramAsset(loaded_rui *RUI, char *FileName, u32 PackedDim)
 {
     added_asset Added = AddAsset(RUI);
-    Added.Asset->Repligram.Dim = Dim; // TODO(chowie): Not sure if I need this exactly?
+    Added.Asset->Repligram.PackedDim = PackedDim; // TODO(chowie): Not sure if I need this exactly?
     Added.Source->Type = AssetType_Repligram;
     Added.Source->Repligram.FileName = FileName;
 

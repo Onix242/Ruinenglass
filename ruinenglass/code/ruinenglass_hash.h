@@ -29,7 +29,7 @@ PCGHash(u32 Value)
 // NOTE(chowie): For multi-threading, SIMD
 // NOTE(chowie): These are also good for just generating random numbers
 inline v2u
-PCGHash2D(v2u Value)
+PCGHash(v2u Value)
 {
     Value = Value*1664525u + V2U(1013904223u);
 
@@ -51,7 +51,7 @@ PCGHash2D(v2u Value)
 // NOTE(chowie): For multi-threading, SIMD
 // NOTE(chowie): These are also good for just generating random numbers
 inline v3u
-PCGHash3D(v3u Value)
+PCGHash(v3u Value)
 {
     Value = Value*1664525u + V3U(1013904223u);
 
@@ -73,7 +73,7 @@ PCGHash3D(v3u Value)
 // NOTE(chowie): For multi-threading, SIMD
 // NOTE(chowie): These are also good for just generating random numbers
 inline v4u
-PCGHash4D(v4u Value)
+PCGHash(v4u Value)
 {
     Value = Value*1664525u + V4U(1013904223u);
 
@@ -453,6 +453,8 @@ GetPairwiseRow64(u64 Ordinal)
    # # # # #
    # # # # # #
 
+   - Are "sort keys by stop times" for animation timelines/scheduling
+     used with union, intersect ops etc.
    - Stores undirected graph edges and update simultaneously on both ends (pathfinding)
      = As standard, serialise a node list and edge list separately.
      = Use Remaley hash to avoid double dispatch problem i.e. updating
@@ -488,11 +490,24 @@ GetPairwiseRow64(u64 Ordinal)
      = Winrate
      = Probabilistic: Bayesian/Glicko/Trueskill ELO score in competitive games
      = Binary: If only one person votes
+   - "Interval Overlap" for:
+     = Timeline systems (12/24 hr clock in-game or animation timeline systems too!)
+       point = within an hour
+       interval = between hours
+     = (For this game) Repligram numbers
+       point = 1 number (priority)
+       interval = 2 numbers (priorities)
+       Convenience of auto swapping numbers around (lowest to highest)
+   - Simple 3D modelling program?
+     = InvertRemaleyHash(), then take vertices and rehash (with
+     itself) e.g. RemaleyHash(2) to vertices without maintaining an
+     edge list
 
    COULDDO(chowie): Partial pairwise comparison 3n(n-1)/2?
 */
 
 // RESOURCE(mason remaley): https://gamesbymason.com/2020/03/30/symmetric-matrices/
+// NOTE(chowie): Guarantees both .x to be the smallest and .y the largest
 internal u32
 RemaleyHash(u16 A, u16 B)
 {
@@ -522,13 +537,9 @@ RemaleyHash(u16 A)
 // # A # # #
 // A # # # # #
 
-// NOTE(chowie): Alternative trick to get row if I need this later!
-// STUDY(chowie): Trick I made to avoid floating point precision with
-// IsInteger() Signof check ensures it's always past the first index!
-// (SignOf(Ordinal - TriangleNumber((u32)Result.Row)) == -1) ? false : true;
+// NOTE(chowie): Guarantees both .x to be the smallest and .y the largest
 struct pairwise_index_result
 {
-    b32x IsTriangleNumber;
     u16 Row;
     u16 Col;
 };
@@ -541,9 +552,255 @@ InvertRemaleyHash(u32 Ordinal)
     pairwise_index_result Result = {};
     Result.Row = Row;
     Result.Col = (u16)Ordinal - Pitch;
-    Result.IsTriangleNumber = (Ordinal == TriangleNumberMat((u32)Result.Row));
     return(Result);
 }
+
+/*
+// COULDDO(chowie): I couldn't get this to low enough instructions to
+// make it worth while!
+
+struct remaleyhash_diagonal_result
+{
+    u32 TriangleNumber;
+    b32x IsDiagonal;
+};
+internal remaleyhash_diagonal_result
+IsRemaleyHashDiagonal(u32 Ordinal)
+{
+    f32 Test = (Ordinal != 0) ? IsTriangleNumber(Ordinal + 1) : 0;
+
+    remaleyhash_diagonal_result Result = {};
+    Result.TriangleNumber = (u32)Test;
+    Result.IsDiagonal = IsIntegerPositive(Test);
+    return(Result);
+}
+*/
+
+inline b32x
+VerifyRemaleyHashIntegrity(u32 Source, u32 Copy)
+{
+    b32x Result = (Source == Copy);
+    return(Result);
+}
+
+// NOTE(chowie): Alternative trick to get row if I need this later!
+// STUDY(chowie): Trick I made to avoid floating point precision with
+// IsInteger() Signof check ensures it's always past the first index!
+// 1) (SignOf(Ordinal - TriangleNumber((u32)Result.Row)) == -1) ? false : true;
+// 2) (Ordinal == TriangleNumberMat((u32)Result.Row))
+
+//
+// Remaley Hash Interval Overlap
+// RESOURCE(): https://codeforces.com/blog/entry/98629
+//
+
+internal u32
+RemaleyHashInterval(u16 A, u16 B)
+{
+    u32 Result = RemaleyHash(A, B);
+    return(Result);
+}
+
+// NOTE(chowie): Interval is same as point
+internal u32
+RemaleyHashInterval(u16 A)
+{
+    u32 Result = RemaleyHash(A);
+    return(Result);
+}
+
+internal pairwise_index_result
+InvertRemaleyHashInterval(u32 A)
+{
+    pairwise_index_result Result = InvertRemaleyHash(A);
+    return(Result);
+}
+
+internal b32x
+IsRemaleyHashIntervalPoint(u32 A)
+{
+    pairwise_index_result Pair = InvertRemaleyHash(A);
+    b32x Result = (Pair.Row == Pair.Col);
+    return(Result);
+}
+
+inline b32x
+RemaleyHashClosedIntervalsOverlap(v2u IntervalA, v2u IntervalB)
+{
+    b32x Result = ClosedIntervalsOverlap(IntervalA, IntervalB);
+    return(Result);
+}
+
+inline b32x
+RemaleyHashHalfOpenIntervalsOverlap(v2u IntervalA, v2u IntervalB)
+{
+    b32x Result = HalfOpenIntervalsOverlap(IntervalA, IntervalB);
+    return(Result);
+}
+
+inline b32x
+RemaleyHashPointInClosedInterval(u32 Point, v2u Interval)
+{
+    b32x Result = PointInClosedInterval(Point, Interval);
+    return(Result);
+}
+
+inline b32x
+RemaleyHashPointInHalfOpenInterval(u32 Point, v2u Interval)
+{
+    b32x Result = PointInHalfOpenInterval(Point, Interval);
+    return(Result);
+}
+
+internal v2u
+MoveRemaleyHashInterval(u32 A, s32 Diff)
+{
+    pairwise_index_result Pair = InvertRemaleyHashInterval(A);
+    v2u Result = V2U(Abs((s32)Pair.Row + Diff), Abs((s32)Pair.Col + Diff));
+    return(Result);
+}
+
+internal v2u
+AddRadiusRemaleyHashInterval(v2u Interval, s32 Diff)
+{
+    v2u Result = V2U(Abs((s32)Interval.Start - (s32)Diff), Abs((s32)Interval.End + (s32)Diff));
+    return(Result);
+}
+
+internal v2u
+SubRadiusRemaleyHashInterval(v2u Interval, s32 Diff)
+{
+    v2u Result = V2U(Abs((s32)Interval.Start + (s32)Diff), Abs((s32)Interval.End - (s32)Diff));
+    return(Result);
+}
+
+// NOTE(chowie): Can extend/convert point into interval
+internal v2u
+OffsetRemaleyHashInterval(v2u Interval, v2s Diff)
+{
+    v2u Result = V2U(Abs((s32)Interval.Start + (s32)Diff.Start), Abs((s32)Interval.End + (s32)Diff.End));
+    return(Result);
+}
+
+// NOTE(chowie): If can't combine, result = 0.
+// NOTE(chowie): Even if half open interval, treat as closed interval for overlap
+internal u32
+JoinRemaleyHashIntervalsOverlap(u32 A, u32 B)
+{
+    u32 Result = 0;
+
+    pairwise_index_result TestA = InvertRemaleyHashInterval(A);
+    pairwise_index_result TestB = InvertRemaleyHashInterval(B);
+    if(RemaleyHashClosedIntervalsOverlap(V2U((u32)TestA.Row, (u32)TestA.Col), V2U((u32)TestB.Row, (u32)TestB.Col)))
+    {
+        Result = RemaleyHashInterval(Min(TestA.Row, TestB.Row), Max(TestA.Col, TestB.Col));
+    }
+
+    return(Result);
+}
+
+// NOTE(chowie): Join regardless of overlap
+internal u32
+AbsJoinRemaleyHashInterval(u32 A, u32 B)
+{
+    pairwise_index_result TestA = InvertRemaleyHashInterval(A);
+    pairwise_index_result TestB = InvertRemaleyHashInterval(B);
+
+    u32 Result = RemaleyHashInterval(Min(TestA.Row, TestB.Row), Max(TestA.Col, TestB.Col));
+    return(Result);
+}
+
+// NOTE(chowie): Inspired by 3D modelling programs, it drives me crazy
+// I have to both merge, then weld as separate ops.
+internal u32
+WeldRemaleyHashIntervalOrJoinIfPossible(u32 A, u32 B, s32 Threshold)
+{
+    u32 Result = 0;
+
+    pairwise_index_result TestA = InvertRemaleyHashInterval(A);
+    pairwise_index_result TestB = InvertRemaleyHashInterval(B);
+    if(RemaleyHashClosedIntervalsOverlap(AddRadiusRemaleyHashInterval(V2U((u32)TestA.Row, (u32)TestA.Col), Threshold),
+                                         AddRadiusRemaleyHashInterval(V2U((u32)TestB.Row, (u32)TestB.Col), Threshold)))
+    {
+        Result = RemaleyHashInterval(Min(TestA.Row, TestB.Row), Max(TestA.Col, TestB.Col));
+    }
+    else if(SignOf(Threshold) == -1)
+    {
+        // NOTE(chowie): Join fallback if -tive weld threshold misses an obvious connection
+        if(RemaleyHashClosedIntervalsOverlap(V2U((u32)TestA.Row, (u32)TestA.Col), V2U((u32)TestB.Row, (u32)TestB.Col)))
+        {
+            Result = RemaleyHashInterval(Min(TestA.Row, TestB.Row), Max(TestA.Col, TestB.Col));
+        }
+    }
+
+    return(Result);
+}
+
+internal v2u
+SplitRemaleyHashInterval(u32 Interval, u16 At)
+{
+    pairwise_index_result Pair = InvertRemaleyHashInterval(Interval);
+    v2u Result = {RemaleyHashInterval(Pair.Row, At), RemaleyHashInterval(At, Pair.Col)};
+    return(Result);
+}
+
+// NOTE(chowie): Deletes interval, keeping the point (or edge to
+// vertices using 3D modelling analogy)
+// NOTE(chowie): Also useful for Repligrams (2 max)
+// - Splitting RemaleyHash(1,2) to two separate groups
+// |-------------------------|
+// | Index, RemaleyHash(1, 2)| Interval
+// |-------------------------|
+// | Index, RemaleyHash(0, 0)| Point
+// |-------------------------|
+//
+//               |
+//               v
+// |-------------------------|
+// | Index, RemaleyHash(2, 2)| Point
+// |-------------------------|
+// | Index, RemaleyHash(1, 1)| Point
+// |-------------------------|
+//
+// From this: |---#######-----|
+// To this:   |---#-----#-----|
+internal v2u
+SplitRemaleyHashIntervalToPoint(u32 A)
+{
+    pairwise_index_result Pair = InvertRemaleyHashInterval(A);
+    v2u Result = {RemaleyHashInterval(Pair.Row), RemaleyHashInterval(Pair.Col)};
+    return(Result);
+}
+
+internal void
+CopyRemaleyHashInterval(u32 *Keyframes)
+{
+}
+
+// NOTE(chowie): Compare duration of hash
+internal u32
+RemaleyHashFinalInterval(u32 A, u32 B)
+{
+    u32 Result = Max(A, B);
+    return(Result);
+}
+
+// VerifyRemaleyHashIntegrity(u32 Source, u32 Copy)
+// - Use this to determine when a swap had occurred! E.g. For
+//   Repligram, a bitmask may swap too!
+
+// RESOURCE(): https://medium.com/@hanxuyang0826/mastering-the-sweep-line-algorithm-from-leetcode-to-real-world-a3ae111e61bb
+// COULDDO(chowie): Sweepline algorithm?
+// COULDDO(chowie): Sort intervals by time (if used for scheduling)?
+// OR sort by .y using RemaleyHash/triangle numbers, intervals first
+// before points!
+
+// COULDDO(chowie): Is it possible with RemaleyHash to figure out the
+// first interval?
+
+//
+// Remaley Hash Matrix
+//
 
 // Makes a upside down L-shape of triangle numbers
 // #
@@ -603,8 +860,318 @@ IsRowInRemaleyHash(u32 RemaleyHash, u16 SourceRow)
     return(Result);
 }
 
-#define PAIRWISE_TABLE_MAX(TableDim) (TableDim * (TableDim + 1) / 2)
+// NOTE(chowie): How connected a community is
+internal f32
+RemaleyHashDensity(u32 EdgeCount, u32 MaxNodeCount)
+{
+    f32 Result = (f32)(EdgeCount/TriangleNumber(MaxNodeCount));
+    return(Result);
+}
 
+// TODO(chowie): Can I make use a lerp?
+internal f32
+RemaleyHashSparsity(u32 EdgeCount, u32 MaxNodeCount)
+{
+    f32 Result = 1.0f - (f32)(EdgeCount/TriangleNumber(MaxNodeCount));
+    return(Result);
+}
+
+// RESOURCE(): https://github.com/jbuckmccready/CavalierContours
+// RESOURCE(): https://en.wikipedia.org/wiki/Interval_tree
+// COULDDO(chowie): Interval tree or better with a Medial- or
+// length-oriented tree instead of sweepline?
+
+/********************************
+       WHAT IS REPLIGRAM?
+   ******************************
+   ...
+*/
+
+internal u32
+RepligramPriorityLane(u16 A, u16 B)
+{
+    u32 Result = RemaleyHashInterval(A, B);
+    return(Result);
+}
+
+// NOTE(chowie): Links adjacent priorities together, interval not
+// point. OR loner PriorityLane if no adjacent links.
+internal u32
+RepligramPriorityLaneMegaOrLoner(u16 A)
+{
+    u32 Result = RemaleyHashInterval(0, A);
+    return(Result);
+}
+
+internal u32
+RepligramPriorityLane(u16 A)
+{
+    u32 Result = RemaleyHashInterval(A);
+    return(Result);
+}
+
+/*
+internal u32
+RepligramZeroPriorityLane()
+{
+    u32 Result = 0;
+    return(Result);
+}
+*/
+
+internal pairwise_index_result
+InvertRepligramPriorityLane(u32 A)
+{
+    pairwise_index_result Result = InvertRemaleyHashInterval(A);
+    return(Result);
+}
+
+internal b32x
+IsRepligramPriorityLanePoint(u32 A)
+{
+    b32x Result = IsRemaleyHashIntervalPoint(A);
+    return(Result);
+}
+
+// NOTE(chowie):
+// |-------------------------|
+// | Index, RemaleyHash(0, 4)| Interval
+// |-------------------------|
+// | Index, RemaleyHash(0, 4)| Interval
+// |-------------------------|
+// | Index, RemaleyHash(0, 4)| Interval
+// |-------------------------|
+internal b32x
+IsRepligramPriorityLaneMegaOrLoner(u32 A)
+{
+    pairwise_index_result Pair = InvertRemaleyHashInterval(A);
+    b32x Result = (Pair.Row == 0);
+    return(Result);
+}
+
+// NOTE(chowie): Replacing should check if set to 0 (for a zero PriorityLane point)
+internal v2u
+SplitRepligramPriorityLane(u32 A)
+{
+    v2u Result = SplitRemaleyHashIntervalToPoint(A);
+    return(Result);
+}
+
+// NOTE(chowie): Effects both numbers e.g. PriorityLane(1, 2) with + 2 diff = PriorityLane(3, 4)
+internal v2u
+ChangeRepligramPriorityLane(v2u Interval, v2s Diff)
+{
+    v2u Result = OffsetRemaleyHashInterval(Interval, Diff);
+    return(Result);
+}
+
+internal u32
+RepligramPriorityLaneMegaOrLonerToPoint(u32 A)
+{
+    u32 Result = A;
+     // TODO(chowie): Can I reuse the invert from here and the function below?
+    if(IsRepligramPriorityLaneMegaOrLoner(A))
+    {
+        Result = RepligramPriorityLane(InvertRemaleyHashInterval(A).Col);
+    }
+
+    return(Result);
+}
+
+internal u32
+RepligramPriorityLanePointToBlockOrLoner(u32 A)
+{
+    u32 Result = A;
+     // TODO(chowie): Can I reuse the invert from here and the function below?
+    if(IsRepligramPriorityLanePoint(A))
+    {
+        Result = RepligramPriorityLaneMegaOrLoner(InvertRemaleyHashInterval(A).Col);
+    }
+
+    return(Result);
+}
+
+internal b32x
+VerifyRepligramPriorityLaneIntegrity(u32 Source, u32 Copy)
+{
+    b32x Result = VerifyRemaleyHashIntegrity(Source, Copy);
+    return(Result);
+}
+
+// TODO(chowie): Must serialise array index of row/col with the priority to undo/redo
+
+// RESOURCE(): https://handmade.network/p/64/geometer/blog/p/3048-1_year_of_geometer_-_lessons_learnt
+// https://handmade.network/p/64/geometer/blog/p/3077-03._designing%252C_saving_and_loading_a_forward-compatible_binary_file_format
+// https://handmade.network/p/64/geometer/blog/p/3108-05._undo%252C_redo_and_units_of_interaction
+// TODO(chowie): Shapes, Action?
+
+enum repligram_action_types
+{
+    Action_Reset,
+    Action_Priority, // NOTE(chowie): Doesn't distinguish between interval vs point! Add, remove!
+    Action_Voxel, // NOTE(chowie): Doesn't distinguish between types of finkhashtrees! Add, remove!
+
+    Action_Basis,
+    Action_ModelAdd,
+    Action_ModelRemove,
+
+    Action_Move,
+
+    Action_Count,
+};
+
+struct repligram_action
+{
+    s32 Kind; // NOTE(chowie): -tive = Non-user action (comes before user-actions)
+    union
+    {
+        struct
+        {
+            u32 ResetAction;
+        };
+
+        struct
+        {
+            u32 Shape;
+            u32 *Indices;
+            u32 Count;
+        };
+    };
+};
+
+// STUDY(chowie): Delta-based undo/redo actions, not state-based
+// TODO(chowie): When handling user-actions, pay attention to "Abs(Action.Kind)"
+// Undo(state *State)
+// {
+//     action Action = State->Actions[State->s32CurrentAction];
+//     switch(Abs(Action.Kind))
+//     {
+//         case Action_:
+//         InvalidDefaultCase;
+//     }
+//     --State->s32CurrentAction
+// }
+//
+// Redo(state *State)
+// {
+//     action Action = State->Actions[++State->s32CurrentAction];
+//     switch(Abs(Action.Kind))
+//     {
+//         case Action_:
+//         InvalidDefaultCase;
+//     }
+// }
+
+struct repligram_timeline_entry
+{
+    u32 RemaleyHashInterval;
+    enum16(repligram_anim_stretch_dir) Dir;
+};
+
+// TODO(chowie): Remove!
+//
+struct repligram_timeline_entry_group
+{
+    repligram_timeline_entry *Entries;
+    u32 EntryCount;
+
+    u32 FinalInterval;
+};
+
+struct repligram_timeline_layer_group
+{
+    repligram_timeline_entry_group *Layers;
+    u32 LayerCount;
+
+};
+//
+//
+
+// TODO(chowie): I'm considering not even using a hash, because
+// sorting is important for tagged timeline comparision ops: union,
+// intersect etc.
+// NOTE(chowie): Each model should have a timeline associated and can be hashed!
+struct repligram_timeline_hash
+{
+    repligram_timeline_entry *Ptr;
+};
+struct repligram_timeline
+{
+    repligram_timeline_hash TimelineInternallyChainHash[256];
+    u32 ModelID; // NOTE(chowie): Equivalent to "layer ID"
+
+    u32 FinalInterval; // NOTE(chowie): Used to compare last frame
+    v2u Timeline; // NOTE(chowie): Start-end range when serialising/exporting timeline
+};
+
+internal u32
+RepligramFinalInterval(u32 A, u32 B)
+{
+    u32 Result = RemaleyHashFinalInterval(A, B);
+    return(Result);
+}
+
+internal void
+AddRepligramInterval(repligram_timeline_entry_group *Group)
+{
+}
+
+// NOTE(chowie): While the intervals __inside each layer__ are in
+// sorted order. Usually layers themselves are user-defined, thus
+// unordered (across layers). To find what the longest interval is,
+// save the last remaley hash interval for each layer.
+//
+// Layer 0: |-######---------|
+// Layer 1: |----#####-###---|
+// Layer 2: |--#---####------|
+internal void
+ProcessRepligramTimelineLayer(repligram_timeline_entry_group *Group)
+{
+    for(u32 EntryIndex = 0;
+        EntryIndex < Group->EntryCount;
+        ++EntryIndex)
+    {
+        //
+        // Process intervals ...
+        //
+
+        u32 CurrentInterval = Group->Entries[EntryIndex].RemaleyHashInterval;
+        if(CurrentInterval > Group->FinalInterval)
+        {
+            Group->FinalInterval = CurrentInterval;
+        }
+    }
+}
+
+// NOTE(chowie): To dynamically find the timeline __end__ when
+// exporting. This accomodates the interval commands (move, join) that
+// could shift the timeline. Also, no need to unpack values.
+internal u32
+GetRepligramTimelineEnd(repligram_timeline_layer_group *Group)
+{
+    u32 Result = 0;
+
+    for(u32 LayerIndex = 0;
+        LayerIndex < Group->LayerCount;
+        ++LayerIndex)
+    {
+        u32 CurrentInterval = Group->Layers[LayerIndex].FinalInterval;
+        if(CurrentInterval > Result)
+        {
+            Result = CurrentInterval;
+        }
+    }
+
+    Result = (u32)InvertRepligramPriorityLane(Result).Col;
+
+    return(Result);
+}
+
+//
+//
+//
+
+#define PAIRWISE_TABLE_MAX(TableDim) (TableDim * (TableDim + 1) / 2)
 // TODO(chowie): Change this to a u16 percentage with a 2D invlerp!
 enum whittaker_biome : u8
 {
@@ -625,39 +1192,94 @@ enum whittaker_biome : u8
 };
 #define WHITTAKER_BIOME_COUNT_MAX PAIRWISE_TABLE_MAX(Whittaker_Biome_Count)
 
+//
+//
+//
+
+// TODO(chowie): Make sure this undirected graph for story/narrative is good
+
+/********************************
+       WHAT IS SOCIAL WEB?
+   ******************************
+
+   A remaley hash symmetric matrix + fairmath pity system (lerp & variants) model.
+
+   Relationships:
+   o
+    \
+     o--o--o
+      \ |
+       o
+   - Can either have unique edge only or duplicate edges (if edge list)
+   - Can use numeric space to add nodes instead of self-loops e.g.
+     RemaleyHash(1, 1) = node rather than maintaining a separate list!
+
+   Uses pairwise matrices (remaley hash) for both an undirected graph
+   and to store two-axis data, and lerp as the resolution structure
+   (fairmath). Fairmath is stored as a _percent_ uses base, t, impact
+   (at either extremes, 1% and 99% is bounded and any changes are very
+   impactful and tries move you to the middle, 50%). 0% and 100% are
+   thresholds that can only be set manually.
+
+   Fairmath is to transition within the matrix (edge weights):
+
+   |---#----| neutral
+
+   |-#------| bad outcome until 99% (then final player intervention and new emotional bar)
+              e.g. playful-fear to playful-calm
+
+   playful
+     |
+   #
+   # #
+   # # #    ---- fear
+   # # # #
+   # # # # #
+   # # # # # #
+
+   COULDDO(chowie): Save last bit of fairmath? 7-bits data, 1-bit b32?
+
+   RESOURCE(jon ingold): https://medium.com/@inklestudios/changable-minds-d5d434772462
+   Character -> Belief -> Event
+
+   RESOURCE(): NPC OCC emotion model - https://www.youtube.com/watch?v=WFnCTxHcB5s
+   https://www.gamedeveloper.com/design/a-better-narrative-using-occ-emotional-model
+
+   RESOURCE(emily short): https://emshort.blog/how-to-play/writing-if/my-articles/conversation/
+   IMPORTANT(chowie): Trying an emotive conversational model (rather
+   than verbal). Seek a series of quips that represents to an emotive
+   movement to lead to the desired emotional outcome.
+
+   RESOURCE(): https://neurolaunch.com/npc-behavior/
+   - FSM, BT (behaviour tree), GOAP (goal-oriented action plan)
+*/
+
 // TODO(chowie): Specialised text to represent the mood.
 // e.g. 99% has love hearts, 1% has an arrow through the heart
 // NOTE(chowie): Inspired by Event[0] game
 enum mood_matrix : u8
 {
-    Mood_Matrix_Null,
+    Mood_Matrix_Neutral,
 
-    Mood_Matrix_Love,
-    Mood_Matrix_Indifferent,
+//    Mood_Matrix_Love,
     Mood_Matrix_Hate,
 
-    Mood_Matrix_Calm,
-    Mood_Matrix_Stress,
+//    Mood_Matrix_Calm,
     Mood_Matrix_Anger,
 
-    Mood_Matrix_Confidence,
-    Mood_Matrix_Apprehension,
+//    Mood_Matrix_Confidence,
     Mood_Matrix_Fear,
 
-    Mood_Matrix_Homely, // Hygge
-    Mood_Matrix_Fleeting,
+//    Mood_Matrix_Homely, // Hygge
     Mood_Matrix_Uncomfortable,
 
-    Mood_Matrix_Playful,
-    Mood_Matrix_Distracted,
+//    Mood_Matrix_Playful,
     Mood_Matrix_Bored,
 
-    Mood_Matrix_Bonding,
-    Mood_Matrix_Stranger,
-    Mood_Matrix_Suspicious,
+//    Mood_Matrix_Bonding,
+//    Mood_Matrix_Suspicious,
 
 //    Mood_Matrix_Surprised,
-//    Mood_Matrix_Curious,
 //    Mood_Matrix_Confused,
 
     Mood_Matrix_Count,
@@ -703,25 +1325,25 @@ enum relationship_risk : u8
 // NOTE(chowie): Uses animal boldness-shyness model
 enum animal_personality : u8
 {
-    Animal_Personality_Null,
+    Animal_Personality_Neutral,
 
     Animal_Personality_Social,
-    Animal_Personality_Antisocial,
+//    Animal_Personality_Antisocial,
 
     Animal_Personality_Active,
-    Animal_Personality_Inactive,
+//    Animal_Personality_Inactive,
 
     Animal_Personality_Aggressive,
-    Animal_Personality_Peaceful,
+//    Animal_Personality_Peaceful,
 
     Animal_Personality_Explorative,
-    Animal_Personality_Unexplorative,
+//    Animal_Personality_Unexplorative,
 
     Animal_Personality_Bold,
-    Animal_Personality_Shy,
+//    Animal_Personality_Shy,
 
     Animal_Personality_Dominant,
-    Animal_Personality_Submissive,
+//    Animal_Personality_Submissive,
 
     Animal_Personality_Count,
 };
@@ -762,40 +1384,17 @@ enum animal_occupation : u8
     Occupation_Interpreter,
 };
 
+// NOTE(chowie): 64 max
 enum inhabitant_name : u16
 {
+    Inhabitant_Name_Player1,
+
     Inhabitant_Name_IXI,
     Inhabitant_Name_IVVI,
     Inhabitant_Name_IOTHI,
 
     Inhabitant_Name_Count,
 };
-
-// TODO(chowie): Make sure this undirected graph for story/narrative is good
-
-/********************************
-       WHAT IS SOCIAL WEB?
-   ******************************
-
-   A remaley hash symmetric matrix + fairmath pity system (lerp & variants) model.
-
-   Uses pairwise matrices (remaley hash) for both an undirected graph
-   and to store two-axis data, and lerp as the resolution structure
-   (fairmath). Fairmath is stored as a _percent_ uses base, t, impact
-   (at either extremes, 1% and 99% is bounded and any changes are very
-   impactful and tries move you to the middle, 50%). 0% and 100% are
-   thresholds that can only be set manually.
-
-   COULDDO(chowie): Save last bit of fairmath? 7-bits data, 1-bit b32?
-
-   RESOURCE(jon ingold): https://medium.com/@inklestudios/changable-minds-d5d434772462
-   Character -> Belief -> Event
-
-   RESOURCE(emily short): https://emshort.blog/how-to-play/writing-if/my-articles/conversation/
-   IMPORTANT(chowie): Trying an emotive conversational model (rather
-   than verbal). Seek a series of quips that represents to an emotive
-   movement to lead to the desired emotional outcome.
-*/
 
 // IMPORTANT(chowie): This includes you (ID 1), NPCs should always
 // treat you more than equally (but everyone else equally). So it
@@ -819,7 +1418,7 @@ struct lang_profiency
 struct socialweb_node
 {
     // NOTE(chowie): Graph
-    string ConlangName; // NOTE(chowie): Grab entity id's name, stable serialisation/search criteria
+//    string ConlangName; // NOTE(chowie): Grab entity id's name, stable serialisation/search criteria
     socialweb_node_id SourceID; // NOTE(chowie): Converts conlang name to a smaller ID
     u8 FairmathMentalStability; // How stable am I as a person?
     u8 FairmathSociallyImportant; // How important are you to your connections?
@@ -845,6 +1444,11 @@ struct socialweb_edge_id
 };
 
 // NOTE(chowie): u16 RemaleyHashes gets rounded down from u32.
+// NOTE(chowie): Self-loops represents mental stability: what one
+// thinks about themselves. Belief systems e.g. maybe one despite
+// being born in a different place feels more connected to their
+// current place! Or for age, feels like you don't recognise yourself
+// anymore.
 struct socialweb_edge
 {
     // NOTE(chowie): Graph
@@ -863,10 +1467,12 @@ struct socialweb_edge
     u16 RemaleyCommunity; // Who do you align with?
     u8 RemaleyFAVVE; // What type is our relationship?
     u8 FairmathCommFreq; // How regularly do we speak/interact?
+
     u8 RemaleyMood; // How do we emotionally feel about each other?
     u8 FairmathMood; // NOTE(chowie): Fairmath caps at 1% & 99% = "on the brink" status, manually set 0% & 100% to show completion
     u8 RemaleyRisk; // Belief: What type of risk from an event would it put on our relationship?
     u8 FairmathRisk; // Belief: Would what I'll do risk/strain our relationship?
+    f32 Age; // NOTE(chowie): How long have we known each other?
 };
 
 // NOTE(chowie): This doesn't run frequently and doesn't need that much optimisation
@@ -1033,6 +1639,28 @@ AddEdgeToHash(socialweb *SocialWeb, socialweb_edge *Edge)
     MarkOccupied(SocialWeb, Entry);
 }
 
+internal socialweb_node *
+CreateNode(socialweb *SocialWeb, socialweb_node_id SourceID)
+{
+    socialweb_node *Result = 0;
+    if(SocialWeb->NodeCount < SocialWeb->MaxNodeCount)
+    {
+        Result = SocialWeb->Nodes + SocialWeb->NodeCount++;
+    }
+    else
+    {
+        InvalidCodePath;
+    }
+
+    // TODO(chowie): Worry if this takes a while to clear (do a sparse clear!)
+    ZeroStruct(Result);
+
+    Result->SourceID = SourceID;
+    AddNodeToHash(SocialWeb, Result);
+
+    return(Result);
+}
+
 internal socialweb *
 BeginSocialWeb(memory_arena *SocialWebArena)
 {
@@ -1056,21 +1684,14 @@ BeginSocialWeb(memory_arena *SocialWebArena)
     //
 }
 
-internal f32
-SocialWebSparsity(u32 EdgeCount, u32 MaxNodeCount)
-{
-    f32 Result = 1.0f - (f32)(EdgeCount/TriangleNumber(MaxNodeCount));
-    return(Result);
-}
-
 internal void
-SocialWebAddNode(u16 Node)
+SocialWebAddNode(socialweb *SocialWeb, u16 Node)
 {
     // Push to hash table? / array
 }
 
 internal void
-SocialWebAddEdge(u16 NodeA, u16 NodeB)
+SocialWebAddEdge(socialweb *SocialWeb, u16 NodeA, u16 NodeB)
 {
     RemaleyHash(NodeA, NodeB);
 
@@ -1078,7 +1699,7 @@ SocialWebAddEdge(u16 NodeA, u16 NodeB)
 }
 
 internal void
-SocialWebAddEdge(u32 Edge)
+SocialWebAddEdge(socialweb *SocialWeb, u32 Edge)
 {
     // Push to hash table? / array
 }
@@ -1088,19 +1709,15 @@ SocialWebAddEdge(u32 Edge)
 // COULDDO(chowie): A function to validate that this is the kind of
 // edge you want to add?
 
-// RESOURCE(): https://www.johndcook.com/blog/2025/09/11/random-inside-triangle/
-// NOTE(chowie): Accept-flip model (variation on accept-reject).
-// Because this method uses RemaleyHash, creates a square, any points
-// outside of bound of square will always fall within the triangle.
 internal void
-SocialWebAddRandomEdge(pcg32_random_series *Series, u32 NodeMax)
+SocialWebAddRandomEdge(socialweb *SocialWeb, pcg32_random_series *Series, u32 NodeMax)
 {
     for(;;)
     {
         // NOTE(chowie): This 1D sampling works because of how
         // RemaleyHash is mapped to a triangle!
-        u32 SampleEdge = RandomBounds(Series, NodeMax);
-        if(!SampleEdge) // 
+        socialweb_edge_id SampleEdge = {(u16)RandomBounds(Series, NodeMax)};
+        if(GetEdgeByID(SocialWeb, SampleEdge))
         {
             // Push to hash table? / array
 
@@ -1135,12 +1752,12 @@ SampleRemaleyHash(pcg32_random_series *Series, rect2i Rect)
 
 // RectMinDim(v2s Min, v2s Dim);
 internal void
-SocialWebAddRandomEdge(pcg32_random_series *Series, rect2i Rect)
+SocialWebAddRandomEdge(socialweb *SocialWeb, pcg32_random_series *Series, rect2i Rect)
 {
     for(;;)
     {
-        u32 SampleEdge = SampleRemaleyHash(Series, Rect);
-        if(!SampleEdge) //
+        socialweb_edge_id SampleEdge = {(u16)SampleRemaleyHash(Series, Rect)};
+        if(GetEdgeByID(SocialWeb, SampleEdge))
         {
             // Push to hash table? / array
 
@@ -1150,18 +1767,22 @@ SocialWebAddRandomEdge(pcg32_random_series *Series, rect2i Rect)
 }
 
 internal void
-SocialWebAddRandomEdge(pcg32_random_series *Series, v2s Min, v2s Dim)
+SocialWebAddRandomEdge(socialweb *SocialWeb, pcg32_random_series *Series, v2s Min, v2s Dim)
 {
-    SocialWebAddRandomEdge(Series, RectMinDim(Min, Dim));
+    SocialWebAddRandomEdge(SocialWeb, Series, RectMinDim(Min, Dim));
 }
 
+// RESOURCE(): https://www.johndcook.com/blog/2025/09/11/random-inside-triangle/
+// NOTE(chowie): Accept-flip model (variation on accept-reject).
+// Because this method uses RemaleyHash, creates a square, any points
+// outside of bound of square will always fall within the triangle.
 internal void
-SocialWebAddRandomEdge(pcg32_random_series *Series, u16 NodeA, u32 NodeMax)
+SocialWebAddRandomEdge(socialweb *SocialWeb, pcg32_random_series *Series, u16 NodeA, u32 NodeMax)
 {
     for(;;)
     {
-        u32 SampleEdge = RemaleyHash(NodeA, (u16)RandomBounds(Series, NodeMax));
-        if(!SampleEdge) // 
+        socialweb_edge_id SampleEdge = {(u16)RemaleyHash(NodeA, (u16)RandomBounds(Series, NodeMax))};
+        if(GetEdgeByID(SocialWeb, SampleEdge))
         {
             // Push to hash table? / array
 
@@ -1173,15 +1794,23 @@ SocialWebAddRandomEdge(pcg32_random_series *Series, u16 NodeA, u32 NodeMax)
 }
 
 internal void
-SocialWebAddRandomEdge(pcg32_random_series *Series, u32 Edge, u32 NodeMax)
+SocialWebAddRandomEdge(socialweb *SocialWeb, pcg32_random_series *Series, u32 Edge, u32 NodeMax)
 {
     // Push to hash table? / array
+}
+
+internal void
+SocialWebAddEdge(socialweb *SocialWeb, socialweb_edge *Edge)
+{
+    AddEdgeToHash(SocialWeb, Edge);
 }
 
 // NOTE(chowie): Deletes related edges too
 internal void
-SocialWebRemoveNode(u16 Node)
+SocialWebRemoveNodeAndEdges(socialweb *SocialWeb, u16 Node)
 {
+    // Remove node
+
     for(u32 PairIndex = 0;
         PairIndex < Inhabitant_Name_Count;
         PairIndex++)
@@ -1192,76 +1821,56 @@ SocialWebRemoveNode(u16 Node)
 }
 
 internal void
-SocialWebRemoveEdge(u16 NodeA, u16 NodeB)
+SocialWebRemoveEdge(socialweb *SocialWeb, u16 NodeA, u16 NodeB)
 {
     RemaleyHash(NodeA, NodeB);
 
     // Push to hash table? / array
 }
 
-internal b32x
-SocialWebHasEdge(u16 NodeA, u16 NodeB)
-{
-    b32x Result = false;
-    for(;;)
-    {
-        u32 TestEdge = RemaleyHash(NodeA, NodeB);
-        if(TestEdge)
-        {
-            Result = true;
-            break;
-        }
-    }
-
-    return(Result);
-}
-
-internal b32x
-SocialWebHasEdge(u32 Edge)
-{
-    b32x Result = false;
-    for(;;)
-    {
-        u32 TestEdge = Edge;
-        if(TestEdge)
-        {
-            Result = true;
-            break;
-        }
-    }
-
-    return(Result);
-}
-
-// NOTE(chowie): O(n) currently
+// NOTE(chowie): Self-loops: mental stability, ideal-self, belief system
+// NOTE(chowie): O(row)
 internal void
-SocialWebGetAllNeighboursAndDegree(u16 Node)
+SocialWebGetNeighboursAndDegree(socialweb *SocialWeb, u16 Node)
 {
+    u32 Degree = 0;
+    for(u32 PairIndex = 0;
+        PairIndex < Inhabitant_Name_Count;
+        PairIndex++)
+    {
+        socialweb_edge_id Edge = {(u16)RemaleyHash(Node, (u16)PairIndex)};
+        if(GetEdgeByID(SocialWeb, Edge))
+        {
+            // Push to list?
+
+            ++Degree;
+        }
+    }
 }
 
-// NOTE(chowie): O(n) currently
+// NOTE(chowie): O(row)
 // NOTE(chowie): For a relationship, find all neighbours for
 // both. E.g. lovers might want to sever other relationships?
 internal void
-SocialWebGetAllNeighboursAndDegree(u16 NodeA, u16 NodeB)
+SocialWebGetNeighboursAndDegree(socialweb *SocialWeb, u16 NodeA, u16 NodeB)
 {
 }
 
-// NOTE(chowie): O(n) currently
+// NOTE(chowie): O(row)
 internal void
-SocialWebGetAllNeighboursAndDegree(u32 Edge)
+SocialWebGetNeighboursAndDegree(socialweb *SocialWeb, u32 Edge)
 {
 }
 
-enum remaleyhashsampling_type
+enum remaleyhash_samplingtype
 {
-    RemaleyHashSampling_Type_All,
-    RemaleyHashSampling_Type_Row,
-    RemaleyHashSampling_Type_Edge,
+    RemaleyHash_SamplingType_All,
+    RemaleyHash_SamplingType_Row,
+    RemaleyHash_SamplingType_Edge,
 };
 // RESOURCE(): https://www.drmaciver.com/2017/05/a-hybrid-voting-system-for-scheduling/
 internal void
-SocialWebVoting(pcg32_random_series *Series, u32 Index, u32 Length)
+SocialWebVoting(socialweb *SocialWeb, pcg32_random_series *Series, u32 Index, u32 Length)
 {
     // 1. Select sampling type
 //    u32 SampleEdge = RandomBounds(Series, NodeMax);
@@ -1269,6 +1878,43 @@ SocialWebVoting(pcg32_random_series *Series, u32 Index, u32 Length)
     // 2. Select sampling type
     Permute(Series, Index, Length);
 }
+
+// NOTE(chowie): For edges, emotions often paired/matrix; anything using RemaleyHash
+inline b32x
+VerifyEdgeIntegrity(u16 Source, u16 Copy)
+{
+    b32x Result = VerifyRemaleyHashIntegrity(Source, Copy);
+    return(Result);
+}
+
+inline b32x
+VerifyWeightMatrixIntegrity(u16 Source, u16 Copy)
+{
+    b32x Result = VerifyRemaleyHashIntegrity(Source, Copy);
+    return(Result);
+}
+
+// RESOURCE(): https://medium.com/@inklestudios/changable-minds-d5d434772462
+// World Event -> Event Chain -> Belief State Model
+// NOTE(chowie): Always appending, never undone once set.
+//
+//
+//
+
+// NOTE(chowie): Push World Events
+struct world_event
+{
+    char *InhabitantNames;
+    u32 NameCount;
+
+    // Action
+    // Emotion/Relationship
+};
+
+// TODO(chowie): Event Chain should use same hashing-sort system as Repligram timeline
+
+// COULDDO(chowie): Evaluate Belief-State model using utility AI?
+
 
 //
 // Fink Hash (3->1 rolling perfect) for non-pairwise
@@ -2065,14 +2711,14 @@ FinkHashTreeReadWritePerfectTree(finkhashtree_group *TreeGroup)
     }
 }
 
-// NOTE(chowie): Tries to get a non-reserved/non-special block when
-// possible, easiest is to get the top/bot.
-// COULDDO(chowie): If top/bot isn't enough, to get the sides try
-// sampling leaf index.
+// NOTE(chowie): Tries to get a non-reserved/non-special block.
+// COULDDO(chowie): Sample by top/bot but might have pop in. If not
+// enough, get the sides try sampling leaf index.
+// b32x TopHalfBlock ? InvertFinkHash(Hash).a : InvertFinkHash(Hash).b;
 internal u8
-GetFinkHashTreeLODLeafApprox(u64 Hash, b32x TopFaceBlock)
+GetFinkHashTreeLODLeafApprox(u64 Hash)
 {
-    u64 Acc = TopFaceBlock ? InvertFinkHash(Hash).a : InvertFinkHash(Hash).b;
+    u64 Acc = Hash;
     for(;
         IsParent(Acc);
         )

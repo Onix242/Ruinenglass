@@ -421,5 +421,143 @@ Pop(stack *Stack)
     return(Result);
 }
 
+// RESOURCE(): https://github.com/blat-blatnik/Snippets/blob/main/priority_queue.c
+struct item
+{
+    s32 priority;
+    s32 value;
+};
+
+struct queue
+{ // max heap
+    item *items;
+    s32 capacity;
+    s32 count;
+};
+
+#define LEFT_CHILD(index) (2*(index)+1)
+#define RIGHT_CHILD(index) (2*(index)+2)
+#define PARENT(index) ((index-1)/2)
+
+void
+upheap(item *items, s32 index)
+{
+    for(;
+        index > 0 && items[index].priority > items[PARENT(index)].priority;
+        index = PARENT(index))
+    {
+        item temp = items[index];
+        items[index] = items[PARENT(index)];
+        items[PARENT(index)] = temp;
+    }
+}
+
+void
+downheap(item *items, s32 index, s32 count)
+{
+    while(LEFT_CHILD(index) < count)
+    {
+        s32 l = LEFT_CHILD(index);
+        s32 r = RIGHT_CHILD(index);
+        s32 max_child = l;
+        if(r < count && items[r].priority >= items[l].priority)
+        {
+            max_child = r;
+        }
+
+        if(items[index].priority >= items[max_child].priority)
+        {
+            break;
+        }
+
+        item temp = items[max_child];
+        items[max_child] = items[index];
+        items[index] = temp;
+        index = max_child;
+    }
+}
+
+void
+reserve(queue *queue, s32 min_capacity)
+{
+    if(queue->capacity < min_capacity)
+    {
+        s32 new_capacity = 2 * queue->capacity;
+        if(new_capacity < 128)
+        {
+            new_capacity = 128;
+        }
+        while(new_capacity < min_capacity)
+        {
+            new_capacity *= 2;
+        }
+        
+        queue->items = (item *)realloc(queue->items, (s32)new_capacity * sizeof(queue->items[0]));
+        queue->capacity = new_capacity;
+    }
+}
+
+void
+push(queue *queue, s32 item, s32 priority)
+{
+    reserve(queue, queue->count + 1);
+    s32 index = queue->count++;
+    queue->items[index].priority = priority;
+    queue->items[index].value = item;
+    upheap(queue->items, index);
+}
+
+s32
+pop(queue *queue)
+{
+    if(!queue->count)
+    {
+        return(0); // Tried to pop from an empty queue.
+    }
+    
+    s32 result = queue->items[0].value;
+    queue->items[0] = queue->items[--queue->count];
+    downheap(queue->items, 0, queue->count);
+    return(result);
+}
+
+s32
+push_pop(queue *queue, s32 item, s32 priority)
+{
+    if(!queue->count || priority >= queue->items[0].priority)
+        return item;
+
+    s32 result = queue->items[0].value;
+    queue->items[0].priority = priority;
+    queue->items[0].value = item;
+    downheap(queue->items, 0, queue->count);
+    return(result);
+}
+
+s32
+pop_push(queue *queue, s32 item, s32 priority)
+{
+    if(!queue->count)
+    {
+        push(queue, item, priority);
+        return 0; // Tried to pop from an empty queue.
+    }
+
+    s32 result = queue->items[0].value;
+    queue->items[0].value = item;
+    queue->items[0].priority = priority;
+    downheap(queue->items, 0, queue->count);
+    return(result);
+}
+
+void
+destroy(queue *queue)
+{
+    free(queue->items);
+    queue->items = NULL;
+    queue->capacity = 0;
+    queue->count = 0;
+}
+
 #define RUINENGLASS_MEMORY_H
 #endif

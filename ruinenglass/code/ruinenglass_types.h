@@ -509,20 +509,20 @@ union v4u
     };
     struct
     {
-        v2 xy;
+        v2u xy;
         u32 Ignored0_;
         u32 Ignored1_;
     };
     struct
     {
         u32 Ignored2_;
-        v2 yz;
+        v2u yz;
         u32 Ignored3_;
     };
     struct
     {
         u32 Ignored4_;
-        v2 zw;
+        v2u zw;
         u32 Ignored5_;
     };
     u32 E[4];

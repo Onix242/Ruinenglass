@@ -402,8 +402,7 @@ enum block_palette : u16
 
 struct rui_repligram
 {
-    v3u Dim;
-    v2u PriorityDim;
+    u32 PackedDim; // Uses Pack4x8(v4u Unpacked): .x, .y, .z, ????
     block_palette Palette;
 };
 
@@ -446,6 +445,12 @@ struct rui_asset
 //
 //
 
+/*
+struct remaley_repligram_opflags
+{
+    u8 SlotA : 4;
+    u8 SlotB : 4;
+};
 // TODO(chowie): Find a more elegant solution
 // NOTE(chowie): Rep = Repeat (like in compression context i.e. LZ4)
 enum repligram_op_type : u8
@@ -455,32 +460,43 @@ enum repligram_op_type : u8
     RepligramOp_Inc    = BitSet(1), // NOTE(chowie): Like math repeating symbol
     RepligramOp_Dec    = BitSet(2), // NOTE(chowie): Like math repeating symbol
     RepligramOp_Random = BitSet(3), // NOTE(chowie): For debugging
-//    RepligramOp_Rep    = BitSet(4), // NOTE(chowie): Requires ops to be adjacent to each other, includes formbanks' bars and blanks
-//    RepligramOp_Modulo = BitSet(5),
+//    RepligramOp_RLEBlock = BitSet(4), // NOTE(chowie): For connected blocks
+//    RepligramOp_Rep    = BitSet(5), // NOTE(chowie): Requires ops to be adjacent to each other, includes formbanks' bars and blanks
+//    RepligramOp_Modulo = BitSet(6),
 };
-struct repligram_priority_clue
-{
-    u8 Priority; // NOTE(chowie): 0 maps to 'x'
-    enum8(repligram_op_type) Op;
-};
+*/
+
+// NOTE(chowie): 0 maps to 'x'.
 struct repligram_priority
 {
-    repligram_priority_clue Clue[2];
-    u8 RLERep; // NOTE(chowie): Runs or offset from base (current row/col index)
+    u8 RemaleyPriority; // NOTE(chowie): This represents two clues (and is sorted)
 };
 struct repligram_priority_group
 {
     repligram_priority *Priorities;
     u32 Count;
-    u8 NonIntervalOverlapRasteriseBitmask; // NOTE(chowie): Only for editor
+//    u8 NonIntervalOverlapRasteriseBitmask; // NOTE(chowie): Only for editor
 };
-// NOTE(chowie): RLERep, gets converted to a range/v2u at runtime
+
+// NOTE(chowie): Repligram
 // |-------------------------|
-// | Index, 0                |
+// | Index, RemaleyHash(5, 1)| Interval
 // |-------------------------|
-// | Index, RLERep (3, 2)    | For closed interval [3, 5], in other words [3, 3+2]
+// | Index, RemaleyHash(1, 1)| Point
 // |-------------------------|
-// | Index, 0                |
+// | Index, RemaleyHash(3, 2)| Interval
+// |-------------------------|
+// | Index, RemaleyHash(0, 4)| Interval       ]
+// |-------------------------|                ]
+// | Index, RemaleyHash(0, 4)| Interval       ] Auto-connect with (0, ...)
+// |-------------------------|                ]
+// | Index, RemaleyHash(0, 4)| Interval       ]
+// |-------------------------|
+// | Index, RemaleyHash(4, 4)| Point
+// |-------------------------|                ]
+// | Index, RemaleyHash(0, 4)| Interval       ] Inc++ priority "loner"
+// |-------------------------|                ]
+// | Index, RemaleyHash(0, 0)| Point
 // |-------------------------|
 // 1) Read row/col index as usual (in order)
 // 2) Testing point to closed interval e.g. cursor on row/col to move finds the interval
@@ -546,24 +562,6 @@ struct repligram_priority_group
 //     *Ordinal = (*Ordinal + 1) % Block_Count;
 // }
 
-// NOTE(chowie): "Point - Interval" will intentionally wrap!
-// [a, b]
-inline b32x
-IsRLERepPointInClosedInterval(u32 Point, v2u Interval)
-{
-    b32x Result = (Point - Interval.Start) <= (Interval.End - Interval.Start);
-    return(Result);
-}
-
-// NOTE(chowie): [a, b] [c, d]
-inline b32x
-IsRLERepClosedIntervalsOverlap(v2u IntervalA, v2u IntervalB)
-{
-    b32x Result = ((IntervalB.Start - IntervalA.Start) <= (IntervalA.End - IntervalA.Start)) ||
-                  ((IntervalA.Start - IntervalB.Start) <= (IntervalB.End - IntervalB.Start));
-    return(Result);
-}
-
 // NOTE(chowie): Static = Non-moving animation, easily toggleable to have animation
 // TODO(chowie): Decal = Assert (Dim == (.x == 1) || (.y == 1) || (.z == 1))
 enum repligram_anim_type : u8
@@ -594,11 +592,6 @@ enum repligram_anim_stretch_dir : u16
     AnimDir_SyncZ = AnimDir_Z | AnimDir_nZ,
     AnimDir_SyncUniform = AnimDir_SyncX | AnimDir_SyncY | AnimDir_SyncZ,
 };
-struct repligram_timeline_entry
-{
-    u32 P;
-    enum16(repligram_anim_stretch_dir) Dir;
-};
 
 // NOTE(chowie): Constant = bones doesn't change value from prev keyframe
 enum xform_constant_flags
@@ -606,6 +599,13 @@ enum xform_constant_flags
     Translation_Constant = BitSet(1),
     Orientation_Constant = BitSet(2),
     Scale_Constant       = BitSet(3), // NOTE(chowie): Scale may not exist
+};
+
+struct basis
+{
+    v3 XAxis; /* YAxis and ZAxis == Perp(XAxis) */
+    v3 Offset;
+    f32 Zoom;
 };
 
 #define RUINENGLASS_FILE_FORMATS_H

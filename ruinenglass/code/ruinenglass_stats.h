@@ -86,6 +86,7 @@ IncrementalAvg2(f32 Avg, u32 n, f32 NextValue)
    and must be set manually. In other words, at most 1% or 99%. I
    suspect XCOM uses this (relevant at the time).
 
+   Use for:
    - Personality stats e.g. happy-to-sad, hygenic-to-stinky
    - Binary morality system like Fable
    - XCOM is really good example, shooting average is 50% with a dramatic
@@ -94,6 +95,9 @@ IncrementalAvg2(f32 Avg, u32 n, f32 NextValue)
    - Renown system
    - Any diminishing returns for repeated actions
    - Pity system (if you're at the bottom and less on the top)
+
+   IMPORTANT(chowie): Still need utility-based AI (weights) to select
+   the best option, then use Fairmath afterwards
 
    RESOURCE(): https://emshort.blog/2016/02/15/set-check-or-gate-a-problem-in-personality-stats/
    RESOURCE(): https://www.reddit.com/r/choiceofgames/comments/k92tbs/survey_that_no_one_asked_for/
