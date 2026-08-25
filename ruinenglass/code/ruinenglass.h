@@ -98,9 +98,7 @@ BeginTaskMemory(transient_state *TranState)
 {
     task_memory *Result = 0;
 
-    for(u32 TaskIndex = 0;
-        TaskIndex < ArrayCount(TranState->Tasks);
-        ++TaskIndex)
+    foreach(u32, TaskIndex, TranState->Tasks)
     {
         task_memory *TaskMemory = TranState->Tasks + TaskIndex;
         if(!TaskMemory->BeingUsed)

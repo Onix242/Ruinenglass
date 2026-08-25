@@ -326,7 +326,7 @@ CeilF32ToS32(f32 F32)
 }
 
 inline s32
-TruncateF32ToS32(f32 F32)
+TruncF32ToS32(f32 F32)
 {
     s32 Result = (s32)F32;
     return(Result);
@@ -345,9 +345,7 @@ FindLeastSignificantBit(u32 Value) // NOTE(chowie): ctz
 #if COMPILER_MSVC
     Result.Found =  _BitScanForward((unsigned long *)&Result.Index, Value);
 #else    
-    for(u32 Test = 0;
-        Test < 32;
-        ++Test)
+    foreachN(u32, Test, 32)
     {
         if(Value & (1 << Test))
         {
@@ -1004,16 +1002,6 @@ Factorial(u32 Value)
 }
 
 // #include <math.h>
-
-/*
-// RESOURCE: https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-fmod
-inline f32
-FMod(f32 X, f32 Y)
-{
-    f32 Result = fmodf(X, Y);
-    return(Result);
-}
-*/
 
 #define RUINENGLASS_INTRINSICS_H
 #endif

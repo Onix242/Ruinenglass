@@ -91,13 +91,9 @@ LoadBMP(char *FileName)
         s32 AlphaShiftDown = (s32)AlphaScan.Index;
 
         u32 *SourceDest = Pixels;
-        for(s32 Y = 0;
-            Y < Header->Dim.Height;
-            ++Y)
+        foreachN(s32, Y, Header->Dim.Height)
         {
-            for(s32 X = 0;
-                X < Header->Dim.Width;
-                ++X)
+            foreachN(s32, X, Header->Dim.Width)
             {
                 u32 C = *SourceDest;
 
@@ -197,7 +193,7 @@ internal added_asset
 AddAsset(loaded_rui *RUI)
 {
     Assert(RUI->DEBUGAssetType);
-    Assert(RUI->DEBUGAssetType->OnePastLastAssetIndex < ArrayCount(RUI->Assets));
+    Assert(RUI->DEBUGAssetType->OnePastLastAssetIndex < Len(RUI->Assets));
 
     u32 Index = RUI->DEBUGAssetType->OnePastLastAssetIndex++;
     builder_asset_source *Source = RUI->AssetSources + Index;

@@ -96,9 +96,7 @@ StringsAreEqual(umm ALength, char *A, umm BLength, char *B)
     if(Result)
     {
         Result = true;
-        for(u32 Index = 0;
-            Index < ALength;
-            ++Index)
+        foreachN(u32, Index, ALength)
         {
             if(A[Index] != B[Index])
             {
@@ -133,9 +131,7 @@ StringsAreEqualLowercase(umm ALength, char *A, umm BLength, char *B)
     if(Result)
     {
         Result = true;
-        for(u32 Index = 0;
-            Index < ALength;
-            ++Index)
+        foreachN(u32, Index, ALength)
         {
             if(ToLowercase(A[Index]) != ToLowercase(B[Index]))
             {
@@ -179,9 +175,7 @@ StringHashOf(string String)
 {
     u32 HashValue = 0;
     
-    for(umm Index = 0;
-        Index < String.Size;
-        ++Index)
+    foreachN(umm, Index, String.Size)
     {
         HashValue = DJB2Hash(String.Data[Index]);
     }
@@ -212,16 +206,12 @@ CatStrings(umm SourceACount, char *SourceA,
            umm DestCount, char *Dest)
 {
     // TODO(chowie): Dest bound checking?
-    for(u32 Index = 0;
-        Index < SourceACount;
-        ++Index)
+    foreachN(u32, Index, SourceACount)
     {
         *Dest++ = *SourceA++;
     }
 
-    for(u32 Index = 0;
-        Index < SourceBCount;
-        ++Index)
+    foreachN(u32, Index, SourceBCount)
     {
         *Dest++ = *SourceB++;
     }
@@ -233,7 +223,7 @@ CatStrings(umm SourceACount, char *SourceA,
 inline char *
 StringReverse(char *String)
 {
-    umm CheckLength = StringLength(String);
+    umm CheckLength = StringLen(String);
     char *Source = String + 0;
     char *Dest = String + CheckLength - 1;
     CheckLength /= 2;
@@ -333,11 +323,9 @@ struct d7sam_concat
     {
         // TODO(chowie): How do I remove the null terminator?
         // NOTE(chowie): Include null terminator
-        u32 Size = StringLength(Source) + 1;
+        u32 Size = StringLen(Source) + 1;
 
-        for(u32 CharIndex = 0;
-            CharIndex < Size;
-            ++CharIndex)
+        foreachN(u32, CharIndex, Size)
         {
             TempBuffer[CharCount++] = Source[CharIndex];
         }
@@ -547,9 +535,7 @@ RadixSortInPlaceImplOpt(f32 *Entries, u32 Start, u32 End, u32 DigitIndex)
     }
 
     // NOTE(chowie): Second pass - place elements into the right location
-    for(u32 Index = 0;
-        Index < 256;
-        ++Index)
+    foreachN(u32, Index, 256)
     {
         while(Counts[Index] > 0)
         {
@@ -572,9 +558,7 @@ RadixSortInPlaceImplOpt(f32 *Entries, u32 Start, u32 End, u32 DigitIndex)
 
     if(DigitIndex > 0)
     {
-        for(u32 Index = 0;
-            Index < 256;
-            ++Index)
+        foreachN(u32, Index, 256)
         {
             u32 NewStart = (Index == 0 ? Start : Offsets[Index - 1]);
             u32 NewEnd = Offsets[Index];
@@ -615,9 +599,7 @@ RadixSort5n(f32 *Entries, f32* Temp, u32 Count)
 
     // NOTE(chowie): First pass - count how many of each key
     u32 Counts[4][256] = {};
-    for(u32 Index = 0;
-        Index < Count;
-        ++Index)
+    foreachN(u32, Index, Count)
     {
         u32 Key = F32ToU32Key(Source[Index]);
         Counts[0][GetByteN(Key, 0)]++;
@@ -626,14 +608,10 @@ RadixSort5n(f32 *Entries, f32* Temp, u32 Count)
         Counts[3][GetByteN(Key, 3)]++;
     }
 
-    for(u32 DigitIndex = 0;
-        DigitIndex < 4;
-        ++DigitIndex)
+    foreachN(u32, DigitIndex, 4)
     {
         u32 TotalCount = 0;
-        for(u32 Index = 0;
-            Index < 256;
-            ++Index)
+        foreachN(u32, Index, 256)
         {
             u32 CurrentCount = Counts[DigitIndex][Index];
             Counts[DigitIndex][Index] = TotalCount;
@@ -642,13 +620,9 @@ RadixSort5n(f32 *Entries, f32* Temp, u32 Count)
     }
 
     // NOTE(chowie): Second pass - place elements into the right location
-    for(u32 DigitIndex = 0;
-        DigitIndex < 4;
-        ++DigitIndex)
+    foreachN(u32, DigitIndex, 4)
     {
-        for(u32 Index = 0;
-            Index < Count;
-            ++Index)
+        foreachN(u32, Index, Count)
         {
             u32 Key = F32ToU32Key(Source[Index]);
             u32 Digit = GetByteN(Key, DigitIndex);
@@ -656,9 +630,7 @@ RadixSort5n(f32 *Entries, f32* Temp, u32 Count)
             Temp[Counts[DigitIndex][Digit]++] = Source[Index];
         }
 
-        f32 *Swap = Source;
-        Source = Temp;
-        Temp = Swap;
+        Swap(f32 *, Source, Temp);
     }
 }
 
@@ -669,9 +641,7 @@ RadixSort5n(u32 *Entries, u32* Temp, u32 Count)
 
     // NOTE(chowie): First pass - count how many of each key
     u32 Counts[4][256] = {};
-    for(u32 Index = 0;
-        Index < Count;
-        ++Index)
+    foreachN(u32, Index, Count)
     {
         Counts[0][GetByteN(Source[Index], 0)]++;
         Counts[1][GetByteN(Source[Index], 1)]++;
@@ -679,14 +649,10 @@ RadixSort5n(u32 *Entries, u32* Temp, u32 Count)
         Counts[3][GetByteN(Source[Index], 3)]++;
     }
 
-    for(u32 DigitIndex = 0;
-        DigitIndex < 4;
-        ++DigitIndex)
+    foreachN(u32, DigitIndex, 4)
     {
         u32 TotalCount = 0;
-        for(u32 Index = 0;
-            Index < 256;
-            ++Index)
+        foreachN(u32, Index, 256)
         {
             u32 CurrentCount = Counts[DigitIndex][Index];
             Counts[DigitIndex][Index] = TotalCount;
@@ -695,22 +661,16 @@ RadixSort5n(u32 *Entries, u32* Temp, u32 Count)
     }
 
     // NOTE(chowie): Second pass - place elements into the right location
-    for(u32 DigitIndex = 0;
-        DigitIndex < 4;
-        ++DigitIndex)
+    foreachN(u32, DigitIndex, 4)
     {
-        for(u32 Index = 0;
-            Index < Count;
-            ++Index)
+        foreachN(u32, Index, Count)
         {
             u32 Digit = GetByteN(Source[Index], DigitIndex);
 
             Temp[Counts[DigitIndex][Digit]++] = Source[Index];
         }
 
-        u32 *Swap = Source;
-        Source = Temp;
-        Temp = Swap;
+        Swap(u32 *, Source, Temp);
     }
 }
 

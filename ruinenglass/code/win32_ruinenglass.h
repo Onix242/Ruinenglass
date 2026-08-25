@@ -117,9 +117,12 @@ struct win32_loaded_code
 {
     b32x IsValid;
 
-    char *DLLFullPath;
-    char *TempFullPath;
-    char *LockFullPath;
+    FIELD_ARRAY(char *,
+    {
+        char *DLLFullPath;
+        char *TempFullPath;
+        char *LockFullPath;
+    });
 
     HMODULE DLL;
     FILETIME DLLLastWriteTime;
@@ -129,6 +132,27 @@ struct win32_loaded_code
     void **Functions;
 };
 
+// TODO(chowie): Automate building paths
+struct exe_path
+{
+    char FileName[WIN32_STATE_FILE_NAME_COUNT];
+};
+struct win32_exe_path
+{
+    FIELD_ARRAY(exe_path,
+    {
+        exe_path DLLFullPath;
+        exe_path TempFullPath;
+        exe_path LockFullPath;
+    });
+};
+global char *Win32DLLNames[] =
+{
+    "ruinenglass.dll",
+    "ruinenglass_temp.dll",
+    "lock.tmp",
+};
+
 struct win32_game_function_table
 {
     // IMPORTANT(chowie): All callbacks can be null! Must check before
@@ -136,7 +160,7 @@ struct win32_game_function_table
     game_update_and_render *UpdateAndRender;
     game_get_sound_samples *GetSoundSamples;
 };
-// TODO(chowie): Introspection to automatically expand here? Removing
+// COULDDO(chowie): Introspection to automatically expand here? Removing
 // the need to double-up calling function names!
 global char *Win32GameFunctionTableNames[] =
 {

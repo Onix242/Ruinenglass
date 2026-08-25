@@ -311,7 +311,7 @@ typedef struct game_input
 inline game_controller_input *
 GetController(game_input *Input, u32 ControllerIndex)
 {
-    Assert(ControllerIndex < ArrayCount(Input->Controllers)); // TODO(chowie): Proper bounds checking?
+    Assert(ControllerIndex < Len(Input->Controllers)); // TODO(chowie): Proper bounds checking?
     game_controller_input *Result = &Input->Controllers[ControllerIndex];
     return(Result);
 }

@@ -29,10 +29,10 @@ pushd ..\..\build
 del *.pdb > NUL 2> NUL
 
 REM ForAllTestingGrounds
-REM cl %CommonCompilerFlags% -D_CRT_SECURE_NO_WARNINGS ..\ruinenglass\code\test_gap_buffer.cpp %CommonLinkerFlags%
+cl %CommonCompilerFlags% -D_CRT_SECURE_NO_WARNINGS ..\ruinenglass\code\test_gap_buffer.cpp %CommonLinkerFlags%
 
 REM Asset Builder
-cl %CommonCompilerFlags% -D_CRT_SECURE_NO_WARNINGS ..\ruinenglass\code\test_asset_builder.cpp %CommonLinkerFlags%
+REM cl %CommonCompilerFlags% -D_CRT_SECURE_NO_WARNINGS ..\ruinenglass\code\test_asset_builder.cpp %CommonLinkerFlags%
 
 REM Game
 echo WAITING FOR PDB > lock.tmp

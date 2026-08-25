@@ -39,66 +39,17 @@
 #endif
 
 //
-// NOTE(chowie): User-defined types
+// IMPORTANT(chowie): Useful typed-functions (engine specific)
 //
 
-#if !defined(internal)
-#define internal static
-#endif
-#define local_persist static
-#define global static
+#define Len(arr) (sizeof((arr)) / (sizeof((arr)[0])))
 
-#include <stdint.h>
-#include <limits.h>
-#include <float.h>
-
-// RESOURCE: https://learn.microsoft.com/en-us/cpp/cpp/data-type-ranges?view=msvc-170
-// STUDY(chowie): Sizeof different types in Windows
-typedef int8_t s8;
-typedef int16_t s16;
-typedef int32_t s32;
-typedef int64_t s64;
-
-typedef uint8_t u8;
-typedef uint16_t u16;
-typedef uint32_t u32;
-typedef uint64_t u64;
-
-typedef wchar_t w16;
-
-// RESOURCE: https://hero.handmade.network/forums/code-discussion/t/1449-b32x%252C_memory_index%252C_umm%252C_smm
-// NOTE(chowie): Boolean in whatever size is comfortable for the
-// compiler but not less than 32 bits (where it could be more efficient).
-typedef int_least32_t b32x;
-typedef s32 b32; // NOTE(chowie): For file formats that requires exact size. (Avoids C4800 in Wall)
-
-// NOTE(chowie): On systems with segmented memory, size_t used as an
-// index would hold only an offset within a segment, but uintptr_t
-// would hold both a segment and an offset.
-// typedef size_t memory_index;
-typedef intptr_t smm;
-typedef uintptr_t umm; // NOTE(chowie): Memory-sized uint
-
-typedef float f32;
-typedef double f64;
-
-#define flag8(type) u8
-#define flag16(type) u16
-#define flag32(type) u32
-#define flag64(type) u64
-
-#define enum8(type) u8
-#define enum16(type) u16
-#define enum32(type) u32
-#define enum64(type) u64
-
-#define U32FromPointer(Pointer) ((u32)(umm)(Pointer))
-#define PointerFromU32(type, Value) (type *)((umm)Value)
-
-#define Pi32 3.14159265359f
-#define Tau32 6.28318530717958647692f
-#define Euler32 2.718281828459045f
-#define GoldenRatio64 1.61803398874989484820458683436563f
+// TODO(chowie): Should these always be 64-bit?
+// NOTE(chowie): "LL" prevents integral promotion to 32-bits, instead wanting 64-bits
+#define Kilobytes(Value) ((Value)*1024LL)
+#define Megabytes(Value) (Kilobytes(Value)*1024LL)
+#define Gigabytes(Value) (Megabytes(Value)*1024LL)
+#define Terabytes(Value) (Gigabytes(Value)*1024LL)
 
 #if RUINENGLASS_SLOW
 #define Assert(Expression) if(!(Expression)) {*(volatile int *)0 = 0;}
@@ -119,104 +70,21 @@ typedef double f64;
 #define InvalidCodePath Assert(!"InvalidCodePath")
 #define InvalidDefaultCase default: {InvalidCodePath;} break
 
-// TODO(chowie): Should these always be 64-bit?
-// NOTE(chowie): "LL" prevents integral promotion to 32-bits, instead wanting 64-bits
-#define Kilobytes(Value) ((Value)*1024LL)
-#define Megabytes(Value) (Kilobytes(Value)*1024LL)
-#define Gigabytes(Value) (Megabytes(Value)*1024LL)
-#define Terabytes(Value) (Gigabytes(Value)*1024LL)
-
-#define ArrayCount(arr) (sizeof((arr)) / (sizeof((arr)[0])))
-
-#define Swap(type, A, B) {type Temp = (A); (A) = (B); (B) = Temp;}
+#define Swap(type, A, B) {type Temp_ = (A); (A) = (B); (B) = Temp_;}
 
 #define Min(A, B) ((A < B) ? (A) : (B))
 #define Min3(A, B, C) (Min(A, Min(B, C)))
 #define Max(A, B) ((A > B) ? (A) : (B))
 #define Max3(A, B, C) (Max(A, Max(B, C)))
 
-// NOTE(chowie): Limit macros
-#define F32Max FLT_MAX
-#define F32Min -FLT_MAX
-#define S32Max INT32_MAX
-#define S32Min -INT32_MAX
-#define U64Max ((u64) - 1)
-#define U32Max ((u32) - 1)
-#define U16Max ((u16) - 1)
-#define U8Max ((u8) - 1)
-
-#define Odd(Value) ((Value) & 1)
-
-// TODO(chowie): Pow2? When mapping, there might be (number-theoretic
-// reasons) not to be a Pow2. Out the hash function, it directly
-// truncates the bits.
-#define HashSizePow2 4096
-
-// TODO(chowie): Figure out where to use Align16 for code I care about
-// the most; For SIMD?
-// NOTE(chowie): "(Value-Value)" forces integral promotion to size of Value
-#define AlignPow2(Value, Alignment) ((Value + ((Alignment) - 1)) & ~((Value - Value) + (Alignment) - 1))
-#define Align4(Value) ((Value + 3) & ~3)
-#define Align8(Value) ((Value + 7) & ~7)
-#define Align16(Value) ((Value + 15) & ~15)
-
-// RESOURCE(fabien): https://fgiesen.wordpress.com/2016/10/26/rounding-up-to-the-nearest-int-k-mod-n/
-// NOTE(chowie): Round to nearest congrument k % Alignment
-// TODO(chowie): Can I use this for memory allocators, which address falls off alignment by specified distance.
-#define AlignPow(Value, Alignment, k) ((Value - k + (Alignment - 1)) & ~((Alignment) - 1) + k)
-
-inline b32x
-IsPow2(u32 Value)
-{
-    b32x Result = ((Value & ~(Value - 1)) == Value);
-    return(Result);
-}
-
-// NOTE(chowie): Explicit cast - no data should really be > hi32-bits
-inline u32
-SafeTruncateToU32(u64 Value)
-{
-    Assert(Value <= U32Max);
-    u32 Result = (u32)Value;
-    return(Result);
-}
-
-inline u16
-SafeTruncateToU16(u32 Value)
-{
-    Assert(Value <= U16Max);
-    u16 Result = (u16)Value;
-    return(Result);
-}
-
-inline u8
-SafeTruncateToU8(u64 Value)
-{
-    Assert(Value <= U8Max);
-    u8 Result = (u8)Value;
-    return(Result);
-}
-
-#define Pow2N(Value) (1 << (Value))
-#define BitSet(Bit) Pow2N(Bit)
-#define BitSet64(Bit) ((1ULL << Bit))
-
-#define FlagSet(A, Flag) (A & Flag)
-#define AddFlag(A, Flag) (A |= Flag)
-#define ClearFlag(A, Flag) (A &= ~Flag)
-#define ToggleFlag(A, Test, Flag) (Test) ? AddFlag(A, Flag) : ClearFlag(A, Flag);
-// RESOURCE: https://github.com/gingerBill/gb/blob/master/gb.h
-//#define MaskSet(Var, Set, Mask) if(Set) (Var) |= (Mask); else (Var) &= ~(Mask);
-
-// RESOURCE: https://handmade.network/p/64/geometer/blog/p/3048-1_year_of_geometer_-_lessons_learnt
-// TODO(chowie): Try this out? See how I like this?
-#define foreach(type, Value, array) for(type Value = 0; Value < ArrayCount(array); ++Value)
-
 // RESOURCE: https://hero.handmade.network/forums/code-discussion/t/3190-field_array_implementation_union_of_fields_and_array
-// NOTE(chowie): From Blake "rationalcoder" Martin. Syntactic sugar
-// for vector likes (e.g. v2, v3). The downside is bad introspection;
-// usually you wouldn't care for this kind of struct. No need for a
+// NOTE(from Blake "rationalcoder" Martin): Syntactic sugar for vector
+// likes (e.g. v2, v3). The downside is bad introspection; usually you
+// wouldn't care for this kind of struct. No need for a
 // terminator/fake field check!
+// IMPORTANT(chowie): Use when you want to say MemoryArena[3] or
+// Buttons[12] (to process them all together), and to reference
+// individually e.g. PermArena, TempArena, AudioArena
 #define Glue_(A, B) A##B
 #define Glue(A, B) Glue_(A, B)
 
@@ -232,6 +100,154 @@ static_assert(sizeof(Glue(_anon_array, counter)) % sizeof(type) == 0,   \
 
 #define FIELD_ARRAY(type, struct_definition)       \
 FIELD_ARRAY_(type, struct_definition, __COUNTER__)
+
+// RESOURCE: https://handmade.network/p/64/geometer/blog/p/3048-1_year_of_geometer_-_lessons_learnt
+// COULDDO(chowie): Try this out?
+// for (int &x : vec) { x++; }
+#define foreach(type, Value, array) for(type Value = 0; Value < Len(array); ++Value)
+#define foreachN(type, Value, array) for(type Value = 0; Value < array; ++Value)
+
+//
+// NOTE(chowie): User-defined types
+//
+
+#if !defined(internal)
+#define internal static
+#endif
+#define local_persist static
+#define global static
+
+#include <stdint.h>
+#include <limits.h>
+#include <float.h>
+
+// RESOURCE: https://learn.microsoft.com/en-us/cpp/cpp/data-type-ranges?view=msvc-170
+// STUDY(chowie): Sizeof different types in Windows
+typedef int8_t  s8;
+typedef int16_t s16;
+typedef int32_t s32;
+typedef int64_t s64;
+
+typedef uint8_t  u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
+typedef uint64_t u64;
+
+typedef float  f32;
+typedef double f64;
+
+// RESOURCE: https://hero.handmade.network/forums/code-discussion/t/1449-b32x%252C_memory_index%252C_umm%252C_smm
+// NOTE(chowie): Boolean in whatever size is comfortable for the
+// compiler but not less than 32 bits (where it could be more efficient).
+typedef int_least32_t b32x;
+typedef s32 b32; // NOTE(chowie): For file formats that requires exact size. (Avoids C4800 in Wall)
+
+// NOTE(chowie): On systems with segmented memory, size_t used as an
+// index would hold only an offset within a segment, but uintptr_t
+// would hold both a segment and an offset.
+// typedef size_t memory_index;
+typedef intptr_t  smm;
+typedef uintptr_t umm; // NOTE(chowie): Memory-sized uint
+
+typedef wchar_t w16;
+
+#define flag8(type)  u8
+#define flag16(type) u16
+#define flag32(type) u32
+#define flag64(type) u64
+
+#define enum8(type)  u8
+#define enum16(type) u16
+#define enum32(type) u32
+#define enum64(type) u64
+
+#define U32FromPointer(Pointer) ((u32)(umm)(Pointer))
+#define PointerFromU32(type, Value) (type *)((umm)Value)
+
+// NOTE(chowie): Limit macros
+#define F32Max FLT_MAX
+#define F32Min -FLT_MAX
+#define S32Max INT32_MAX
+#define S32Min -INT32_MAX
+#define U64Max ((u64) - 1)
+#define U32Max ((u32) - 1)
+#define U16Max ((u16) - 1)
+#define U8Max  ((u8) - 1)
+
+// NOTE(chowie): Explicit cast - no data should really be > hi32-bits
+inline u32
+SafeTruncToU32(u64 Value)
+{
+    Assert(Value <= U32Max);
+    u32 Result = (u32)Value;
+    return(Result);
+}
+
+inline u16
+SafeTruncToU16(u32 Value)
+{
+    Assert(Value <= U16Max);
+    u16 Result = (u16)Value;
+    return(Result);
+}
+
+inline u8
+SafeTruncToU8(u64 Value)
+{
+    Assert(Value <= U8Max);
+    u8 Result = (u8)Value;
+    return(Result);
+}
+
+// NOTE(chowie): There may be (number-theoretic reasons) not to be a
+// Pow2. Out the hash function, it directly truncates the bits.
+#define HashSizePow2 4096
+// RESOURCE(fabien): https://fgiesen.wordpress.com/2016/10/26/rounding-up-to-the-nearest-int-k-mod-n/
+// NOTE(chowie): Round to nearest congrument k % Alignment
+// TODO(chowie): Can I use this for memory allocators, which address falls off alignment by specified distance.
+#define AlignPow(Value, Alignment, k) ((Value - k + (Alignment - 1)) & ~((Alignment) - 1) + k)
+// STUDY(chowie): "(Value-Value)" forces integral promotion to size of Value
+#define AlignPow2(Value, Alignment) ((Value + ((Alignment) - 1)) & ~((Value - Value) + (Alignment) - 1))
+#define Align4(Value) ((Value + 3) & ~3)
+#define Align8(Value) ((Value + 7) & ~7)
+#define Align16(Value) ((Value + 15) & ~15) // TODO(chowie): Use Align16 for SIMD
+
+inline b32x
+IsPow2(u32 Value)
+{
+    b32x Result = ((Value & ~(Value - 1)) == Value);
+    return(Result);
+}
+
+#define Pow2N(Value) (1 << (Value))
+#define BitSet(Bit) Pow2N(Bit)
+#define BitSet64(Bit) ((1ULL << Bit))
+
+#define FlagSet(A, Flag) (A & Flag)
+#define AddFlag(A, Flag) (A |= Flag)
+#define ClearFlag(A, Flag) (A &= ~Flag)
+#define ToggleFlag(A, Test, Flag) (Test) ? AddFlag(A, Flag) : ClearFlag(A, Flag);
+// RESOURCE: https://github.com/gingerBill/gb/blob/master/gb.h
+//#define MaskSet(Var, Set, Mask) if(Set) (Var) |= (Mask); else (Var) &= ~(Mask);
+
+#define Pi32 3.14159265359f
+#define Tau32 6.28318530717958647692f
+#define Euler32 2.718281828459045f
+#define GoldenRatio64 1.61803398874989484820458683436563f
+
+#define Odd(Value) ((Value) & 1)
+
+//
+//
+//
+
+// NOTE(chowie): Standard 4-letter file format code like .wav, .ttf and making your own
+#define FILE_FORMAT_CODE(a, b, c, d) (((u32)(a) << 0) | ((u32)(b) << 8) | ((u32)(c) << 16) | ((u32)(d) << 24))
+
+// NOTE(chowie): For debug interface
+#define FILE_AND_LINE__(A, B) A "|" #B
+#define FILE_AND_LINE_(A, B) FILE_AND_LINE__(A, B)
+#define FILE_AND_LINE FILE_AND_LINE_(__FILE__, __LINE__)
 
 //
 // NOTE: Math Primitives
@@ -647,50 +663,6 @@ struct m4x4_inv
 };
 
 //
-//
-//
-
-inline v2u
-MinMax(v2u Value)
-{
-    v2u Result;
-    if(Value.a > Value.b)
-    {
-        Result.Max = Value.a;
-        Result.Min = Value.b;
-    }
-    else
-    {
-        Result.Max = Value.b;
-        Result.Min = Value.a;
-    }
-    return(Result);
-}
-
-inline v2u64
-MinMax64(v2u64 Value)
-{
-    v2u64 Result;
-    if(Value.a > Value.b)
-    {
-        Result.Max = Value.a;
-        Result.Min = Value.b;
-    }
-    else
-    {
-        Result.Max = Value.b;
-        Result.Min = Value.a;
-    }
-    return(Result);
-}
-
-//
-//
-//
-
-#define FILE_FORMAT_CODE(a, b, c, d) (((u32)(a) << 0) | ((u32)(b) << 8) | ((u32)(c) << 16) | ((u32)(d) << 24))
-
-//
 // String 
 //
 
@@ -705,15 +677,14 @@ MinMax64(v2u64 Value)
 // RESOURCE(): https://www.reedbeta.com/blog/programmers-intro-to-unicode/
 // RESOURCE(): C/C++ headers - https://icu.unicode.org/
 
-// TODO(chowie): Debug View
-#define FILE_AND_LINE__(A, B) A "|" #B
-#define FILE_AND_LINE_(A, B) FILE_AND_LINE__(A, B)
-#define FILE_AND_LINE FILE_AND_LINE_(__FILE__, __LINE__)
+// RESOURCE(): https://web.archive.org/web/20200917053102/https://github.com/RandyGaul/cute_headers/blob/master/cute_utf.h
+// Want to convert between utf-8 and utf-16!
+// IMPORTANT(chowie): TODO(chowie): Above library is for game localization specifically!
 
 // NOTE(chowie): This is purely for cstrings
 // TODO(chowie): This should not be necessary anymore. Remove!
 inline u32
-StringLength(char *String)
+StringLen(char *String)
 {
     u32 Count = 0;
     if(String) // NOTE(chowie): Support dummy strings
@@ -731,9 +702,7 @@ StringLength(char *String)
 inline void
 StringReplace(char *String, char Source, char Dest)
 {
-    for(umm Index = 0;
-        Index < StringLength(String);
-        ++Index)
+    foreachN(umm, Index, StringLen(String))
     {
         if(String[Index] == Source)
         {
@@ -742,6 +711,7 @@ StringReplace(char *String, char Source, char Dest)
     }
 }
 
+// RESOURCE(): https://hero.handmade.network/forums/code-discussion/t/8216-how_to_do_metaprogramming_without_changing_the_source_files/2
 // RESOURCE: https://github.com/cmuratori/computer_enhance/blob/main/perfaware/part2/listing_0068_buffer.cpp
 // TODO(chowie): De/Allocate buffer?
 struct buffer
@@ -776,9 +746,7 @@ BufferAreEqual(buffer A, buffer B)
         Result = false;
     }
 
-    for(u64 Index = 0;
-        Index < A.Size;
-        ++Index)
+    foreachN(u64, Index, A.Size)
     {
         if(A.Data[Index] != B.Data[Index])
         {
@@ -794,14 +762,14 @@ WrapZ(char *Z)
 {
     string Result;
 
-    Result.Size = StringLength(Z);
+    Result.Size = StringLen(Z);
     Result.Data = (u8 *)Z;
 
     return(Result);
 }
 
 internal string
-BundleString(umm Size, char *Z)
+BundleString(char *Z, umm Size)
 {
     string Result;
 
@@ -810,7 +778,6 @@ BundleString(umm Size, char *Z)
 
     return(Result);
 }
-
 
 //
 // NOTE(chowie): Multi-threading
@@ -834,24 +801,28 @@ AtomicIncrementU32(u32 volatile *Value)
     u32 Result = _InterlockedIncrement((long *)Value);
     return(Result);
 }
+
 inline u32
 AtomicCompareExchangeU32(u32 volatile *Value, u32 New, u32 Expected)
 {
     u32 Result = _InterlockedCompareExchange((long *)Value, New, Expected);
     return(Result);
 }
+
 inline u64
 AtomicCompareExchangeU64(u64 volatile *Value, u64 New, u64 Expected)
 {
     u64 Result = _InterlockedCompareExchange64((long long *)Value, New, Expected);
     return(Result);
 }
+
 inline u64
 AtomicExchangeU64(u64 volatile *Value, u64 New)
 {
     u64 Result = _InterlockedExchange64((__int64 *)Value, New);
     return(Result);
 }
+
 // NOTE: Could be Atomicincrement, but add has more flexibility
 // Linux equivalent "(__sync_fetch_and_add(Value, Addend) + Addend)"
 inline u64
@@ -861,6 +832,7 @@ AtomicAddU64(u64 volatile *Value, u64 Addend)
     u64 Result = _InterlockedExchangeAdd64((__int64 *)Value, Addend);
     return(Result);
 }
+
 inline u32
 GetThreadID(void)
 {
@@ -977,9 +949,7 @@ Str8AreEqual(str8 A, str8 B)
         Result = false;
     }
 
-    for(u64 Index = 0;
-        Index < A.Size; // TODO(chowie): Null terminated strings, "<="?
-        ++Index)
+    foreachN(u64, Index, A.Size) // TODO(chowie): Null terminated strings, "<="?
     {
         if(A.Data[Index] != B.Data[Index])
         {
@@ -1293,9 +1263,7 @@ Str8Split(memory_arena *Arena, str8 String,
         // NOTE(chowie): Split
         u8 Byte = *StringPtr;
         b32x IsSplit = false;
-        for(u32 SplitIndex = 0;
-            SplitIndex < Count;
-            ++SplitIndex)
+        foreachN(u32, SplitIndex, Count)
         {
             if(Byte == Splits[SplitIndex])
             {

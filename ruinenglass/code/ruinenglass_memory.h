@@ -227,9 +227,7 @@ PushString(memory_arena *Arena, char *Source)
 
     Result.LengthPushed = Size - 1; // NOTE(chowie): Remove null terminator
     Result.String = (char *)PushSize_(Arena, Size);
-    for(u32 CharIndex = 0;
-        CharIndex < Size;
-        ++CharIndex)
+    foreachN(u32, CharIndex, Size)
     {
         Result.String[CharIndex] = Source[CharIndex];
     }
@@ -241,9 +239,7 @@ inline char *
 PushZ(memory_arena *Arena, u32 Length, char *Source)
 {
     char *Dest = (char *)PushSize_(Arena, Length + 1, NoClear());
-    for(u32 CharIndex = 0;
-        CharIndex < Length;
-        ++CharIndex)
+    foreachN(u32, CharIndex, Length)
     {
         Dest[CharIndex] = Source[CharIndex];
     }

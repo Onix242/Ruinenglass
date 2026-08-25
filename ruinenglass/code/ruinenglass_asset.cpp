@@ -31,9 +31,7 @@ AllocGameAssets(transient_state *TranState, memory_arena *Arena, umm Size)
         GameAssets->FileCount = FileGroup.FileCount;
         GameAssets->Files = PushArray(Arena, asset_file, GameAssets->FileCount);
 
-        for(u32 FileIndex = 0;
-            FileIndex < GameAssets->FileCount;
-            ++FileIndex)
+        foreachN(u32, FileIndex, GameAssets->FileCount)
         {
             asset_file *File = GameAssets->Files + FileIndex;
 
@@ -100,9 +98,7 @@ AllocGameAssets(transient_state *TranState, memory_arena *Arena, umm Size)
     // NOTE(chowie): Pack file
     //
 
-    for(u32 FileIndex = 0;
-        FileIndex < GameAssets->FileCount;
-        ++FileIndex)
+    foreachN(u32, FileIndex, GameAssets->FileCount)
     {
         asset_file *File = GameAssets->Files + FileIndex;
         if(PlatformNoFileErrors(&File->Handle))
@@ -130,9 +126,7 @@ AllocGameAssets(transient_state *TranState, memory_arena *Arena, umm Size)
                                           FileAssetCount*sizeof(rui_asset),
                                           AssetArray);
 
-                for(u32 AssetIndex = 0;
-                    AssetIndex < FileAssetCount;
-                    ++AssetIndex)
+                foreachN(u32, AssetIndex, FileAssetCount)
                 {
                     rui_asset *RUIAsset = AssetArray + AssetIndex;
                     Assert(GameAssetCount < GameAssets->AssetCount);
@@ -397,9 +391,7 @@ GetAssetMatch(game_assets *GameAssets, asset_type_id ID, asset_match_vector Matc
         {
             rui_tag *Tag = GetTag(GameAssets, TagIndex);
 
-            for(u32 MatchIndex = 0;
-                MatchIndex < ArrayCount(MatchVector.E);
-                ++MatchIndex)
+            foreach(u32, MatchIndex, MatchVector.E)
             {
                 f32 A = MatchVector.E[MatchIndex];
                 f32 B = Tag->Value;

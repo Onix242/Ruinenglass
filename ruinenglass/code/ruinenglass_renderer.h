@@ -21,10 +21,14 @@
 
 struct render_xform
 {
-    v3 P;
-    v3 X;
-    v3 Y;
-    v3 Z;
+    FIELD_ARRAY(v3,
+    {
+        v3 P;
+        v3 X;
+        v3 Y;
+        v3 Z;
+    });
+
     m4x4_inv Proj; // NOTE(chowie): World's camera + Proj Matrix combined
 };
 

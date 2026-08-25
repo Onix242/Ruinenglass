@@ -2508,9 +2508,7 @@ Union(rect2 A, rect2 B)
     B.MaxN = V2(-B.MaxN.x, -B.MaxN.y);
 
     rect2 Result = {};
-    for(s32 Corner = 0;
-        Corner < ArrayCount(Result.E);
-        ++Corner)
+    foreach(s32, Corner, Result.E)
     {
         Result.E[Corner] = Min(A.E[Corner], B.E[Corner]);
     }
@@ -2526,9 +2524,7 @@ Intersect(rect2 A, rect2 B)
     B.MaxN = V2(-B.MaxN.x, -B.MaxN.y);
 
     rect2 Result = {};
-    for(s32 Corner = 0;
-        Corner < ArrayCount(Result.E);
-        ++Corner)
+    foreach(s32, Corner, Result.E)
     {
         Result.E[Corner] = Max(A.E[Corner], B.E[Corner]);
     }
@@ -2761,9 +2757,7 @@ Union(rect2i A, rect2i B)
     B.MaxN = V2S(-B.MaxN.x, -B.MaxN.y);
 
     rect2i Result = {};
-    for(s32 Corner = 0;
-        Corner < ArrayCount(Result.E);
-        ++Corner)
+    foreach(s32, Corner, Result.E)
     {
         Result.E[Corner] = Min(A.E[Corner], B.E[Corner]);
     }
@@ -2779,9 +2773,7 @@ Intersect(rect2i A, rect2i B)
     B.MaxN = V2S(-B.MaxN.x, -B.MaxN.y);
 
     rect2i Result = {};
-    for(s32 Corner = 0;
-        Corner < ArrayCount(Result.E);
-        ++Corner)
+    foreach(s32, Corner, Result.E)
     {
         Result.E[Corner] = Max(A.E[Corner], B.E[Corner]);
     }
@@ -2850,9 +2842,7 @@ UnionRects(rect2i *Rects, s32 Amount) // NOTE(chowie): Amount >= 1
     {
         Rects[RectNum].MaxN = V2S(-Rects[RectNum].MaxN.x, -Rects[RectNum].MaxN.y);
 
-        for(s32 Corner = 0;
-            Corner < ArrayCount(Result.E);
-            ++Corner)
+        foreach(s32, Corner, Result.E)
         {
             Result.E[Corner] = Minimum(Result.E[Corner], Rects[RectNum].E[Corner]);
         }
@@ -3408,9 +3398,7 @@ HerfRadixSort(u32 Count, f32 *First, f32 *Temp)
     u32 *Hist2 = Hist1 + HistogramMax;
 
     // NOTE(chowie): 1. Parallel Histogram Pass
-    for(u32 HistIndex = 0;
-        HistIndex < Count;
-        ++HistIndex)
+    foreachN(u32, HistIndex, Count)
     {
         Prefetch0(Source, HistIndex);
 
@@ -3428,9 +3416,7 @@ HerfRadixSort(u32 Count, f32 *First, f32 *Temp)
         u32 SumHist2 = 0;
         u32 Total;
 
-        for(u32 HistIndex = 0;
-            HistIndex < HistogramMax;
-            ++HistIndex)
+        foreachN(u32, HistIndex, HistogramMax)
         {
             Total = Hist0[HistIndex] + SumHist0;
             Hist0[HistIndex] = SumHist0 - 1;
@@ -3447,9 +3433,7 @@ HerfRadixSort(u32 Count, f32 *First, f32 *Temp)
     }
 
     // NOTE(chowie): Byte 0, Flip value, read/write histogram, write out flipped
-    for(u32 HistIndex = 0;
-        HistIndex < HistogramMax;
-        ++HistIndex)
+    foreachN(u32, HistIndex, HistogramMax)
     {
         u32 Flip = Source[HistIndex];
         FloatFlipX(&Flip);
@@ -3460,9 +3444,7 @@ HerfRadixSort(u32 Count, f32 *First, f32 *Temp)
     }
 
     // NOTE(chowie): Byte 1, Read-write histogram, copy dest -> source
-    for(u32 HistIndex = 0;
-        HistIndex < HistogramMax;
-        ++HistIndex)
+    foreachN(u32, HistIndex, HistogramMax)
     {
         u32 DestIndex = Dest[HistIndex];
         u32 Pos = PrefetchHist1_(DestIndex);
@@ -3472,9 +3454,7 @@ HerfRadixSort(u32 Count, f32 *First, f32 *Temp)
     }
 
     // NOTE(chowie): Byte 2, Read-write histogram, copy & flip out source -> dest
-    for(u32 HistIndex = 0;
-        HistIndex < HistogramMax;
-        ++HistIndex)
+    foreachN(u32, HistIndex, HistogramMax)
     {
         u32 SourceIndex = Source[HistIndex];
         u32 Pos = PrefetchHist2_(SourceIndex);

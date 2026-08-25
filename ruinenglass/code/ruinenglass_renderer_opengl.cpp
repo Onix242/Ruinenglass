@@ -41,9 +41,7 @@ OpenGLGetInfo(b32x ModernContext)
 
     GLint ExtensionCount = 0;
     glGetIntegerv(GL_NUM_EXTENSIONS, &ExtensionCount);
-    for(GLint ExtensionIndex = 0;
-        ExtensionIndex < ExtensionCount;
-        ++ExtensionIndex)
+    foreachN(GLint, ExtensionIndex, ExtensionCount)
     {
         char *ExtensionName = (char *)glGetStringi(GL_EXTENSIONS, ExtensionIndex);
 

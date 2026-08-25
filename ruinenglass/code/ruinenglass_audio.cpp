@@ -30,17 +30,13 @@ TestOutputWilwaDialTone(audio_state *AudioState,
     Wave2->Period = SoundBuffer->SamplesPerSecond / Wave2->ToneHz;
 
     s16 *SampleOut = SoundBuffer->Samples;
-    for(u32 SampleIndex = 0;
-        SampleIndex < SoundBuffer->SampleCount;
-        ++SampleIndex)
+    foreachN(u32, SampleIndex, SoundBuffer->SampleCount)
     {
         Wave1->Value = Sin(TURNS(AudioState->tSine1));
         Wave2->Value = Sin(TURNS(AudioState->tSine2));
 
         f32 TotalValue = 0;
-        for(u32 ToneIndex = 0;
-            ToneIndex < ArrayCount(WilwaDialTone.E); // STUDY(chowie): I'm really proud to be able to convert a range-based for loop into a regular one!
-            ++ToneIndex)
+        foreach(u32, ToneIndex, WilwaDialTone.E) // STUDY(chowie): I'm really proud to be able to convert a range-based for loop into a regular one!
         {
             wilwa_dial_tone *Sound = WilwaDialTone.E + ToneIndex;
             TotalValue += Sound->Value;

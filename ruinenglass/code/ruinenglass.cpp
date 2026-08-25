@@ -35,7 +35,7 @@ GetEntity(game_state *GameState, u32 Index)
 {
     entity *Entity = 0;
 
-    if((Index > 0) && (Index < ArrayCount(GameState->Entities)))
+    if((Index > 0) && (Index < Len(GameState->Entities)))
     {
         Entity = &GameState->Entities[Index];
         Entity->EntityID = Index;
@@ -47,7 +47,7 @@ GetEntity(game_state *GameState, u32 Index)
 internal u32
 AddEntity(game_state *GameState, entity_type Type, world_pos *P)
 {
-    Assert(GameState->EntityCount < ArrayCount(GameState->Entities));
+    Assert(GameState->EntityCount < Len(GameState->Entities));
     u32 EntityIndex = GameState->EntityCount++;
 
     entity *Entity = &GameState->Entities[EntityIndex];
@@ -165,9 +165,7 @@ SetCamera(game_state *GameState, world_pos NewCameraP, v3 TileSideInMeters)
                     Block;
                     Block = Block->Next)
                 {
-                    for(u32 EntityIndex = 0;
-                        EntityIndex < Block->EntityCount;
-                        ++EntityIndex)
+                    foreachN(u32, EntityIndex, Block->EntityCount)
                     {
                         entity *Entity = GameState->Entities + Block->EntityIndex[EntityIndex];
                         v2 CameraSpaceP = GetCameraSpaceP(GameState, Entity);
@@ -233,9 +231,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         TranState->HighPriorityQueue = Memory->HighPriorityQueue;
         TranState->LowPriorityQueue  = Memory->LowPriorityQueue;
 
-        for(u32 TaskIndex = 0;
-            TaskIndex < ArrayCount(TranState->Tasks);
-            ++TaskIndex)
+        foreach(u32, TaskIndex, TranState->Tasks)
         {
             task_memory *Task = TranState->Tasks + TaskIndex;
             Task->BeingUsed = false;
@@ -274,9 +270,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     v3 WorldChunkDimInMeters = V3(16.0f, 16.0f, 16.0f)*TileSideInMeters;
 
     f32 dt = Input->dtForFrame;
-    for(u32 ControllerIndex = 0;
-        ControllerIndex < ArrayCount(Input->Controllers);
-        ++ControllerIndex)
+    foreach(u32, ControllerIndex, Input->Controllers)
     {
         game_controller_input *Controller = GetController(Input, ControllerIndex);
         controlled_player *ConPlayer = GameState->ControlledPlayer + ControllerIndex;
@@ -345,9 +339,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
     PushCircle(RenderGroup, V3(600, 600, 0), 50.0f, 4, V4(0.5f, 0.5f, 0.5f, 0.5f));
 
     // STUDY(chowie): Straight ahead loop
-    for(u32 EntityIndex = 0;
-        EntityIndex < GameState->EntityCount;
-        ++EntityIndex)
+    foreachN(u32, EntityIndex, GameState->EntityCount)
     {
         entity *Entity = GameState->Entities + EntityIndex;
 
@@ -359,9 +351,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
         v3 ddP = {};
         if(Entity->Type == EntityType_Player)
         {
-            for(u32 ControllerIndex = 0;
-                ControllerIndex < ArrayCount(Input->Controllers);
-                ++ControllerIndex)
+            foreach(u32, ControllerIndex, Input->Controllers)
             {
                 controlled_player *ConPlayer = GameState->ControlledPlayer + ControllerIndex;
                 ddP = V3(ConPlayer->ddP, 0);

@@ -100,11 +100,28 @@ PCGHash(v4u Value)
 //
 
 // RESOURCE(): https://theartincode.stanis.me/008-djb2/
+#define DJB2HASH_MAGICNUMBER 5381
+
 inline u32
 DJB2Hash(char Scan)
 {
-    u32 MagicNumber = 5381;
-    u32 Result = ((MagicNumber << 5) + MagicNumber) + Scan;
+    u32 Result = ((DJB2HASH_MAGICNUMBER << 5) + DJB2HASH_MAGICNUMBER) + Scan;
+    return(Result);
+}
+
+inline u32
+DJB2Hash(char *s)
+{
+    u32 Result = 0;
+
+    char *Scan = s;
+    for(;
+        *Scan;
+        ++Scan)
+    {
+        Result = ((DJB2HASH_MAGICNUMBER << 5) + DJB2HASH_MAGICNUMBER) + *Scan;
+    }
+
     return(Result);
 }
 
@@ -815,9 +832,7 @@ internal u32 *
 RemaleyHashTableOppositeRows(u16 Row, u32 PairwiseTableCount)
 {
     u32 *Result = 0;
-    for(u32 RemaleyHashIndex = 0;
-        RemaleyHashIndex < PairwiseTableCount;
-        ++RemaleyHashIndex)
+    foreachN(u32, RemaleyHashIndex, PairwiseTableCount)
     {
         Result[RemaleyHashIndex] = RemaleyHash(Row, (u16)RemaleyHashIndex);
     }
@@ -1127,9 +1142,7 @@ AddRepligramInterval(repligram_timeline_entry_group *Group)
 internal void
 ProcessRepligramTimelineLayer(repligram_timeline_entry_group *Group)
 {
-    for(u32 EntryIndex = 0;
-        EntryIndex < Group->EntryCount;
-        ++EntryIndex)
+    foreachN(u32, EntryIndex, Group->EntryCount)
     {
         //
         // Process intervals ...
@@ -1151,9 +1164,7 @@ GetRepligramTimelineEnd(repligram_timeline_layer_group *Group)
 {
     u32 Result = 0;
 
-    for(u32 LayerIndex = 0;
-        LayerIndex < Group->LayerCount;
-        ++LayerIndex)
+    foreachN(u32, LayerIndex, Group->LayerCount)
     {
         u32 CurrentInterval = Group->Layers[LayerIndex].FinalInterval;
         if(CurrentInterval > Result)
@@ -1554,11 +1565,9 @@ GetHashFromID(socialweb *SocialWeb, socialweb_node_id SourceID)
     socialweb_node_hash *Result = 0;
 
     u32 HashValue = (u32)SourceID.Value;
-    for(u32 Offset = 0;
-        Offset < ArrayCount(SocialWeb->NodeInternalChainHash);
-        ++Offset)
+    foreach(u32, Offset, SocialWeb->NodeInternalChainHash)
     {
-        u32 HashSlot = ((HashValue + Offset) & ArrayCount(SocialWeb->NodeInternalChainHash) - 1);
+        u32 HashSlot = ((HashValue + Offset) & Len(SocialWeb->NodeInternalChainHash) - 1);
         socialweb_node_hash *Entry = SocialWeb->NodeInternalChainHash + HashSlot;
         if(IsEmpty(SocialWeb->NodeInternalChainHashOccupancy, HashSlot))
         {
@@ -1811,9 +1820,7 @@ SocialWebRemoveNodeAndEdges(socialweb *SocialWeb, u16 Node)
 {
     // Remove node
 
-    for(u32 PairIndex = 0;
-        PairIndex < Inhabitant_Name_Count;
-        PairIndex++)
+    foreachN(u32, PairIndex, Inhabitant_Name_Count)
     {
         RemaleyHash(Node, (u16)PairIndex);
         // Finds all matrix edges
@@ -1834,9 +1841,7 @@ internal void
 SocialWebGetNeighboursAndDegree(socialweb *SocialWeb, u16 Node)
 {
     u32 Degree = 0;
-    for(u32 PairIndex = 0;
-        PairIndex < Inhabitant_Name_Count;
-        PairIndex++)
+    foreachN(u32, PairIndex, Inhabitant_Name_Count)
     {
         socialweb_edge_id Edge = {(u16)RemaleyHash(Node, (u16)PairIndex)};
         if(GetEdgeByID(SocialWeb, Edge))
@@ -2727,7 +2732,7 @@ GetFinkHashTreeLODLeafApprox(u64 Hash)
         Acc = Max(Pair.a, Pair.b);
     }
 
-    return(SafeTruncateToU8(Acc));
+    return(SafeTruncToU8(Acc));
 }
 
 internal u32
@@ -3066,9 +3071,7 @@ FinkHashTreeGetLeafNodeNeighbour(finkhashtree_cardinal_group FinkHashTree, leaf_
     Result.IsSourceNodeLeaf = true;
 
     // NOTE(chowie): Internal = z-order
-    for(u32 LeafCount = 0;
-        LeafCount < ArrayCount(NeighboursDir.InternalNeighbours.E);
-        ++LeafCount)
+    foreach(u32, LeafCount, NeighboursDir.InternalNeighbours.E)
     {
         u32 NeighbourIndex = 0;
         u32 InvDir = -NeighboursDir.ExternalNeighbours.E[LeafCount];
@@ -3090,9 +3093,7 @@ FinkHashTreeGetLeafNodeNeighbour(finkhashtree_cardinal_group FinkHashTree, leaf_
     }
 
     // NOTE(chowie): External = world coords
-    for(u32 TreeCount = 0;
-        TreeCount < ArrayCount(NeighboursDir.ExternalNeighbours.E);
-        ++TreeCount)
+    foreach(u32, TreeCount, NeighboursDir.ExternalNeighbours.E)
     {
         if(IsParent(FinkHashTree.Trees[TreeCount].FinkHash))
         {
@@ -3132,9 +3133,7 @@ FinkHashTreeGetRootNodeNeighbour(finkhashtree_cardinal_group FinkHashTree)
     neighbour_result Result = {};
     Result.IsSourceNodeLeaf = false;
 
-    for(u32 TreeCount = 0;
-        TreeCount < ArrayCount(FinkHashTree.Trees);
-        ++TreeCount)
+    foreach(u32, TreeCount, FinkHashTree.Trees)
     {
         // NOTE(chowie): FinkHashTrees that are odd = has
         // children. Otherwise, it only has a root.
@@ -3144,9 +3143,7 @@ FinkHashTreeGetRootNodeNeighbour(finkhashtree_cardinal_group FinkHashTree)
             v2u LeafIndexY = {};
             v2u LeafIndexZ = {};
 
-            for(u32 LeafCount = 0;
-                LeafCount < ArrayCount(FinkHashTree.Trees->Leaves);
-                ++LeafCount)
+            foreach(u32, LeafCount, FinkHashTree.Trees->Leaves)
             {
                 u32 NeighbourIndex = 0;
                 u32 FillLeaves = 0;

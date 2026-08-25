@@ -55,9 +55,7 @@ InitialiseWorld(world *World, v3 ChunkDimInMeters)
     World->ChunkDimInMeters = ChunkDimInMeters;
     World->FirstFree = 0;
 
-    for(u32 ChunkIndex = 0;
-        ChunkIndex < ArrayCount(World->ChunkHash);
-        ++ChunkIndex)
+    foreach(u32, ChunkIndex, World->ChunkHash)
     {
         World->ChunkHash[ChunkIndex].Chunk.x = CHUNK_UNINITIALISED;
         // NOTE(chowie): Memory precaution for additional runs of the
@@ -79,8 +77,8 @@ GetWorldChunk(world *World, v3s ChunkValue, memory_arena *Arena = 0)
 
     // TODO(chowie): Better hash function?
     u32 HashValue = MullerHash(ChunkValue);
-    u32 HashSlot = HashValue & (ArrayCount(World->ChunkHash) - 1); // NOTE(chowie): Wrapping number that fits in array size
-    Assert(HashSlot < ArrayCount(World->ChunkHash));
+    u32 HashSlot = HashValue & (Len(World->ChunkHash) - 1); // NOTE(chowie): Wrapping number that fits in array size
+    Assert(HashSlot < Len(World->ChunkHash));
 
     world_chunk *Chunk = World->ChunkHash + HashSlot;
     do
@@ -217,9 +215,7 @@ ChangeEntityLocation(memory_arena *Arena, world *World, u32 EntityIndex,
                     Block;
                     Block = Block->Next)
                 {
-                    for(u32 Index = 0;
-                        Index < Block->EntityCount;
-                        ++Index)
+                    foreachN(u32, Index, Block->EntityCount)
                     {
                         // STUDY(chowie): Always keep a free space at
                         // the head end for easy insertion.
@@ -257,7 +253,7 @@ ChangeEntityLocation(memory_arena *Arena, world *World, u32 EntityIndex,
         Assert(Chunk);
 
         world_entity_block *Block = &Chunk->FirstBlock;
-        if(Block->EntityCount == ArrayCount(Block->EntityIndex))
+        if(Block->EntityCount == Len(Block->EntityIndex))
         {
             // NOTE(chowie): Out of room, get a new block! Freelist
             // may not have freed any block, only used.
@@ -277,7 +273,7 @@ ChangeEntityLocation(memory_arena *Arena, world *World, u32 EntityIndex,
             Block->EntityCount = 0;
         }
 
-        Assert(Block->EntityCount < ArrayCount(Block->EntityIndex));
+        Assert(Block->EntityCount < Len(Block->EntityIndex));
         Block->EntityIndex[Block->EntityCount++] = EntityIndex;
     }
 }

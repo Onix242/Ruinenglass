@@ -83,7 +83,7 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile)
         LARGE_INTEGER FileSize;
         if(GetFileSizeEx(FileHandle, &FileSize))
         {
-            u32 FileSize32 = SafeTruncateToU32(FileSize.QuadPart); // NOTE(chowie): Not interested in loading large files for debug
+            u32 FileSize32 = SafeTruncToU32(FileSize.QuadPart); // NOTE(chowie): Not interested in loading large files for debug
             Result.Contents = VirtualAlloc(0, FileSize32, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
             if(Result.Contents)
             {
@@ -275,7 +275,7 @@ PLATFORM_READ_DATA_FROM_FILE(Win32ReadDataFromFile)
         Overlapped.Offset = (u32)((Offset >> 0) & 0xFFFFFFFF);
         Overlapped.OffsetHigh = (u32)((Offset >> 32) & 0xFFFFFFFF);
 
-        u32 FileSize32 = SafeTruncateToU32(Size);
+        u32 FileSize32 = SafeTruncToU32(Size);
 
         DWORD BytesRead;
         if(ReadFile(FileHandle->Handle, Dest, FileSize32, &BytesRead, &Overlapped) &&
@@ -301,7 +301,7 @@ PLATFORM_WRITE_DATA_TO_FILE(Win32WriteDataToFile)
         Overlapped.Offset = (u32)((Offset >> 0) & 0xFFFFFFFF);
         Overlapped.OffsetHigh = (u32)((Offset >> 32) & 0xFFFFFFFF);
 
-        u32 FileSize32 = SafeTruncateToU32(Size);
+        u32 FileSize32 = SafeTruncToU32(Size);
         
         DWORD BytesWritten;
         if(WriteFile(FileHandle->Handle, Source, FileSize32, &BytesWritten, &Overlapped) &&
@@ -380,7 +380,7 @@ Win32BuildEXEPathFileName(win32_state *State, char *FileName,
 {
     // TODO(chowie): d7sam concat? Needs to be a range though.
     CatStrings(State->OnePastLastEXEFileNameSlash - State->EXEFileName, State->EXEFileName,
-               StringLength(FileName), FileName,
+               StringLen(FileName), FileName,
                DestCount, Dest);
 }
 
@@ -432,9 +432,7 @@ Win32LoadCode(win32_loaded_code *Loaded)
         if(Loaded->DLL)
         {
             Loaded->IsValid = true;
-            for(u32 FunctionIndex = 0;
-                FunctionIndex < Loaded->FunctionCount;
-                ++FunctionIndex)
+            foreachN(u32, FunctionIndex, Loaded->FunctionCount)
             {
                 void *Function = GetProcAddress(Loaded->DLL, Loaded->FunctionNames[FunctionIndex]);
                 if(Function)
@@ -500,9 +498,7 @@ Win32LoadWASAPI(win32_loaded_sound_code *Loaded)
     HMODULE WASAPILibrary = LoadLibraryA("ole32.dll");
     if(WASAPILibrary)
     {
-        for(u32 FunctionIndex = 0;
-            FunctionIndex < ArrayCount(Win32SoundFunctionTableNames);
-            ++FunctionIndex)
+        foreach(u32, FunctionIndex, Win32SoundFunctionTableNames)
         {
             // TODO(chowie): Check for failure?
             Loaded->Functions[FunctionIndex] = GetProcAddress(WASAPILibrary, Loaded->FunctionNames[FunctionIndex]);
@@ -596,9 +592,7 @@ Win32FillSoundBuffer(win32_sound_output *SoundOutput, u32 SamplesToWrite,
     {
         s16 *SourceSample = SourceBuffer->Samples;
         s16 *DestSample = (s16 *)SoundBufferData;
-        for(u32 SampleIndex = 0;
-            SampleIndex < SamplesToWrite;
-            ++SampleIndex)
+        foreachN(u32, SampleIndex, SamplesToWrite)
         {
             *DestSample++ = *SourceSample++;
             *DestSample++ = *SourceSample++;
@@ -620,7 +614,7 @@ Win32ProcessNextWorkQueueEntry(platform_work_queue *Queue)
 
     // NOTE(chowie): Circular FIFO queue
     u32 OriginalNextEntryToRead = Queue->NextEntryToRead;
-    u32 NewNextEntryToRead = (OriginalNextEntryToRead + 1) % ArrayCount(Queue->Entries);
+    u32 NewNextEntryToRead = (OriginalNextEntryToRead + 1) % Len(Queue->Entries);
 
     // NOTE(chowie): Work to do
     if(OriginalNextEntryToRead != Queue->NextEntryToWrite)
@@ -681,9 +675,7 @@ Win32MakeWorkQueue(platform_work_queue *Queue, u32 ThreadCount, win32_thread_sta
         CreateSemaphoreExA(0, InitialCount, ThreadCount,
                            0, 0, SEMAPHORE_ALL_ACCESS);
 
-    for(u32 ThreadIndex = 0;
-        ThreadIndex < ThreadCount;
-        ++ThreadIndex)
+    foreachN(u32, ThreadIndex, ThreadCount)
     {
         win32_thread_startup *Startup = Startups + ThreadIndex;
         Startups->Queue = Queue;
@@ -701,7 +693,7 @@ internal
 PLATFORM_ADD_WORK_QUEUE_ENTRY(Win32AddWorkQueueEntry)
 {
     // NOTE(chowie): Circular FIFO queue
-    u32 NewNextEntryToWrite = (Queue->NextEntryToWrite + 1) % ArrayCount(Queue->Entries);
+    u32 NewNextEntryToWrite = (Queue->NextEntryToWrite + 1) % Len(Queue->Entries);
     // NOTE(chowie): Circular queue hasn't wrapped before writing
     Assert(NewNextEntryToWrite != Queue->NextEntryToRead);
 
@@ -1590,9 +1582,7 @@ WinMain(HINSTANCE Instance,
             // and memory usage. While dyanamic allocation hides the
             // platform's memory constraints; overflowing memory,
             // fragmentation, or needs more memory than it can provide.
-            for(u32 ArenaSizeIndex = 0;
-                ArenaSizeIndex < ArrayCount(GameMemory.E);
-                ++ArenaSizeIndex)
+            foreach(u32, ArenaSizeIndex, GameMemory.E)
             {
                 memory_arena *Arena = GameMemory.E + ArenaSizeIndex;
                 Win32State.TotalSize += Arena->Size;
@@ -1620,9 +1610,7 @@ WinMain(HINSTANCE Instance,
                 // after the fact! Repoll and change, but for now
                 // assume they all present from the beginning!
                 b32x XBoxControllerPresent[XUSER_MAX_COUNT] = {};
-                for(u32 ControllerIndex = 0;
-                    ControllerIndex < XUSER_MAX_COUNT;
-                    ++ControllerIndex)
+                foreachN(u32, ControllerIndex, XUSER_MAX_COUNT)
                 {
                     XBoxControllerPresent[ControllerIndex] = true;
                 }
@@ -1640,7 +1628,7 @@ WinMain(HINSTANCE Instance,
                 GameCode.TempFullPath = TempGameCodeDLLFullPath;
                 GameCode.LockFullPath = LockFullPath;
 
-                GameCode.FunctionCount = ArrayCount(Win32GameFunctionTableNames);
+                GameCode.FunctionCount = Len(Win32GameFunctionTableNames);
                 GameCode.FunctionNames = Win32GameFunctionTableNames;
                 GameCode.Functions = (void **)&Game;
 
@@ -1676,9 +1664,7 @@ WinMain(HINSTANCE Instance,
 
                     // NOTE(chowie): Reset HalfTransitionCount (per
                     // frame), leave EndedDown.
-                    for(u32 ButtonIndex = 0;
-                        ButtonIndex < ArrayCount(NewKeyboardController->E);
-                        ++ButtonIndex)
+                    foreach(u32, ButtonIndex, NewKeyboardController->E)
                     {
                         NewKeyboardController->E[ButtonIndex].EndedDown =
                             OldKeyboardController->E[ButtonIndex].EndedDown;
@@ -1715,9 +1701,7 @@ WinMain(HINSTANCE Instance,
                             VK_XBUTTON2,
                         };
 
-                        for(u32 ButtonIndex = 0;
-                            ButtonIndex < PlatformMouseButton_Count;
-                            ++ButtonIndex)
+                        foreachN(u32, ButtonIndex, PlatformMouseButton_Count)
                         {
                             NewInput->MouseButtons[ButtonIndex] = OldInput->MouseButtons[ButtonIndex];
                             NewInput->MouseButtons[ButtonIndex].HalfTransitionCount = 0;
@@ -1737,14 +1721,12 @@ WinMain(HINSTANCE Instance,
                         // lock-free queue - you would not have to
                         // have any mutexes?
                         DWORD MaxControllerCount = XUSER_MAX_COUNT;
-                        if(MaxControllerCount > ArrayCount(NewInput->Controllers) - 1) // NOTE(chowie): Excludes keyboard
+                        if(MaxControllerCount > Len(NewInput->Controllers) - 1) // NOTE(chowie): Excludes keyboard
                         {
-                            MaxControllerCount = ArrayCount(NewInput->Controllers) - 1;
+                            MaxControllerCount = Len(NewInput->Controllers) - 1;
                         }
 
-                        for(DWORD ControllerIndex = 0;
-                            ControllerIndex < MaxControllerCount;
-                            ++ControllerIndex)
+                        foreachN(DWORD, ControllerIndex, MaxControllerCount)
                         {
                             DWORD OurControllerIndex = ControllerIndex + 1; // NOTE(chowie): Includes keyboard
                             game_controller_input *OldController = GetController(OldInput, OurControllerIndex);
