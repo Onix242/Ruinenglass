@@ -37,8 +37,8 @@ typedef uintptr_t umm;
 
 typedef size_t memory_index;
 
-typedef float r32;
-typedef double r64;
+typedef float f32;
+typedef double f64;
 
 #define SID(string) string
 typedef u32 sid;
@@ -62,6 +62,9 @@ typedef u32 sid;
 
 #define foreachN(type, Value, array) for(type Value = 0; Value < array; ++Value)
 #define foreach(type, Value, array) for(type Value = 0; Value < Len(array); ++Value)
+
+#define Pow2N(Value) (1 << (Value))
+#define BitSet(Bit) Pow2N(Bit)
 
 inline s32
 SignOf(s32 Value)
@@ -108,9 +111,9 @@ StringLen(char *String)
 
 // TODO(chowie): Not sure if I need this to squish strings
 internal void
-CatStrings(size_t SourceACount, char *SourceA,
-           size_t SourceBCount, char *SourceB,
-           size_t DestCount, char *Dest)
+CatStrings(char *SourceA, umm SourceACount,
+           char *SourceB, umm SourceBCount,
+           char *Dest, umm DestCount)
 {
     // TODO: Dest bound checking
     foreachN(u32, Index, SourceACount)
@@ -181,6 +184,153 @@ FindMostSignificantBit(u32 Value) // NOTE(chowie): clz
     Result.Found =  _BitScanReverse((unsigned long *)&Result.Index, Value);
     return(Result);
 }
+
+//
+//
+//
+
+inline u32
+RoundF32ToU32(f32 F32)
+{
+    u32 Result = (u32)_mm_cvtss_si32(_mm_set_ss(F32));
+    return(Result);
+}
+
+inline s32
+NumDigitsLog10(u32 Value)
+{
+    u32 Result = 0;
+    if(Value < 10000000000)
+    {
+        Result = ((Value >= 1000000000) ? 10 :
+                  (Value >= 100000000) ? 9 :
+                  (Value >= 10000000) ? 8 :
+                  (Value >= 1000000) ? 7 :
+                  (Value >= 100000) ? 6 :
+                  (Value >= 10000) ? 5 :
+                  (Value >= 1000) ? 4 :
+                  (Value >= 100) ? 3 :
+                  (Value >= 10) ? 2 : 1);
+    }
+    else
+    {
+        Result = ((Value >= 1000000000000000000) ? 19 :
+                  (Value >= 100000000000000000) ? 18 :
+                  (Value >= 10000000000000000) ? 17 :
+                  (Value >= 1000000000000000) ? 16 :
+                  (Value >= 100000000000000) ? 15 :
+                  (Value >= 10000000000000) ? 14 :
+                  (Value >= 1000000000000) ? 13 :
+                  (Value >= 100000000000) ? 12 : 11);
+    }
+
+    return(Result);
+}
+
+#define TEMP_BUFFER_SIZE 512
+#define Base10 10
+global f32 Bases[] = { 1, 10, 100, 1000, 10000, 100000, 1000000 };
+// RESOURCE: https://gist.github.com/d7samurai/1d778693ba33bbd2b9d709b209cc0aba
+// TODO(chowie): Convert to using arenas!
+// TODO(chowie): This hideous functions is really convenient! Probably only use this for debugging only!
+struct d7sam_concat
+{
+    d7sam_concat(char* Source) { operator()(Source); }
+    d7sam_concat(char  Source) { operator()(Source); }
+    d7sam_concat(s32 Value) { operator()(Value); }
+    d7sam_concat(f32 Value, u32 Decimals = 2) { operator()(Value, Decimals); }
+
+    u32 CharCount = 0;
+    char TempBuffer[TEMP_BUFFER_SIZE];
+
+    d7sam_concat &
+    operator()(char* Source)
+    {
+        // TODO(chowie): How do I remove the null terminator?
+        // NOTE(chowie): Include null terminator
+        u32 Size = StringLen(Source) + 1;
+
+        foreachN(u32, CharIndex, Size)
+        {
+            TempBuffer[CharCount++] = Source[CharIndex];
+        }
+        CharCount--;
+
+        return(*this);
+    }
+
+    d7sam_concat &
+    operator()(char Source)
+    {
+        TempBuffer[CharCount++] = Source;
+        return(*this);
+    }
+
+    // TODO(chowie): Compare this vs HmH OpenGLParseNumber
+    d7sam_concat &
+    operator()(s32 Value)
+    {
+        b32x Negative = (Value < 0);
+        if(Negative)
+        {
+            Value = -Value;
+        }
+
+        CharCount += NumDigitsLog10(Value) + Negative;
+        s32 CharIndex = CharCount;
+
+        // STUDY(chowie): Process digits backwards; must flip buffer!
+        TempBuffer[CharIndex--] = 0; // STUDY(chowie): Null terminate at the end (even if buffer is full)
+        do {
+            TempBuffer[CharIndex--] = '0' + (Value % Base10); // STUDY(chowie): Value % Base -> 1st Digit
+            Value /= Base10; // STUDY(chowie): Value / Base -> Moves one digit down e.g. 123 -> 12
+        } while(Value);
+
+        if(Negative)
+        {
+            TempBuffer[CharIndex] = '-';
+        }
+
+        return(*this);
+    }
+
+    d7sam_concat &
+    operator()(f32 Value, u32 Decimals = 2)
+    {
+        b32x Negative = (Value < 0);
+        if(Negative)
+        {
+            Value = -Value;
+        }
+
+        u32 CastValue = RoundF32ToU32(Bases[Decimals]*Value);
+        u32 MaxDecimals = Max(NumDigitsLog10(CastValue), (s32)Decimals + 1);
+        CharCount += MaxDecimals + Negative + (Decimals > 0);
+        u32 CharIndex = CharCount;
+
+        TempBuffer[CharIndex--] = 0;
+        do {
+            TempBuffer[CharIndex--] = '0' + (CastValue % Base10);
+            CastValue /= Base10; // STUDY(chowie): For floats, dividing by 10 is destructive and precision may be loss because 10 isn't a power of 2!
+            if(CharIndex == (CharCount - Decimals - 1))
+            {
+                TempBuffer[CharIndex--] = '.';
+            }
+        } while(CastValue || ((CharCount - CharIndex) <= (Decimals ? Decimals + 2 : 0)));
+
+        if(Negative)
+        {
+            TempBuffer[CharIndex] = '-';
+        }
+
+        return(*this);
+    }
+
+    operator char* ()
+    {
+        return(TempBuffer);
+    }
+};
 
 //
 //
@@ -481,24 +631,284 @@ enum sym_type : u64
 
 // COULDDO(chowie): Convert birdfont .ttf to default lowercase?
 
-// COULDDO(chowie): Seems difficult, replace "global char" with "global string"?
-global char Radix40ToAscii[]        = "?0123456789_abcdefghijklmnopqrstuvwxyz"; // 38/40
-global char ConlangRadix40ToAscii[] = "?(![{,%}]?)_abcdefghijklmnopqrstuvwxyz"; // 38/40
+// IMPORTANT(chowie): API works under assumption of Radix40ToAscii[],
+// convert between custom formats e.g. ConlangRadix40ToAscii[]
+global string Radix40ToAscii        = CONSTANT_STRING("?0123456789_abcdefghijklmnopqrstuvwxyz"); // 38/40
+global string ConlangRadix40ToAscii = CONSTANT_STRING("?(![{,%}]?)_abcdefghijklmnopqrstuvwxyz"); // 38/40
+
+// IMPORTANT: TODO(chowie): Make sure the naming uses some software
+// that gives you a template when you give the name. Or use software
+// that allows a default naming convention?
+
+// RESOURCE(): 'Fallout 4's' Modular Level Design 2016 - https://gdcvault.com/play/1023202/-Fall
+// IMPORTANT TODO(chowie): Make sure CTRL + Mouse Wheel works to swap
+// variants/kits instead of a menu! CTRL + Right Click to pull up category?
+// IMPORTANT TODO(chowie): Helper markers (in editor) on objects to
+// help click them easier without needing to turn the camera!
+// COULDDO(chowie): I can't imagine scenes would be so complex that
+// we'll need to build layers?
+// NOTE(chowie): Rendering kits generally might be a pain
+// IMPORTANT(chowie): When making kits!
+// 1) Basekit, don't make a greybox kit, blank walls doesn't help
+// 2) COULDDO(chowie): Make in pieces, a corner walls instead of made
+// from 1 piece (easy to render/optimise), it could be a corner made
+// via a wall, corner, ceiling, floor for granular/variation combo.
+// However, object count explodes! Would rather swap by texture?
+//
+//                                W______________T
+//                                /             /|                 /|
+//                               /             / |                / |
+//                              /             /  |               /  |
+//            open             /             /   |              /   |
+//        ______________     H/_____________/Y   |             /    |
+//       /             /      |             |    |             |    | 
+//      /             /       |             |    |             |    |
+//     /             /        |             |    |     unround |    | round
+//    /             /         |             |    |             |    |
+//   /_____________/          |   ~         |    |M            |    |
+//        closed              |             |   /              |   /
+//                            |             |  /               |  /
+//                            |             | /                | /
+//                           X|_____________|/V                |/
+//                                 AIOU
+//
+//                                        back
+//                             _____________
+//                            |             |
+//                            |             |
+//                            |             |
+//                            |             |
+//                            |    front    |
+//                            |             |
+//                            |             |
+//                            |             |
+//                            |_____________|
+//
 
 //
-// CONLANG STRING ENCODING:
+// 3D ENVIRONMENT ART MODULAR KIT RADIX40 ENCODING:
 //
-// - 12 char max (u8)
+// - 12 char max
 //
-// _ _|_ _ _ _ _ _ _ _ _ _
+// _ _|_ _ _ _|_|_|_|_|_ _
 // 0 1 2 3 4 5 6 7 8 9 10 11
 //
-// - byte 0    = Conlang type e.g. Base 10 Numbers, Eurolang, Asialang, Calclang etc
-// - byte 1    = Particle of speech/primary tag e.g. verb, noun, place etc
-// - byte 2-11 = Data/Conlang word
+// - byte 0-1   = Basekit Name e.g. Ut (Utility = kits made of other kits, e.g. arch walls with pipes), Pi (Pipe), In (Industrial), De (Deco = MultiLevel Interior/Exterior), Bu (Building), Tu (Steam Tunnel = Vertical), Cav (Cave), Pr (Prop/Set Piece), Gl (Glue = Doorframes, blending between different kits/tiles), He (Hero = Inflexible custom set pieces)
+// - byte 2-5   = Subkit Name e.g. In Pr Basekit: Mach (Machine), Foli (Foliage), Gree (Greebles/Decals), Hole (Hole e.g. Wall with punched holes)
+// - byte 6     = Piece Type e.g. 1 (1 way corridor), 2 (hallway turn/corner), 3 (junction), 4 (junction)
+// - byte 7     = Spatial Type e.g. I (Indoor), O (Outdoor), S (Semi-enclosed/Threshold spaces e.g. porches, verandahs)
+// - byte 8     = Tiling Direction e.g. 0 (None), V (Vertically), H (Horizontally), N, S, E, W (Cardinal Directions)
+// - byte 9     = Animation Repligram Trigger e.g. 0 (None, Static/Decal), P (on proximity of player/mob entity), N (autonomously = waits for nature/time e.g. tree shrivelling), F (Fire), R (Rain), W (Water), O (Oxygen), D (Damage), I (Illness)
+// - byte 10-11 = Variant Code e.g. a1, b1, c1 etc (instead of 00, 01, 02 etc), nicer to view for artist
+//
+
+//
+// 2D/3D ENVIRONMENT STATIC TEXTURE ART (+ DESIGN ICONS AND ILLUSTRATION) RADIX40 ENCODING:
+//
+// - 12 char max
+//
+// _ _|_ _ _ _ _|_|_|_|_ _
+// 0 1 2 3 4 5 6 7 8 9 10 11
+//
+// - byte 0-1   = Texture Category/Purpose Name e.g. Li (Lighting/Sky/Astral/Weather), Ar (Architectural), La (Landscape/Flora/Aquatic/Liquids), Np (NPCs/Fauna), Pr (Props/Functional/Interactable/Misc), Dv (Technical/Dev e.g. Collision), or Meta Placement e.g. Sp (Splash), Ma (Main Menu), Lo (Logo), UI (UI Icons), HU (HUD), Wo (In-game/World), Bi (In-game/World with Billboards), Co (Concept Art)
+// - byte 2-6   = Texture Name (flexible range = start byte 3 then chop 4 bytes off end!)
+// - byte 7     = Texture Map e.g. D (Diffuse), N (Normal), S (Specular), A (AO = Ambient Occlusion)
+// - byte 8     = Shape/Decorative Type e.g. L (Large 1m block), S (Small 0.5m Block), F (FX 1m Block), X (Fletched/3-Cross Deco), T (Triangle Deco), B (Box Deco), Z (Z Deco), A (3-Axis-Aligned Deco), P (Panel/Plane/Decal/Design Icon/Illustration)
+// - byte 9     = Face Direction e.g. 0 (None), T (Tiling Texture/Seamless), V (Vertical), H (Horizontal), N, S, E, W, U, D (Cardinal Directions), B (Billboard)
+// - byte 10-11 = Variant Code e.g. a1, b1, c1 etc (instead of 00, 01, 02 etc), nicer to view for artist
+//
+// NOTE(chowie): No animation trigger for textures
+// RESOURCE(): Sub-category ideas - https://ayemteezy.github.io/minecraft-storage-organization-cheatsheet/
+//
+
+//
+// 2D/3D CHARACTER ART MODULAR KIT (+ ANIMATION FRAME/VIDEO CLIPS) RADIX40 ENCODING:
+//
+// - 12 char max
+//
+// _ _|_ _ _ _ _|_|_ _ _ _
+// 0 1 2 3 4 5 6 7 8 9 10 11
+//
+// - byte 0-1   = Character NPC/Character Class/Prop Name e.g. Bi (Birds), El (Elephant), In (Insects), Pr (Prop/Set Piece e.g. Umbrella, Cigarette) or Animation Category e.g. L (Locomotion), C (Combat), E (Interact), N (Narrative), A (NPC/AI), X (Cinematic)
+// - byte 2-6   = Character Body Part Category Name
+// - byte 7     = Animation Repligram Trigger e.g. 0 (None, Static/Decal), T (on proximity, entity/mob trigger), N (autonomously = waits for nature/time e.g. tree shrivelling), F (Fire), R (Rain), W (Water), O (Oxygen), D (Damage), I (Illness)
+// - byte 9-11  = Variant Code e.g. a01, b01, c01 etc, nicer to view for artist
+//
+
+//
+// CONLANG CORPUS RADIX40 ENCODING:
+//
+// - 12 char max
+//
+// _|_ _|_ _ _ _ _ _ _ _ _
+// 0 1 2 3 4 5 6 7 8 9 10 11
+//
+// - byte 0    = Conlang Type e.g. Base 10 Numbers, Eurolang, Asialang, Calclang etc
+// - byte 1-2  = Parts of Speech (primary tag) e.g. verb, noun, place etc
+// - byte 3-11 = Conlang Word
+//
+
+//
+// FONT RADIX40 ENCODING:
+//
+// - 12 char max
+//
+// _ _|_ _ _ _ _|_|_|_|_ _
+// 0 1 2 3 4 5 6 7 8 9 10 11
+//
+// - byte 0-1   = Font Category/Real-World Country Name e.g. cl (conlang), eu (Euro), as (Asia) etc.
+// - byte 2-6   = Typeface Name (flexible range = start byte 3 then chop 4 bytes off end!)
+// - byte 7     = Font Hierarchy e.g. H (Heading), B (Body), U (UI)
+// - byte 8     = Font Flesh e.g. S (Serif), P (San-Serif/Plain), L (Slab Serif), H (Handwritten), M (Monospaced), C (Script)
+// - byte 9     = Form Model e.g. D (Dynamic), R (Rational), G (Geometric)
+// - byte 10-11 = Variant/Weight Code e.g. a1, b1, c1 etc (instead of 00, 01, 02 etc), nicer to view for artist
+//
+// NOTE(chowie): byte 8-9 is exists to know how to match the pairing
+//
+
+//
+// SOUND BANK RADIX40 ENCODING:
+//
+// - 12 char max
+//
+// _ _|_ _ _ _ _|_|_|_|_ _
+// 0 1 2 3 4 5 6 7 8 9 10 11
+//
+// - byte 0-1   = Sound Bank Category Name e.g. We (Weather), So (Soundscape), Mu (Music Score), Mo (Movement e.g. footsteps), Do (Doors), An (Animal), Am (Ambience), Sp (Speech), Sc (Script), UI (UI), Co (Collision), Ms (Misc.)
+// - byte 2-6   = Sound Name (flexible range = start byte 3 then chop 4 bytes off end!)
+// - byte 7     = Spatial Type e.g. 0 (None/Mono), I (Indoor), O (Outdoor), S (Semi-enclosed/Threshold spaces e.g. porches, verandahs)
+// - byte 8     = Spatial Distance Type e.g. 0 (None/Mono), C (Close), R (Rear), X (Far), D (Distant), F (Front), B (Back)
+// - byte 9     = Sound Trigger e.g. 0 (None, Immediate), T (on proximity, entity/mob trigger), N (animated autonomously = waits for nature/time e.g. tree shrivelling), F (Fire), R (Rain), W (Water), O (Oxygen), D (Damage), I (Illness)
+// - byte 10-11 = Variant Code e.g. ll (ll for looped), otherwise default to a1, b1, c1 etc
+//
+// TODO(chowie): Can work with AABB and/or spherical collision, might
+// need LOD if box is large?
+// TODO(chowie): A* back to player to find if sounds should hit the
+// player or occluded.
+// NOTE(chowie): Typically you need a string bank
 //
 
 // TODO(chowie): Properly parse string
+// TODO(chowie): Autoconvert to bitset with preprocessor?
+
+// IMPORTANT(chowie): Allows mix and match words of different conlang
+// families together
+enum conlang_family_type : u8
+{
+    Conlang_Family_None,
+
+    Conlang_Family_Base10,
+    Conlang_Family_Eurolang,
+    Conlang_Family_Asialang,
+    Conlang_Family_Calclang,
+
+    Conlang_Count,
+};
+
+// NOTE(chowie): POS = Parts of Speech
+// IMPORTANT(chowie): Only __one__ primary tag can be active on a
+// word's definition. Although, words can have multiple primary tags
+// only one of its definition can be active (in text).
+enum conlang_pos_tag : u8
+{
+    Conlang_POS_Invalid, // NOTE(chowie): Word not found/incomplete (still accepts string)
+
+    Conlang_POS_N_, // Noun
+    Conlang_POS_V_, // Verb
+    Conlang_POS_Q_, // Question
+    Conlang_POS_Cl, // Classifier
+    Conlang_POS_Pt, // Particle
+    Conlang_POS_Cj, // Conjunction
+    Conlang_POS_Pc, // Place
+    Conlang_POS_Pp, // Preposition
+    Conlang_POS_Dt, // Time
+    Conlang_POS_Em, // Emotion
+    Conlang_POS_On, // Onomatpoeia
+    Conlang_POS_Nm, // Numeral
+
+    Conlang_POS_Count,
+};
+
+// TODO(chowie): Why does u64 bitflag doesn't work?
+// TODO(chowie): Try ryan fleury's tagging system
+// TODO(chowie): Run this via the game's dialogue world-state belief system like Inkle?
+// IMPORTANT(chowie): Conlangs can have as many flags/subtags, but
+// aren't encoded in the word. Must search hash table! These tags aids
+// game to evalute how to interpret a word's meaning/intent
+enum conlang_pos_flag : u64
+{
+    Conlang_POSF_Cmd = BitSet(0), // Command
+    Conlang_POSF_Pl = BitSet(1), // Plural
+    Conlang_POSF_Neg = BitSet(2), // Negation
+    Conlang_POSF_Name = BitSet(3), // Name
+    Conlang_POSF_Arch = BitSet(4), // Archiac
+
+    Conlang_POSF_Fml = BitSet(5), // Formal
+    Conlang_POSF_Col = BitSet(6), // Collective Noun
+    Conlang_POSF_Deg = BitSet(7), // Numeric Degree
+    Conlang_POSF_Perf = BitSet(8), // Performance (Encouragement)
+    Conlang_POSF_Rep = BitSet(9), // Repetition
+    Conlang_POSF_Fill = BitSet(10), // Filler words e.g. hm, um etc
+    Conlang_POSF_Soc = BitSet(11), // Social words
+    Conlang_POSF_Cau = BitSet(12), // Caution
+    Conlang_POSF_Move = BitSet(13), // Motion
+    Conlang_POSF_Rest = BitSet(14), // Rest
+    Conlang_POSF_Aff = BitSet(15), // Affect
+    Conlang_POSF_Met = BitSet(16), // Meterological
+    Conlang_POSF_Bcpl = BitSet(17), // Body Corporeal
+    Conlang_POSF_Give = BitSet(18), // Giving
+    Conlang_POSF_Att = BitSet(19), // Attention
+    Conlang_POSF_Spk = BitSet(20), // Speaking
+    Conlang_POSF_Hmm = BitSet(21), // Thinking
+    Conlang_POSF_Thx = BitSet(22), // Thanks
+    Conlang_POSF_Lik = BitSet(23), // Like
+    Conlang_POSF_Pref = BitSet(24), // Preference
+    Conlang_POSF_Fun = BitSet(25), // Amusement
+    Conlang_POSF_Comp = BitSet(26), // Competing
+    Conlang_POSF_Phr = BitSet(27), // Phrase
+    Conlang_POSF_Interj = BitSet(28), // Interjection
+
+    Conlang_POSF_Hedge = BitSet(29), // Hedging/Guessing/Predicting
+//    Conlang_POSF_Phatic = BitSet(30), //
+//    Conlang_POSF_Interr = BitSet(31), //
+//    Conlang_POSF_Fact = BitSet(32), //
+//    Conlang_POSF_Impera = BitSet(33), //
+//    Conlang_POSF_Hypo = BitSet(34), //
+//    Conlang_POSF_ = BitSet(), //
+};
+
+struct conlang_radix40
+{
+    u8 Family;
+    u8 POS;
+    string Word; // NOTE(chowie): Max 10 char
+};
+
+internal conlang_radix40
+ConlangRadix40(u8 Family, u8 POS, string Source)
+{
+    Assert(Source.Size <= 10);
+    conlang_radix40 Result = {Radix40ToAscii.Data[Family], Radix40ToAscii.Data[POS], Source};
+    return(Result);
+}
+
+internal string
+InitConlangRadix40(string Source, u8 Family = 0, u8 POS = 0)
+{
+    Assert(Source.Size != 11);
+
+    string Result = Source;
+    if(Result.Size <= 10)
+    {
+        conlang_radix40 Radix40 = ConlangRadix40(Conlang_Family_Eurolang, Conlang_POS_Nm,
+                                                 WrapZ("chrisgreen"));
+        // COULDDO(chowie): Can I simplify this step (concat to convert to string)?
+        // Hopefully this should get covered by the gap buffer?
+        Result = WrapZ(d7sam_concat((char)Radix40.Family)((char)Radix40.POS)((char *)Radix40.Word.Data));
+    }
+
+    return(Result);
+}
 
 // TODO(chowie): History chain word list + random fair shuffle?
 //    = RESOURCE(): Shuffling a POSET - https://www.youtube.com/watch?v=dr-jUCelobk
@@ -513,8 +923,8 @@ global char ConlangRadix40ToAscii[] = "?(![{,%}]?)_abcdefghijklmnopqrstuvwxyz"; 
 constexpr s32
 ToRadix40(char c)
 {
-    // NOTE(chowie): Normal order, 0-9, Special char, a-z. Optimised
-    // if statements for short-circuiting.
+    // NOTE(chowie): Normal order, 0-9, Special char, a-z.
+    // Below is optimised by most frequent/typeable on a keyboard.
 
     s32 Result = 0;
     if((c >= 'a') && (c <= 'z'))
@@ -611,7 +1021,7 @@ ToRadix40(string String)
 }
 
 internal string
-FromRadix40(u64 Radix, string Source, char *Ref = Radix40ToAscii) // sym_type Radix
+FromRadix40(u64 Radix, string Source, string Ref = Radix40ToAscii) // sym_type Radix
 {
     Assert(Radix != 0);
     Assert(Source.Size >= 15);
@@ -620,11 +1030,11 @@ FromRadix40(u64 Radix, string Source, char *Ref = Radix40ToAscii) // sym_type Ra
     *(--Result.Data) = '\0'; // TODO(chowie): Unnecessary? To remove because of pascal-style strings
     while(Radix)
     {
-        *(--Result.Data) = Ref[Radix % 40];
+        *(--Result.Data) = Ref.Data[Radix % 40];
         Radix /= 40;
     }
 
-    if(Ref == Radix40ToAscii)
+    if(Ref.Data == Radix40ToAscii.Data)
     {
         *(--Result.Data) = '$'; // COULDDO(chowie): Optional symbol indicator, "sym_"?
     }
@@ -642,13 +1052,14 @@ FromRadix40(u64 Radix, string Source, char *Ref = Radix40ToAscii) // sym_type Ra
 
 // RESOURCE(): https://web.archive.org/web/20200917053102/https://github.com/RandyGaul/cute_headers/blob/master/cute_utf.h
 // Want to convert between utf-8 and utf-16!
-// IMPORTANT(chowie): TODO(chowie): Above library is for game localization specifically!
+// IMPORTANT(chowie): TODO(chowie): Above library is unicode for game localization specifically!
 
 struct gap_buffer
 {
-    string Buffer;
+    buffer Buffer;
     umm Start;
     umm End;
+    // TODO(chowie): Include memory arena
 };
 
 internal umm
@@ -679,7 +1090,7 @@ InitGap(void)
 }
 
 internal gap_buffer *
-InitGapFromString(char *String)
+InitGapWrapZ(char *String)
 {
     gap_buffer *GapBuffer = InitGap();
     while(*String)
@@ -727,6 +1138,16 @@ InsertChar(gap_buffer *GapBuffer, umm Cursor, char C)
 {
     ShiftGapTo(GapBuffer, Cursor);
     InsertCharInternal(GapBuffer, C);
+}
+
+// COULDDO(chowie): Implement gap buffer replace string?
+// TODO(chowie): Double check replace char works
+internal void
+ReplaceChar(gap_buffer *GapBuffer, umm Cursor, char C)
+{
+    Assert(Cursor >= 0 && Cursor <= GapLen(GapBuffer));
+
+    GapBuffer->Buffer.Data[Cursor] = C;
 }
 
 internal void
@@ -811,7 +1232,9 @@ GapBufferDump(gap_buffer *GapBuffer)
                         " |GAP| ");
             OutputDebugStringA(TextBufferHeader);
         }
-        if(i >= GapBuffer->Start && i < GapBuffer->End) {
+
+        if(i >= GapBuffer->Start && i < GapBuffer->End)
+        {
             char TextBufferHeader[4];
             _snprintf_s(TextBufferHeader, sizeof(TextBufferHeader),
                         "_ ");
@@ -853,22 +1276,20 @@ CalcLines()
 //
 //
 
-// TODO(chowie): String version?
 // RESOURCE(): http://0x80.pl/notesen/2023-11-20-popcount-suggestions.html
 // IMPORTANT(chowie): Alternative to Levenshtein Distance for fuzzy match!
 internal void
-ByteHistogram(u32 *Histogram, char *s)
+ByteHistogram(u32 *Histogram, string String)
 {
-    foreachN(u32, i, StringLen(s))
+    foreachN(u32, i, String.Size)
     {
-        u32 b = s[i];
+        u32 b = String.Data[i];
         Histogram[b]++;
     }
 }
 
-#define ASCII_BYTE_HISTOGRAM_MAX 128
-
 // NOTE(chowie): Byte Diff
+#define ASCII_BYTE_HISTOGRAM_MAX 128
 internal u32
 FuzzyMatch(u32 *HistogramA, u32 *HistogramB)
 {
@@ -886,20 +1307,21 @@ FuzzyMatch(u32 *HistogramA, u32 *HistogramB)
 //
 
 // RESOURCE(): http://0x80.pl/notesen/2016-11-28-simd-strfind.html#generic-sse-avx2
+// COULDDO(chowie): Threshold? 0 = "full" match, 1 = partial match (but accept as "full")
 internal umm
-Substring(char *Source, umm n, char *Needle, umm k)
+Substring(string Source, string Needle) // NOTE(chowie): Needle can be of any size
 {
-    Assert((k > 0) && (n > 0));
+    Assert((Needle.Size > 0) && (Source.Size > 0));
 
-    __m128i First = _mm_set1_epi8(Needle[0]);
-    __m128i Last  = _mm_set1_epi8(Needle[k - 1]);
+    __m128i First = _mm_set1_epi8(Needle.Data[0]);
+    __m128i Last  = _mm_set1_epi8(Needle.Data[Needle.Size - 1]);
 
     for(umm i = 0;
-        i < n;
+        i < Source.Size;
         i += 16)
     {
-        __m128i FirstBlock = _mm_loadu_si128((__m128i *)(Source + i));
-        __m128i LastBlock  = _mm_loadu_si128((__m128i *)(Source + i + k - 1));
+        __m128i FirstBlock = _mm_loadu_si128((__m128i *)(Source.Data + i));
+        __m128i LastBlock  = _mm_loadu_si128((__m128i *)(Source.Data + i + Needle.Size - 1));
 
         __m128i EqFirst = _mm_cmpeq_epi8(First, FirstBlock);
         __m128i EqLast  = _mm_cmpeq_epi8(Last, LastBlock);
@@ -910,7 +1332,7 @@ Substring(char *Source, umm n, char *Needle, umm k)
         {
             bit_scan_result BitPos = FindLeastSignificantBit((u32)Mask);
 
-            if(memcmp(Source + i + (umm)BitPos.Index + 1, Needle + 1, k - 2) == 0)
+            if(memcmp(Source.Data + i + (umm)BitPos.Index + 1, Needle.Data + 1, Needle.Size - 2) == 0)
             {
                 return(i + (umm)BitPos.Index);
             }
@@ -926,7 +1348,7 @@ Substring(char *Source, umm n, char *Needle, umm k)
 int
 main()
 {
-    gap_buffer *Gap = InitGapFromString("Hello world");
+    gap_buffer *Gap = InitGapWrapZ("Hello world");
     GapBufferDump(Gap);
 
     InsertString(Gap, 5, " bb");
@@ -939,6 +1361,8 @@ main()
     _snprintf_s(TextBufferHeader, sizeof(TextBufferHeader),
                 "Final: \"%s\"\n", s);
     OutputDebugStringA(TextBufferHeader);
+
+    // TODO(chowie): Cut gap?
 
     free(Gap->Buffer.Data);
     free(Gap);
@@ -957,8 +1381,8 @@ main()
     //
     //
 
-    char *Word = "rebase";
-    char *Misspelled = "revase";
+    string Word = CONSTANT_STRING("rebase");
+    string Misspelled = CONSTANT_STRING("revase");
 
     u32 h1[ASCII_BYTE_HISTOGRAM_MAX] = {};
     ByteHistogram(h1, Word);
@@ -977,8 +1401,8 @@ main()
     //
     //
 
-    char *Needle = "as";
-    umm Found = Substring(Word, StringLen(Word), Needle, StringLen(Needle));
+    string Needle = CONSTANT_STRING("as");
+    umm Found = Substring(Word, Needle);
 
     char SubstringTextBuffer[128];
     _snprintf_s(SubstringTextBuffer, sizeof(SubstringTextBuffer),
@@ -991,9 +1415,11 @@ main()
 
     // NOTE(chowie): For long strings only like file paths or asset
     // naming? Otherwise, just use radix string (below)
-    u32 h0Test = Hash( "str" );
-    u32 h1Test = Hash( h0Test, "ing" );
-    u32 h2Test = Hash( "string" );
+    // COULDDO(chowie): Figure out if this hash should be used? I
+    // believe radix40 is good enough.
+    u32 h0Test = Hash("str");
+    u32 h1Test = Hash(h0Test, "ing");
+    u32 h2Test = Hash("string");
 
     Assert(h1Test == h2Test);
     CheckHash(h1Test, "string");
@@ -1025,9 +1451,34 @@ main()
     // 1) hashed strings (can't retrieve original string value)
     // 2) string interning (only accessible at runtime, not compile time e.g. for switch statements)
 
-    string RadixStringTest = WrapZ("03chrisgreen");
+    // TODO(chowie): Enforce enum Dictionary Editor vs gapbuffer Player
+    // TODO(chowie): Move to using strings as function input
+    char *ReconstructString;
+
+    b32x IsEditor = true;
+    if(IsEditor)
+    {
+        conlang_radix40 Radix40 = ConlangRadix40(Conlang_Family_Eurolang, Conlang_POS_Nm,
+                                                 WrapZ("chrisgreen"));
+        // COULDDO(chowie): Can I skip this step (concat to convert to string)?
+        // Hopefully this should get covered by the gap buffer?
+        ReconstructString = d7sam_concat((char)Radix40.Family)((char)Radix40.POS)((char *)Radix40.Word.Data);
+    }
+    else
+    {
+        ReconstructString = "27chrisgreen";
+    }
+
+    string RadixStringTest = WrapZ(ReconstructString);
+
+    // TODO(chowie):
+    // - Read in each gapbuff string/line
+    // - Convert each to u64 radix
+    // - De/Compress array of u64
+
     u64 nValue = ToRadix40(RadixStringTest);
 
+    // COULDDO(chowie): Remove "char FormatTextBuffer" and use "string FormatTextBuffer"?
     char FormatTextBuffer[15];
     string FromRadixStringTest = FromRadix40(nValue, BundleString(FormatTextBuffer, sizeof(FormatTextBuffer)));
 

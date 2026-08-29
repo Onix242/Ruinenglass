@@ -303,7 +303,7 @@ NumDigitsLog10(u32 Value)
 // STUDY(chowie): It's easier to print out to a temp buffer, to do
 // whatever you want and reconstruct the number e.g. you can take a
 // high number and pad to low number
-#define TEMP_BUFFER_SIZE 1024
+#define TEMP_BUFFER_SIZE 512
 #define Base10 10
 global f32 Bases[] = { 1, 10, 100, 1000, 10000, 100000, 1000000 };
 // RESOURCE: https://gist.github.com/d7samurai/1d778693ba33bbd2b9d709b209cc0aba
