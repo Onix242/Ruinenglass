@@ -302,7 +302,7 @@ Sin01(f32 t)
 {
     f32 Range = (Pi32*t);
     // NOTE(chowie): Sin approx (0 to Pi32) originates from Aryabhata I, around 500 AD.
-    f32 Result = ((16*Range)*(Pi32 - Range)) / (5*Sqr(Pi32) - 4*Range*(Pi32 - Range));
+    f32 Result = ((16.0f*Range)*(Pi32 - Range)) / (5.0f*Sqr(Pi32) - 4.0f*Range*(Pi32 - Range));
     return(Result);
 }
 
@@ -544,6 +544,13 @@ operator+=(v2s &A, v2s B)
     return(A);
 }
 
+inline v2s &
+operator-=(v2s &A, v2s B)
+{
+    A = A - B;
+    return(A);
+}
+
 inline v2s
 Hadamard(v2s A, v2s B)
 {
@@ -584,6 +591,13 @@ inline v2u &
 operator+=(v2u &A, v2u B)
 {
     A = A + B;
+    return(A);
+}
+
+inline v2u &
+operator-=(v2u &A, v2u B)
+{
+    A = A - B;
     return(A);
 }
 
@@ -2712,6 +2726,21 @@ inline b32x
 HasArea(rect2i A)
 {
     b32x Result = ((A.Min.x < A.Max.x) && (A.Min.y < A.Max.y));
+    return(Result);
+}
+
+inline v2s
+GetDim(rect2i Rect)
+{
+    v2s Result = Rect.Max - Rect.Min;
+    return(Result);
+}
+
+inline s32
+GetArea(rect2i A)
+{
+    v2s Dim = GetDim(A);
+    s32 Result = Dim.x*Dim.y;
     return(Result);
 }
 

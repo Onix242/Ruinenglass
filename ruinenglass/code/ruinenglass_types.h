@@ -721,7 +721,7 @@ struct buffer
 };
 typedef buffer string;
 
-#define CONSTANT_STRING(String) {sizeof(String) - 1, (u8 *)(String)}
+#define CONST_STRING(String) {sizeof(String) - 1, (u8 *)(String)}
 
 internal b32x
 BufferIsValid(buffer Source)
@@ -892,6 +892,8 @@ GetThreadID(void)
 
 //
 // RESOURCE: https://www.youtube.com/watch?v=2wio9UOFcow&list=PLT6InxK-XQvNKTyLXk6H6KKy12UYS_KDL&index=7
+// RESOURCE(): https://git.mr4th.com/mr4th-public/mr4th/src/branch/main/src/base/base_small_functions.c
+// RESOURCE(): https://git.mr4th.com/mr4th-public/mr4th/src/branch/main/src/base/base_big_functions.c
 // NOTE(chowie): Mr. 4th's Length-based Strings
 //
 

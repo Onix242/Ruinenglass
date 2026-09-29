@@ -1356,29 +1356,32 @@ enum animal_personality : u8
     Animal_Personality_Dominant,
 //    Animal_Personality_Submissive,
 
+    Animal_Personality_Domestication, // NOTE(from Callum): Connection to humanity
+    Animal_Personality_Clingy, // NOTE(from Callum): Gradual eyesight problem in the dark and so sticks to owner
+
     Animal_Personality_Count,
 };
 
 enum animal_order : u8
 {
-    Animal_Order_Eurolang,
-    Animal_Order_Asialang,
-    Animal_Order_Calclang,
+    AnimalOrder_Eurolang,
+    AnimalOrder_Asialang,
+    AnimalOrder_Calclang,
 };
 
 // NOTE(chowie): Where are you from?
 enum animal_origin : u8
 {
-    Animal_Origin_Plains,
-    Animal_Origin_Taiga,
-    Animal_Origin_Swamp,
+    AnimalOrigin_Plains,
+    AnimalOrigin_Taiga,
+    AnimalOrigin_Swamp,
 };
 
 enum animal_lang : u8
 {
-    Animal_Lang_Euro = BitSet(0),
-    Animal_Lang_Asia = BitSet(1),
-    Animal_Lang_Calc = BitSet(2),
+    AnimalLang_Euro = BitSet(0),
+    AnimalLang_Asia = BitSet(1),
+    AnimalLang_Calc = BitSet(2),
 };
 
 enum animal_occupation : u8

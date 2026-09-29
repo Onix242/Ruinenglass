@@ -176,7 +176,7 @@
     = HmH Day 333 14:01 - Orthographic to perspective camera when climbing stairs vertically would look good!
     = Non-square shapes mapping to grid e.g. circle to multiple squares on a grid?
     = [Brehensam's] shapes primatives: diagonal line drawing
-    = Splines not only for animation; to populate things e.g. roads, rivers
+    = Splines not only for animation (snakes?); to populate things e.g. roads, rivers
     = Colour linear to srgb conversion. OkLab support?
       RESOURCE(): https://youtu.be/sRL_RU7-jfc?t=123
       > Reconstruction position by camera depth and shadow mapping /

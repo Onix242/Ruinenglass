@@ -40,6 +40,101 @@ typedef size_t memory_index;
 typedef float f32;
 typedef double f64;
 
+#define enum8(type)  u8
+#define enum16(type) u16
+#define enum32(type) u32
+#define enum64(type) u64
+
+union v2s
+{
+    struct
+    {
+        s32 x, y;
+    };
+    struct
+    {
+        s32 Min, Max;
+    };
+    struct
+    {
+        s32 Width, Height;
+    };
+    struct
+    {
+        u32 a, b; // NOTE(chowie): For making equations
+    };
+    struct
+    {
+        u32 Start, End; // NOTE(chowie): For animation
+    };
+    s32 E[2];
+};
+
+union rect2i
+{
+    struct
+    {
+        v2s Min;
+        v2s Max;
+    };
+    struct
+    {
+        v2s Min;
+        v2s MaxN; // NOTE(chowie): N is negative
+    };
+    s32 E[4];
+};
+
+inline v2s
+operator+(v2s A, v2s B)
+{
+    v2s Result = {A.x + B.x, A.y + B.y};
+    return(Result);
+}
+
+inline v2s
+operator*(s32 A, v2s B)
+{
+    v2s Result = {A*B.x, A*B.y};
+    return(Result);
+}
+
+inline v2s
+operator-(v2s A, v2s B)
+{
+    v2s Result = {A.x - B.x, A.y - B.y};
+    return(Result);
+}
+
+inline v2s &
+operator+=(v2s &A, v2s B)
+{
+    A = A + B;
+    return(A);
+}
+
+inline v2s &
+operator-=(v2s &A, v2s B)
+{
+    A = A - B;
+    return(A);
+}
+
+inline v2s
+GetDim(rect2i Rect)
+{
+    v2s Result = Rect.Max - Rect.Min;
+    return(Result);
+}
+
+inline s32
+GetArea(rect2i A)
+{
+    v2s Dim = GetDim(A);
+    s32 Result = Dim.x*Dim.y;
+    return(Result);
+}
+
 #define SID(string) string
 typedef u32 sid;
 
@@ -59,6 +154,30 @@ typedef u32 sid;
 #define NotImplemented Assert(!"NotImplemented")
 
 #define Swap(type, A, B) {type Temp = (A); (A) = (B); (B) = Temp;}
+
+// RESOURCE: https://hero.handmade.network/forums/code-discussion/t/3190-field_array_implementation_union_of_fields_and_array
+// NOTE(from Blake "rationalcoder" Martin): Syntactic sugar for vector
+// likes (e.g. v2, v3). The downside is bad introspection; usually you
+// wouldn't care for this kind of struct. No need for a
+// terminator/fake field check!
+// IMPORTANT(chowie): Use when you want to say MemoryArena[3] or
+// Buttons[12] (to process them all together), and to reference
+// individually e.g. PermArena, TempArena, AudioArena
+#define Glue_(A, B) A##B
+#define Glue(A, B) Glue_(A, B)
+
+#define FIELD_ARRAY_(type, struct_definition, counter)                  \
+typedef struct struct_definition Glue(_anon_array, counter);            \
+union                                                                   \
+{                                                                       \
+    struct struct_definition;                                           \
+    type E[sizeof(Glue(_anon_array, counter)) / sizeof(type)];          \
+};                                                                      \
+static_assert(sizeof(Glue(_anon_array, counter)) % sizeof(type) == 0,   \
+              "Field Array of type '" #type "' must be a multiple of sizeof(" #type ")")\
+
+#define FIELD_ARRAY(type, struct_definition)       \
+FIELD_ARRAY_(type, struct_definition, __COUNTER__)
 
 #define foreachN(type, Value, array) for(type Value = 0; Value < array; ++Value)
 #define foreach(type, Value, array) for(type Value = 0; Value < Len(array); ++Value)
@@ -548,7 +667,7 @@ Hash(char Suffix)
     return(Result);
 }
 
-// COULDDO(chowie): I don't think suffix or infix is even possible?
+// COULDDO(chowie): Is prefix or infix function possible?
 
 // IMPORTANT(chowie): Case-insensitive hash by default
 inline u32
@@ -593,7 +712,27 @@ struct buffer
 };
 typedef buffer string;
 
-#define CONSTANT_STRING(String) {sizeof(String) - 1, (u8 *)(String)}
+#define CONST_STRING(String) {sizeof(String) - 1, (u8 *)(String)}
+
+internal b32x
+StringsAreEqual(string A, string B)
+{
+    b32x Result = true;
+    if(A.Size != B.Size)
+    {
+        Result = false;
+    }
+
+    foreachN(u32, Index, A.Size)
+    {
+        if(A.Data[Index] != B.Data[Index])
+        {
+            Result = false;
+        }
+    }
+
+    return(Result);
+}
 
 internal string
 WrapZ(char *Z)
@@ -617,298 +756,365 @@ BundleString(char *Z, umm Size)
     return(Result);
 }
 
-// RESOURCE(): https://chrisgreendevelopmentblog.wordpress.com/2024/10/03/approaches-for-efficient-unique-symbols-in-c/
-enum sym_type : u64
+internal string
+BundleString(u8 *String, umm Size)
 {
-    NIL = 0,
-    QUIT = 1,
-    SAVE = 2,
+    string Result = {};
+    Result.Size = Size;
+    Result.Data = String;
 
-    INVALID = ~0ull,
-};
-// TODO(chowie): Preprocessed strings and a generate .h file!
-// e.g. constexpr Symbol_t MA_STRENGTH = Symbol_t( 0x55aa348978 );  //Hash function calculated by preprocessor
+    return(Result);
+}
 
-// COULDDO(chowie): Convert birdfont .ttf to default lowercase?
-
-// IMPORTANT(chowie): API works under assumption of Radix40ToAscii[],
-// convert between custom formats e.g. ConlangRadix40ToAscii[]
-global string Radix40ToAscii        = CONSTANT_STRING("?0123456789_abcdefghijklmnopqrstuvwxyz"); // 38/40
-global string ConlangRadix40ToAscii = CONSTANT_STRING("?(![{,%}]?)_abcdefghijklmnopqrstuvwxyz"); // 38/40
-
-// IMPORTANT: TODO(chowie): Make sure the naming uses some software
-// that gives you a template when you give the name. Or use software
-// that allows a default naming convention?
-
-// RESOURCE(): 'Fallout 4's' Modular Level Design 2016 - https://gdcvault.com/play/1023202/-Fall
-// IMPORTANT TODO(chowie): Make sure CTRL + Mouse Wheel works to swap
-// variants/kits instead of a menu! CTRL + Right Click to pull up category?
-// IMPORTANT TODO(chowie): Helper markers (in editor) on objects to
-// help click them easier without needing to turn the camera!
-// COULDDO(chowie): I can't imagine scenes would be so complex that
-// we'll need to build layers?
-// NOTE(chowie): Rendering kits generally might be a pain
-// IMPORTANT(chowie): When making kits!
-// 1) Basekit, don't make a greybox kit, blank walls doesn't help
-// 2) COULDDO(chowie): Make in pieces, a corner walls instead of made
-// from 1 piece (easy to render/optimise), it could be a corner made
-// via a wall, corner, ceiling, floor for granular/variation combo.
-// However, object count explodes! Would rather swap by texture?
-//
-//                                W______________T
-//                                /             /|                 /|
-//                               /             / |                / |
-//                              /             /  |               /  |
-//            open             /             /   |              /   |
-//        ______________     H/_____________/Y   |             /    |
-//       /             /      |             |    |             |    | 
-//      /             /       |             |    |             |    |
-//     /             /        |             |    |     unround |    | round
-//    /             /         |             |    |             |    |
-//   /_____________/          |   ~         |    |M            |    |
-//        closed              |             |   /              |   /
-//                            |             |  /               |  /
-//                            |             | /                | /
-//                           X|_____________|/V                |/
-//                                 AIOU
-//
-//                                        back
-//                             _____________
-//                            |             |
-//                            |             |
-//                            |             |
-//                            |             |
-//                            |    front    |
-//                            |             |
-//                            |             |
-//                            |             |
-//                            |_____________|
-//
-
-//
-// 3D ENVIRONMENT ART MODULAR KIT RADIX40 ENCODING:
-//
-// - 12 char max
-//
-// _ _|_ _ _ _|_|_|_|_|_ _
-// 0 1 2 3 4 5 6 7 8 9 10 11
-//
-// - byte 0-1   = Basekit Name e.g. Ut (Utility = kits made of other kits, e.g. arch walls with pipes), Pi (Pipe), In (Industrial), De (Deco = MultiLevel Interior/Exterior), Bu (Building), Tu (Steam Tunnel = Vertical), Cav (Cave), Pr (Prop/Set Piece), Gl (Glue = Doorframes, blending between different kits/tiles), He (Hero = Inflexible custom set pieces)
-// - byte 2-5   = Subkit Name e.g. In Pr Basekit: Mach (Machine), Foli (Foliage), Gree (Greebles/Decals), Hole (Hole e.g. Wall with punched holes)
-// - byte 6     = Piece Type e.g. 1 (1 way corridor), 2 (hallway turn/corner), 3 (junction), 4 (junction)
-// - byte 7     = Spatial Type e.g. I (Indoor), O (Outdoor), S (Semi-enclosed/Threshold spaces e.g. porches, verandahs)
-// - byte 8     = Tiling Direction e.g. 0 (None), V (Vertically), H (Horizontally), N, S, E, W (Cardinal Directions)
-// - byte 9     = Animation Repligram Trigger e.g. 0 (None, Static/Decal), P (on proximity of player/mob entity), N (autonomously = waits for nature/time e.g. tree shrivelling), F (Fire), R (Rain), W (Water), O (Oxygen), D (Damage), I (Illness)
-// - byte 10-11 = Variant Code e.g. a1, b1, c1 etc (instead of 00, 01, 02 etc), nicer to view for artist
-//
-
-//
-// 2D/3D ENVIRONMENT STATIC TEXTURE ART (+ DESIGN ICONS AND ILLUSTRATION) RADIX40 ENCODING:
-//
-// - 12 char max
-//
-// _ _|_ _ _ _ _|_|_|_|_ _
-// 0 1 2 3 4 5 6 7 8 9 10 11
-//
-// - byte 0-1   = Texture Category/Purpose Name e.g. Li (Lighting/Sky/Astral/Weather), Ar (Architectural), La (Landscape/Flora/Aquatic/Liquids), Np (NPCs/Fauna), Pr (Props/Functional/Interactable/Misc), Dv (Technical/Dev e.g. Collision), or Meta Placement e.g. Sp (Splash), Ma (Main Menu), Lo (Logo), UI (UI Icons), HU (HUD), Wo (In-game/World), Bi (In-game/World with Billboards), Co (Concept Art)
-// - byte 2-6   = Texture Name (flexible range = start byte 3 then chop 4 bytes off end!)
-// - byte 7     = Texture Map e.g. D (Diffuse), N (Normal), S (Specular), A (AO = Ambient Occlusion)
-// - byte 8     = Shape/Decorative Type e.g. L (Large 1m block), S (Small 0.5m Block), F (FX 1m Block), X (Fletched/3-Cross Deco), T (Triangle Deco), B (Box Deco), Z (Z Deco), A (3-Axis-Aligned Deco), P (Panel/Plane/Decal/Design Icon/Illustration)
-// - byte 9     = Face Direction e.g. 0 (None), T (Tiling Texture/Seamless), V (Vertical), H (Horizontal), N, S, E, W, U, D (Cardinal Directions), B (Billboard)
-// - byte 10-11 = Variant Code e.g. a1, b1, c1 etc (instead of 00, 01, 02 etc), nicer to view for artist
-//
-// NOTE(chowie): No animation trigger for textures
-// RESOURCE(): Sub-category ideas - https://ayemteezy.github.io/minecraft-storage-organization-cheatsheet/
-//
-
-//
-// 2D/3D CHARACTER ART MODULAR KIT (+ ANIMATION FRAME/VIDEO CLIPS) RADIX40 ENCODING:
-//
-// - 12 char max
-//
-// _ _|_ _ _ _ _|_|_ _ _ _
-// 0 1 2 3 4 5 6 7 8 9 10 11
-//
-// - byte 0-1   = Character NPC/Character Class/Prop Name e.g. Bi (Birds), El (Elephant), In (Insects), Pr (Prop/Set Piece e.g. Umbrella, Cigarette) or Animation Category e.g. L (Locomotion), C (Combat), E (Interact), N (Narrative), A (NPC/AI), X (Cinematic)
-// - byte 2-6   = Character Body Part Category Name
-// - byte 7     = Animation Repligram Trigger e.g. 0 (None, Static/Decal), T (on proximity, entity/mob trigger), N (autonomously = waits for nature/time e.g. tree shrivelling), F (Fire), R (Rain), W (Water), O (Oxygen), D (Damage), I (Illness)
-// - byte 9-11  = Variant Code e.g. a01, b01, c01 etc, nicer to view for artist
-//
-
-//
-// CONLANG CORPUS RADIX40 ENCODING:
-//
-// - 12 char max
-//
-// _|_ _|_ _ _ _ _ _ _ _ _
-// 0 1 2 3 4 5 6 7 8 9 10 11
-//
-// - byte 0    = Conlang Type e.g. Base 10 Numbers, Eurolang, Asialang, Calclang etc
-// - byte 1-2  = Parts of Speech (primary tag) e.g. verb, noun, place etc
-// - byte 3-11 = Conlang Word
-//
-
-//
-// FONT RADIX40 ENCODING:
-//
-// - 12 char max
-//
-// _ _|_ _ _ _ _|_|_|_|_ _
-// 0 1 2 3 4 5 6 7 8 9 10 11
-//
-// - byte 0-1   = Font Category/Real-World Country Name e.g. cl (conlang), eu (Euro), as (Asia) etc.
-// - byte 2-6   = Typeface Name (flexible range = start byte 3 then chop 4 bytes off end!)
-// - byte 7     = Font Hierarchy e.g. H (Heading), B (Body), U (UI)
-// - byte 8     = Font Flesh e.g. S (Serif), P (San-Serif/Plain), L (Slab Serif), H (Handwritten), M (Monospaced), C (Script)
-// - byte 9     = Form Model e.g. D (Dynamic), R (Rational), G (Geometric)
-// - byte 10-11 = Variant/Weight Code e.g. a1, b1, c1 etc (instead of 00, 01, 02 etc), nicer to view for artist
-//
-// NOTE(chowie): byte 8-9 is exists to know how to match the pairing
-//
-
-//
-// SOUND BANK RADIX40 ENCODING:
-//
-// - 12 char max
-//
-// _ _|_ _ _ _ _|_|_|_|_ _
-// 0 1 2 3 4 5 6 7 8 9 10 11
-//
-// - byte 0-1   = Sound Bank Category Name e.g. We (Weather), So (Soundscape), Mu (Music Score), Mo (Movement e.g. footsteps), Do (Doors), An (Animal), Am (Ambience), Sp (Speech), Sc (Script), UI (UI), Co (Collision), Ms (Misc.)
-// - byte 2-6   = Sound Name (flexible range = start byte 3 then chop 4 bytes off end!)
-// - byte 7     = Spatial Type e.g. 0 (None/Mono), I (Indoor), O (Outdoor), S (Semi-enclosed/Threshold spaces e.g. porches, verandahs)
-// - byte 8     = Spatial Distance Type e.g. 0 (None/Mono), C (Close), R (Rear), X (Far), D (Distant), F (Front), B (Back)
-// - byte 9     = Sound Trigger e.g. 0 (None, Immediate), T (on proximity, entity/mob trigger), N (animated autonomously = waits for nature/time e.g. tree shrivelling), F (Fire), R (Rain), W (Water), O (Oxygen), D (Damage), I (Illness)
-// - byte 10-11 = Variant Code e.g. ll (ll for looped), otherwise default to a1, b1, c1 etc
-//
-// TODO(chowie): Can work with AABB and/or spherical collision, might
-// need LOD if box is large?
-// TODO(chowie): A* back to player to find if sounds should hit the
-// player or occluded.
-// NOTE(chowie): Typically you need a string bank
-//
-
-// TODO(chowie): Properly parse string
-// TODO(chowie): Autoconvert to bitset with preprocessor?
-
-// IMPORTANT(chowie): Allows mix and match words of different conlang
-// families together
-enum conlang_family_type : u8
+internal b32x
+IsSlash(u8 Char)
 {
-    Conlang_Family_None,
+    b32x Result = (Char == '/' || Char == '\\');
+    return(Result);
+}
 
-    Conlang_Family_Base10,
-    Conlang_Family_Eurolang,
-    Conlang_Family_Asialang,
-    Conlang_Family_Calclang,
-
-    Conlang_Count,
-};
-
-// NOTE(chowie): POS = Parts of Speech
-// IMPORTANT(chowie): Only __one__ primary tag can be active on a
-// word's definition. Although, words can have multiple primary tags
-// only one of its definition can be active (in text).
-enum conlang_pos_tag : u8
+internal b32x
+IsDot(u8 Char)
 {
-    Conlang_POS_Invalid, // NOTE(chowie): Word not found/incomplete (still accepts string)
+    b32x Result = (Char == '.');
+    return(Result);
+}
 
-    Conlang_POS_N_, // Noun
-    Conlang_POS_V_, // Verb
-    Conlang_POS_Q_, // Question
-    Conlang_POS_Cl, // Classifier
-    Conlang_POS_Pt, // Particle
-    Conlang_POS_Cj, // Conjunction
-    Conlang_POS_Pc, // Place
-    Conlang_POS_Pp, // Preposition
-    Conlang_POS_Dt, // Time
-    Conlang_POS_Em, // Emotion
-    Conlang_POS_On, // Onomatpoeia
-    Conlang_POS_Nm, // Numeral
-
-    Conlang_POS_Count,
-};
-
-// TODO(chowie): Why does u64 bitflag doesn't work?
-// TODO(chowie): Try ryan fleury's tagging system
-// TODO(chowie): Run this via the game's dialogue world-state belief system like Inkle?
-// IMPORTANT(chowie): Conlangs can have as many flags/subtags, but
-// aren't encoded in the word. Must search hash table! These tags aids
-// game to evalute how to interpret a word's meaning/intent
-enum conlang_pos_flag : u64
+internal b32x
+IsRadix40SymIndicator(u8 Char)
 {
-    Conlang_POSF_Cmd = BitSet(0), // Command
-    Conlang_POSF_Pl = BitSet(1), // Plural
-    Conlang_POSF_Neg = BitSet(2), // Negation
-    Conlang_POSF_Name = BitSet(3), // Name
-    Conlang_POSF_Arch = BitSet(4), // Archiac
-
-    Conlang_POSF_Fml = BitSet(5), // Formal
-    Conlang_POSF_Col = BitSet(6), // Collective Noun
-    Conlang_POSF_Deg = BitSet(7), // Numeric Degree
-    Conlang_POSF_Perf = BitSet(8), // Performance (Encouragement)
-    Conlang_POSF_Rep = BitSet(9), // Repetition
-    Conlang_POSF_Fill = BitSet(10), // Filler words e.g. hm, um etc
-    Conlang_POSF_Soc = BitSet(11), // Social words
-    Conlang_POSF_Cau = BitSet(12), // Caution
-    Conlang_POSF_Move = BitSet(13), // Motion
-    Conlang_POSF_Rest = BitSet(14), // Rest
-    Conlang_POSF_Aff = BitSet(15), // Affect
-    Conlang_POSF_Met = BitSet(16), // Meterological
-    Conlang_POSF_Bcpl = BitSet(17), // Body Corporeal
-    Conlang_POSF_Give = BitSet(18), // Giving
-    Conlang_POSF_Att = BitSet(19), // Attention
-    Conlang_POSF_Spk = BitSet(20), // Speaking
-    Conlang_POSF_Hmm = BitSet(21), // Thinking
-    Conlang_POSF_Thx = BitSet(22), // Thanks
-    Conlang_POSF_Lik = BitSet(23), // Like
-    Conlang_POSF_Pref = BitSet(24), // Preference
-    Conlang_POSF_Fun = BitSet(25), // Amusement
-    Conlang_POSF_Comp = BitSet(26), // Competing
-    Conlang_POSF_Phr = BitSet(27), // Phrase
-    Conlang_POSF_Interj = BitSet(28), // Interjection
-
-    Conlang_POSF_Hedge = BitSet(29), // Hedging/Guessing/Predicting
-//    Conlang_POSF_Phatic = BitSet(30), //
-//    Conlang_POSF_Interr = BitSet(31), //
-//    Conlang_POSF_Fact = BitSet(32), //
-//    Conlang_POSF_Impera = BitSet(33), //
-//    Conlang_POSF_Hypo = BitSet(34), //
-//    Conlang_POSF_ = BitSet(), //
-};
-
-struct conlang_radix40
-{
-    u8 Family;
-    u8 POS;
-    string Word; // NOTE(chowie): Max 10 char
-};
-
-internal conlang_radix40
-ConlangRadix40(u8 Family, u8 POS, string Source)
-{
-    Assert(Source.Size <= 10);
-    conlang_radix40 Result = {Radix40ToAscii.Data[Family], Radix40ToAscii.Data[POS], Source};
+    b32x Result = (Char == '$');
     return(Result);
 }
 
 internal string
-InitConlangRadix40(string Source, u8 Family = 0, u8 POS = 0)
+ChopLastSlash(string String)
 {
-    Assert(Source.Size != 11);
-
-    string Result = Source;
-    if(Result.Size <= 10)
+    string Result = String;
+    if(String.Size > 0)
     {
-        conlang_radix40 Radix40 = ConlangRadix40(Conlang_Family_Eurolang, Conlang_POS_Nm,
-                                                 WrapZ("chrisgreen"));
-        // COULDDO(chowie): Can I simplify this step (concat to convert to string)?
-        // Hopefully this should get covered by the gap buffer?
-        Result = WrapZ(d7sam_concat((char)Radix40.Family)((char)Radix40.POS)((char *)Radix40.Word.Data));
+        // NOTE(chowie): Position is one past last slash
+        umm Position = String.Size;
+        for(s64 PositionIndex = String.Size - 1;
+            PositionIndex >= 0;
+            --PositionIndex)
+        {
+            if(IsSlash(String.Data[PositionIndex]))
+            {
+                Position = PositionIndex;
+                break;
+            }
+        }
+
+        // NOTE(chowie): Chop resulting string
+        Result.Size = Position;
     }
 
     return(Result);
 }
+
+internal string
+ChopLastDot(string String)
+{
+    string Result = String;
+    if(String.Size > 0)
+    {
+        // NOTE(chowie): Position is one past last slash
+        umm Position = String.Size;
+        for(umm PositionIndex = String.Size - 1;
+            PositionIndex >= 0;
+            --PositionIndex)
+        {
+            if(IsDot(String.Data[PositionIndex]))
+            {
+                Position = PositionIndex;
+                break;
+            }
+        }
+
+        // NOTE(chowie): Chop resulting string
+        Result.Size = Position;
+    }
+
+    return(Result);
+}
+
+// NOTE(chowie): SkipLastSlash should mirror ChopLastSlash
+internal string
+SkipLastSlash(string String)
+{
+    string Result = String;
+    if(String.Size > 0)
+    {
+        // NOTE(chowie): Position is one past last slash
+        umm PositionIndex = String.Size - 1;
+        for(;
+            PositionIndex >= 0;
+            --PositionIndex)
+        {
+            if(IsSlash(String.Data[PositionIndex]))
+            {
+                break;
+            }
+        }
+
+        Result.Data = String.Data + PositionIndex;
+        Result.Size = String.Size - PositionIndex;
+    }
+
+    return(Result);
+}
+
+internal string
+SkipLastDot(string String)
+{
+    string Result = String;
+    if(String.Size > 0)
+    {
+        // NOTE(chowie): Position is one past last slash
+        umm PositionIndex = String.Size - 1;
+        for(;
+            PositionIndex >= 0;
+            --PositionIndex)
+        {
+            if(IsDot(String.Data[PositionIndex]))
+            {
+                break;
+            }
+        }
+
+        Result.Data = String.Data + PositionIndex;
+        Result.Size = String.Size - PositionIndex;
+    }
+
+    return(Result);
+}
+
+// NOTE(chowie): Radix40 '$'
+internal string
+SkipLastRadix40SymIndicator(string String)
+{
+    string Result = String;
+    if(String.Size > 0)
+    {
+        // NOTE(chowie): Position is one past last slash
+        umm PositionIndex = 0;
+        for(;
+            PositionIndex < String.Size;
+            PositionIndex++)
+        {
+            if(IsRadix40SymIndicator(String.Data[PositionIndex]))
+            {
+                break;
+            }
+        }
+
+        String.Data = String.Data + PositionIndex;
+    }
+
+    return(Result);
+}
+
+// TODO(chowie): This is wrong, I think SizeRemaining needs to go
+internal string
+Chop(string String, umm Amount)
+{
+    umm ClampedAmount = Min(Amount, String.Size);
+    umm SizeRemaining = String.Size - ClampedAmount;
+
+    string Result = {};
+    Result.Size = SizeRemaining;
+    Result.Data = String.Data;
+
+    return(Result);
+}
+
+internal string
+Skip(string String, umm Amount)
+{
+    umm ClampedAmount = Min(Amount, String.Size);
+    umm SizeRemaining = String.Size - ClampedAmount;
+
+    string Result = {};
+    Result.Size = SizeRemaining;
+    Result.Data = String.Data + ClampedAmount;
+
+    return(Result);
+}
+
+// STUDY(chowie): Opl = one past last
+internal string
+SubstrOpl(string String, umm First, umm Opl)
+{
+    umm ClampedOpl = Min(Opl, String.Size);
+    umm ClampedFirst = Min(First, ClampedOpl);
+
+    string Result = {};
+    Result.Size = ClampedOpl - ClampedFirst;
+    Result.Data = String.Data + ClampedFirst;
+
+    return(Result);
+}
+
+internal string
+SubstrSize(string String, umm First, umm Size)
+{
+    string Result = SubstrOpl(String, First, First + Size);
+
+    return(Result);
+}
+
+internal string
+Range(u8 *First, u8 *Opl)
+{
+    string Result = {};
+
+    Result.Size = (umm)(Opl - First);
+    Result.Data = First;
+
+    return(Result);
+}
+
+internal string
+Prefix(string String, umm Size)
+{
+    string Result = {};
+    Result.Size = Min(Size, String.Size);
+    Result.Data = String.Data;
+
+    return(Result);
+}
+
+internal string
+Postfix(string String, umm Size)
+{
+    string Result = {};
+
+    umm ClampedSize = Min(Size, String.Size);
+    umm SkipTo = String.Size - ClampedSize;
+
+    Result.Size = ClampedSize;
+    Result.Data = String.Data + SkipTo;
+
+    return(Result);
+}
+
+internal string
+StripSymIndicatorRadix40IfPossible(string Source)
+{
+    if(IsRadix40SymIndicator(Source.Data[0]))
+    {
+        Source = Skip(Source, 1);
+    }
+
+    return(Source);
+}
+
+
+//
+//
+//
+
+struct memory_arena
+{
+    umm Size;
+    u8 *Base;
+    umm Used;
+};
+
+internal void
+InitArena(memory_arena *Arena, umm Size, u8 *Base)
+{
+    Arena->Size = Size;
+    Arena->Base = Base;
+    Arena->Used = 0;
+}
+
+#define PushStruct(Arena, type) (type *)PushSize_(Arena, sizeof(type))
+#define PushArray(Arena, Count, type) (type *)PushSize_(Arena, (Count)*sizeof(type))
+inline void *
+PushSize_(memory_arena *Arena, umm Size)
+{
+    Assert((Arena->Used + Size) <= Arena->Size);
+
+    void *Result = Arena->Base + Arena->Used;
+    Arena->Used += Size;
+
+    return(Result);
+}
+
+internal string
+PushString(memory_arena *Arena, string String)
+{
+    string Result = {0};
+    Result.Data = PushArray(Arena, String.Size + 1, u8);
+    Result.Size = String.Size;
+
+    memcpy(Result.Data, String.Data, String.Size);
+    Result.Data[Result.Size] = 0;
+
+    return(Result);
+}
+
+internal string *
+StringCreateFromStringZ(memory_arena *Arena, u8 *StringZ, umm Count)
+{
+    string *String = PushStruct(Arena, string);
+    
+    String->Data = PushArray(Arena, Count, u8);
+    String->Size = Count;
+
+    memcpy(String->Data, StringZ, (umm)Count);
+
+    return(String);
+}
+
+// inline string
+// PushString(memory_arena *Arena, string Source)
+// {
+//     u8 *Dest = (u8 *)PushSize_(Arena, Source.Size);
+//     foreachN(u32, CharIndex, Source.Size)
+//     {
+//         Dest[CharIndex] = Source.Data[CharIndex];
+//     }
+//     Dest[Source.Size] = 0;
+// 
+//     string Result = {Source.Size, Dest};
+//     return(Result);
+// }
+
+inline void
+ClearArena(memory_arena *Arena)
+{
+    InitArena(Arena, Arena->Size, Arena->Base);
+}
+
+//
+//
+//
+
+inline b32x
+IsUpper(u8 c)
+{
+    b32x Result = (c >= 'A') && (c <= 'Z');
+    return(Result);
+}
+
+internal void
+ToLower(string String)
+{
+    foreachN(umm, j, String.Size)
+    {
+        if(IsUpper(String.Data[j]))
+        {
+            String.Data[j] ^= (1 << 5);
+        }
+    }
+}
+
+//
+//
+//
 
 // TODO(chowie): History chain word list + random fair shuffle?
 //    = RESOURCE(): Shuffling a POSET - https://www.youtube.com/watch?v=dr-jUCelobk
@@ -920,8 +1126,18 @@ InitConlangRadix40(string Source, u8 Family = 0, u8 POS = 0)
 //        ~"u  |= 1; return u ^ (u >> 1);" = "return u ^ rotl(u,1)" // 3u
 //        ~"u <<= 1; return u ^ (u >> 1);" = "return u ^ rotl(u,1) ^ 1" // 3u + 1
 
-constexpr s32
-ToRadix40(char c)
+// COULDDO(chowie): Convert birdfont .ttf to default lowercase letters?
+
+// TODO(chowie): Add "@"?
+// IMPORTANT(chowie): API works under assumption of Radix40ToAscii[],
+// convert between custom formats e.g. ConlangRadix40ToAscii[]
+global string Radix40ToAscii        = CONST_STRING("?0123456789_.abcdefghijklmnopqrstuvwxyz"); // 39/40
+global string ConlangRadix40ToAscii = CONST_STRING("?(![{,%}]?)_.abcdefghijklmnopqrstuvwxyz"); // 39/40
+static_assert(sizeof(Radix40ToAscii) == sizeof(ConlangRadix40ToAscii));
+
+// NOTE(chowie): Case-insenstive hash by default
+internal s32
+ToRadix40(u8 c)
 {
     // NOTE(chowie): Normal order, 0-9, Special char, a-z.
     // Below is optimised by most frequent/typeable on a keyboard.
@@ -929,11 +1145,11 @@ ToRadix40(char c)
     s32 Result = 0;
     if((c >= 'a') && (c <= 'z'))
     {
-        Result = 1 + 10 + 1 + (c - 'a');
+        Result = 1 + 11 + 1 + (c - 'a');
     }
-    else if((c >= 'A') && (c <= 'Z'))
+    else if((c >= 'A') && (c <= 'Z')) // NOTE(chowie): Poor man's ToLower, implicit
     {
-        Result = 1 + 10 + 1 + (c - 'A');
+        Result = 1 + 11 + 1 + (c - 'A');
     }
     else if(( c >= '0' ) && ( c <= '9' ))
     {
@@ -941,7 +1157,7 @@ ToRadix40(char c)
     }
     else
     {
-        // NOTE(chowie): Offsets 1 + 10
+        // NOTE(chowie): Mirrors position of numbers in array, offsets 1 + 11.
         switch(c)
         {
             case '(':
@@ -995,8 +1211,14 @@ ToRadix40(char c)
             } break;
 
             case '_':
+            case ' ':
             {
                 Result = 1 + 10;
+            } break;
+
+            case '.':
+            {
+                Result = 1 + 11;
             } break;
         };
     }
@@ -1020,27 +1242,424 @@ ToRadix40(string String)
     return(Result);
 }
 
-internal string
-FromRadix40(u64 Radix, string Source, string Ref = Radix40ToAscii) // sym_type Radix
+// COULDDO(chowie): Is prefix or infix function possible?
+inline u64
+ToRadix40(u64 Prefix, string Suffix)
 {
-    Assert(Radix != 0);
-    Assert(Source.Size >= 15);
+    u64 Result = Prefix;
+    for(u8 *Scan = Suffix.Data;
+        *Scan;
+        Scan++)
+    {
+        Result = 40*Result + ToRadix40(*Scan);
+    }
 
-    string Result = Source;
+    return(Result);
+}
+
+internal u64
+ToRadix40Range(string String, umm Start = 0, umm End = 0)
+{
+    Assert(End <= 12);
+    Assert(AbsDifferenceClampAboveZero((u32)Start, (u32)End) <= 12);
+
+    u64 Result = 0;
+
+    umm Count = 0 + Start;
+    for(u8 *Scan = String.Data + Start;
+        *Scan && (Count < End);
+        Scan++, Count++)
+    {
+        Result = 40*Result + ToRadix40(*Scan);
+    }
+
+    return(Result);
+}
+
+internal u64
+ToRadix40Chop(string String, umm End)
+{
+    Assert(End <= 12);
+
+    u64 Result = 0;
+
+    umm Count = 0;
+    for(u8 *Scan = String.Data;
+        *Scan && (Count < End);
+        Scan++, Count++)
+    {
+        Result = 40*Result + ToRadix40(*Scan);
+    }
+
+    return(Result);
+}
+
+internal u64
+ToRadix40Skip(string String, umm Start)
+{
+    Assert(String.Size <= 12);
+    Assert(Start <= String.Size);
+
+    u64 Result = 0;
+    for(u8 *Scan = String.Data + Start;
+        *Scan;
+        Scan++)
+    {
+        Result = 40*Result + ToRadix40(*Scan);
+    }
+
+    return(Result);
+}
+
+internal string
+FromRadix40(memory_arena *Arena, u64 Radix, b32x SymIndicator = false, string Ref = Radix40ToAscii)
+{
+    string Result = {};
+    Result.Data = PushArray(Arena, 12, u8);
+
     *(--Result.Data) = '\0'; // TODO(chowie): Unnecessary? To remove because of pascal-style strings
     while(Radix)
     {
         *(--Result.Data) = Ref.Data[Radix % 40];
         Radix /= 40;
+        Result.Size++;
     }
 
-    if(Ref.Data == Radix40ToAscii.Data)
+    if(SymIndicator && (Ref.Data == Radix40ToAscii.Data))
     {
         *(--Result.Data) = '$'; // COULDDO(chowie): Optional symbol indicator, "sym_"?
+        Result.Size++;
     }
 
     return(Result);
 }
+
+// NOTE(chowie): Appends chars at end of string like djb2 hash()
+// COULDDO(chowie): Improve adding a single character without fromradix40()?
+inline u64
+ToRadix40Sing(u64 Prefix, u64 Suffix)
+{
+    u64 Result = Prefix;
+    Result = 40*Result + Suffix;
+
+    return(Result);
+}
+// TODO(chowie): Slow-path, converts with from. Check if this is wrong!
+inline u64
+ToRadix40Mult(memory_arena *Arena, u64 Prefix, u64 Suffix)
+{
+    string FromRadixStringTest = FromRadix40(Arena, Suffix, false);
+    u64 nValue = ToRadix40(Prefix, FromRadixStringTest);
+
+    return(nValue);
+}
+
+// TODO(chowie): Autoconvert to bitset with preprocessor?
+
+// IMPORTANT(chowie): Allows mix and match words of different conlang
+// families together
+enum confamily_mode : u8
+{
+    ConFamily_InDev,
+
+    ConFamily_Euro,
+    ConFamily_Asia,
+    ConFamily_Calc,
+    ConFamily_Base10,
+
+    ConFamilyCount,
+};
+
+// NOTE(chowie): POS = Parts of Speech
+// IMPORTANT(chowie): Only __one__ primary tag can be active on a
+// word's definition. Although, words can have multiple primary tags
+// only one of its definition can be active (in text).
+enum conpos_tag : u8
+{
+    ConPOS_Invalid, // NOTE(chowie): Word not found/incomplete (still accepts string)
+
+    ConPOS_Nn, // Noun
+    ConPOS_Vb, // Verb
+    ConPOS_Qn, // Question
+    ConPOS_Cl, // Classifier
+    ConPOS_Pt, // Particle
+    ConPOS_Cj, // Conjunction
+    ConPOS_Pc, // Place
+    ConPOS_Pp, // Preposition
+    ConPOS_Dt, // Time
+    ConPOS_Em, // Emotion
+    ConPOS_On, // Onomatpoeia
+    ConPOS_Nm, // Numeral
+
+    ConPOS_Count,
+};
+
+// TODO(chowie): Not sure if I'd rather this to keep the enum and type
+// last two characters in? Constexpr?
+#define Stringify(x) #x
+#define LAST_TWO_CHARS(x) (&Stringify(x)[sizeof(Stringify(x)) - 3])
+
+// STUDY(chowie): This is called compile-time (string) hash. Notably, this needs a loop!
+// RESOURCE(): https://craigulmer.com/hobbies/index.cgi?id=160116_Verifying_C_CompileTime_Hashing
+// RESOURCE(): https://chrisgreendevelopmentblog.wordpress.com/2024/10/03/approaches-for-efficient-unique-symbols-in-c/
+#define $ConPos_Nn 0x42a // ToRadix40(CONST_STRING(LAST_TWO_CHARS(ConPos_Nn)))
+#define $ConPos_Vb 0x55e // ToRadix40(CONST_STRING(LAST_TWO_CHARS(ConPos_Vb)))
+#define $ConPos_Qn 0x4a2 // ToRadix40(CONST_STRING(LAST_TWO_CHARS(ConPos_Qn)))
+
+// TODO(chowie): Preprocessed strings and a generate .h file!
+// e.g. constexpr Symbol_t MA_STRENGTH = Symbol_t( 0x55aa348978 );  //Hash function calculated by preprocessor
+
+// TODO(chowie): Why does u64 bitflag doesn't work?
+// TODO(chowie): Try ryan fleury's tagging system
+// TODO(chowie): Run this via the game's dialogue world-state belief system like Inkle?
+// IMPORTANT(chowie): Conlangs can have as many flags/subtags, but
+// aren't encoded in the word. Must search hash table! These tags aids
+// game to evalute how to interpret a word's meaning/intent
+enum conpos_flags
+{
+    ConPOSF_Cmd = BitSet(0), // Command
+    ConPOSF_Pl = BitSet(1), // Plural
+    ConPOSF_Neg = BitSet(2), // Negation
+    ConPOSF_Name = BitSet(3), // Name
+
+    ConPOSF_Fml = BitSet(4), // Formal
+    ConPOSF_Col = BitSet(5), // Collective Noun
+    ConPOSF_Deg = BitSet(6), // Numeric Degree
+    ConPOSF_Perf = BitSet(7), // Performance (Encouragement)
+    ConPOSF_Rep = BitSet(8), // Repetition
+    ConPOSF_Fill = BitSet(9), // Filler words e.g. hm, um etc
+    ConPOSF_Soc = BitSet(10), // Social words
+    ConPOSF_Cau = BitSet(11), // Caution
+    ConPOSF_Move = BitSet(12), // Motion
+    ConPOSF_Rest = BitSet(13), // Rest
+    ConPOSF_Aff = BitSet(14), // Affect
+    ConPOSF_Met = BitSet(15), // Meterological
+    ConPOSF_Bcpl = BitSet(16), // Body Corporeal
+    ConPOSF_Give = BitSet(17), // Giving
+    ConPOSF_Att = BitSet(18), // Attention
+    ConPOSF_Spk = BitSet(19), // Speaking
+    ConPOSF_Hmm = BitSet(20), // Thinking
+    ConPOSF_Thx = BitSet(21), // Thanks
+    ConPOSF_Lik = BitSet(22), // Like
+    ConPOSF_Pref = BitSet(23), // Preference
+    ConPOSF_Fun = BitSet(24), // Amusement
+    ConPOSF_Comp = BitSet(25), // Competing
+    ConPOSF_Phr = BitSet(26), // Phrase
+    ConPOSF_Interj = BitSet(27), // Interjection
+
+    ConPOSF_Hedge = BitSet(28), // Hedging/Guessing/Predicting
+//    Conlang_POSF_Phatic = BitSet(30), //
+//    Conlang_POSF_Interr = BitSet(31), //
+//    Conlang_POSF_Fact = BitSet(32), //
+//    Conlang_POSF_Impera = BitSet(33), //
+//    Conlang_POSF_Hypo = BitSet(34), //
+//    Conlang_POSF_ = BitSet(), //
+};
+
+struct conword_name
+{
+    enum8(confamily_mode) Family;
+    string POS;
+    string Word;
+};
+
+internal u64
+ConwordNameToRadix40(confamily_mode Family, string POS, string Conword)
+{
+    u64 Result = 0;
+    if(Conword.Size <= 10)
+    {
+        // NOTE(chowie): 'Family + 1' to support enum starting at 0
+        conword_name Name = {Radix40ToAscii.Data[Family + 1], POS, Conword};
+        // COULDDO(chowie): Can I simplify this step (concat to convert to string)?
+        // Hopefully this should get covered by the gap buffer?
+        // COULDDO(chowie): Unfortunate I have to convert to char
+        // inorder to concat, then back to string. Simplify?
+        string ReconstructString = WrapZ(d7sam_concat((char)Name.Family)((char *)Name.POS.Data)((char *)Name.Word.Data));
+        Result = ToRadix40(ReconstructString);
+    }
+    else
+    {
+        // TODO(chowie): Log error
+    }
+
+    return(Result);
+}
+
+//
+// File Formats
+//
+
+// IMPORTANT: TODO(chowie): Make sure the naming uses some software
+// that gives you a template when you give the name. Or use software
+// that allows a default naming convention?
+
+//
+// 3D ENVIRONMENT ART MODULAR KIT RADIX40 ENCODING:
+//
+// - 12 char max
+//
+// _ _|_ _ _ _|_|_|_|_|_ _
+// 0 1 2 3 4 5 6 7 8 9 10 11
+//
+// - byte 0-1   = Basekit Name e.g. Ut (Utility = kits made of other kits, e.g. arch walls with pipes), Pi (Pipe), In (Industrial), De (Deco = MultiLevel Interior/Exterior), Bu (Building), Tu (Steam Tunnel = Vertical), Cav (Cave), Pr (Prop/Set Piece), Gl (Glue = Doorframes, blending between different kits/tiles), He (Hero = Inflexible custom set pieces)
+// - byte 2-5   = Subkit Name e.g. In Pr Basekit: Mach (Machine), Foli (Foliage), Gree (Greebles/Decals), Hole (Hole e.g. Wall with punched holes)
+// - byte 6     = Piece Type e.g. 1 (1 way corridor), 2 (hallway turn/corner), 3 (junction), 4 (junction)
+// - byte 7     = Spatial Type e.g. I (Indoor), O (Outdoor), S (Semi-enclosed/Threshold spaces e.g. porches, verandahs)
+// - byte 8     = Tiling Direction e.g. 0 (None), V (Vertically), H (Horizontally), N, S, E, W (Cardinal Directions)
+// - byte 9     = Animation Repligram Trigger e.g. 0 (None, Static/Decal), P (on proximity of player/mob entity), N (autonomously = waits for nature/time e.g. tree shrivelling), F (Fire), R (Rain), W (Water), O (Oxygen), D (Damage), I (Illness)
+// - byte 10-11 = Variant Code e.g. a1, b1, c1 etc (instead of 00, 01, 02 etc), nicer to view for artist
+//
+
+//
+// 2D/3D ENVIRONMENT STATIC TEXTURE ART (+ DESIGN ICONS AND ILLUSTRATION) RADIX40 ENCODING:
+//
+// - 12 char max
+//
+// _ _|_ _ _ _ _|_|_|_|_ _
+// 0 1 2 3 4 5 6 7 8 9 10 11
+//
+// - byte 0-1   = Texture Category/Purpose Name e.g. Li (Lighting/Sky/Astral/Weather), Ar (Architectural), La (Landscape/Flora/Aquatic/Liquids), Np (NPCs/Fauna), Pr (Props/Functional/Interactable/Misc), Dv (Technical/Dev e.g. Collision), or Meta Placement e.g. Sp (Splash), Ma (Main Menu), Lo (Logo), UI (UI Icons), HU (HUD), Wo (In-game/World), Bi (In-game/World with Billboards), Co (Concept Art)
+// - byte 2-6   = Texture Name (flexible range = start byte 3 then chop 4 bytes off end!)
+// - byte 7     = Texture Map e.g. D (Diffuse), N (Normal), S (Specular), A (AO = Ambient Occlusion)
+// - byte 8     = Shape/Decorative Type e.g. L (Large 1m block), S (Small 0.5m Block), F (FX 1m Block), X (Fletched/3-Cross Deco), T (Triangle Deco), B (Box Deco), Z (Z Deco), A (3-Axis-Aligned Deco), P (Panel/Plane/Decal/Design Icon/Illustration)
+// - byte 9     = Face Direction e.g. 0 (None), T (Tiling Texture/Seamless), V (Vertical), H (Horizontal), N, S, E, W, U, D (Cardinal Directions), B (Billboard)
+// - byte 10-11 = Variant Code e.g. a1, b1, c1 etc (instead of 00, 01, 02 etc), nicer to view for artist
+//
+// NOTE(chowie): No animation trigger for textures
+// RESOURCE(): Sub-category ideas - https://ayemteezy.github.io/minecraft-storage-organization-cheatsheet/
+//
+
+//
+// 2D/3D CHARACTER ART MODULAR KIT (+ ANIMATION FRAME/VIDEO CLIPS) RADIX40 ENCODING:
+//
+// - 12 char max
+//
+// _ _|_ _ _ _ _|_|_ _ _ _
+// 0 1 2 3 4 5 6 7 8 9 10 11
+//
+// - byte 0-1   = Character NPC/Character Class/Prop Name e.g. Bi (Birds), El (Elephant), In (Insects), Pr (Prop/Set Piece e.g. Umbrella, Cigarette) or Animation Category e.g. L (Locomotion), C (Combat), E (Interact), N (Narrative), A (NPC/AI), X (Cinematic)
+// - byte 2-6   = Character Body Part Category Name
+// - byte 7     = Animation Repligram Trigger e.g. 0 (None, Static/Decal), T (on proximity, entity/mob trigger), N (autonomously = waits for nature/time e.g. tree shrivelling), F (Fire), R (Rain), W (Water), O (Oxygen), D (Damage), I (Illness)
+// - byte 9-11  = Variant Code e.g. a01, b01, c01 etc, nicer to view for artist
+//
+
+//
+// CONWORD RADIX40 ENCODING:
+//
+// - 12 char max
+//
+// _|_ _|_ _ _ _ _ _ _ _ _
+// 0 1 2 3 4 5 6 7 8 9 10 11
+//
+// - byte 0    = Conlang Type e.g. Base 10 Numbers, Eurolang, Asialang, Calclang etc
+// - byte 1-2  = Parts of Speech (primary tag) e.g. verb, noun, place etc
+// - byte 3-11 = Conlang Word
+//
+
+//
+// FONT RADIX40 ENCODING:
+//
+// - 12 char max
+//
+// _ _|_ _ _ _ _|_|_|_|_ _
+// 0 1 2 3 4 5 6 7 8 9 10 11
+//
+// - byte 0-1   = Font Category/Real-World Country Name e.g. cl (conlang), eu (Euro), as (Asia) etc.
+// - byte 2-6   = Typeface Name (flexible range = start byte 3 then chop 4 bytes off end!)
+// - byte 7     = Font Hierarchy e.g. H (Heading), B (Body), U (UI)
+// - byte 8     = Font Flesh e.g. S (Serif), P (San-Serif/Plain), L (Slab Serif), H (Handwritten), M (Monospaced), C (Script)
+// - byte 9     = Form Model e.g. D (Dynamic), R (Rational), G (Geometric)
+// - byte 10-11 = Variant/Weight Code e.g. a1, b1, c1 etc (instead of 00, 01, 02 etc), nicer to view for artist
+//
+// NOTE(chowie): byte 8-9 is exists to know how to match the pairing
+//
+
+//
+// SOUND BANK RADIX40 ENCODING:
+//
+// - 12 char max
+//
+// _ _|_ _ _ _ _|_|_|_|_ _
+// 0 1 2 3 4 5 6 7 8 9 10 11
+//
+// - byte 0-1   = Sound Bank Category Name e.g. We (Weather), So (Soundscape), Mu (Music Score), Mo (Movement e.g. footsteps), Do (Doors), An (Animal), Am (Ambience), Sp (Speech), Sc (Script), UI (UI), Co (Collision), Ms (Misc.)
+// - byte 2-6   = Sound Name (flexible range = start byte 3 then chop 4 bytes off end!)
+// - byte 7     = Spatial Type e.g. 0 (None/Mono), I (Indoor), O (Outdoor), S (Semi-enclosed/Threshold spaces e.g. porches, verandahs)
+// - byte 8     = Spatial Distance Type e.g. 0 (None/Mono), C (Close), R (Rear), X (Far), D (Distant), F (Front), B (Back)
+// - byte 9     = Sound Trigger e.g. 0 (None, Immediate), T (on proximity, entity/mob trigger), N (animated autonomously = waits for nature/time e.g. tree shrivelling), F (Fire), R (Rain), W (Water), O (Oxygen), D (Damage), I (Illness)
+// - byte 10-11 = Variant Code e.g. ll (ll for looped), otherwise default to a1, b1, c1 etc
+//
+// TODO(chowie): Can work with AABB and/or spherical collision, might
+// need LOD if box is large?
+// TODO(chowie): A* back to player to find if sounds should hit the
+// player or occluded.
+// NOTE(chowie): Typically you need a string bank
+//
+
+// RESOURCE(): 'Fallout 4's' Modular Level Design 2016 - https://gdcvault.com/play/1023202/-Fall
+// IMPORTANT TODO(chowie): Make sure CTRL + Mouse Wheel works to swap
+// variants/kits instead of a menu! CTRL + Right Click to pull up category?
+// IMPORTANT TODO(chowie): Helper markers (in editor) on objects to
+// help click them easier without needing to turn the camera!
+// COULDDO(chowie): I can't imagine scenes would be so complex that
+// we'll need to build layers?
+// NOTE(chowie): Rendering kits generally might be a pain
+// IMPORTANT(chowie): When making kits!
+// 1) Basekit, don't make a greybox kit, blank walls doesn't help
+// 2) COULDDO(chowie): Make in pieces, a corner walls instead of made
+// from 1 piece (easy to render/optimise), it could be a corner made
+// via a wall, corner, ceiling, floor for granular/variation combo.
+// However, object count explodes! Would rather swap by texture?
+//
+//                                W______________T
+//                                /             /|                 /|
+//                               /             / |                / |
+//                              /             /  |               /  |
+//            open             /             /   |              /   |
+//        ______________     H/_____________/Y   |             /    |
+//       /             /      |             |    |             |    | 
+//      /             /       |             |    |             |    |
+//     /             /        |             |    |     unround |    | round
+//    /             /         |             |    |             |    |
+//   /_____________/          |   ~         |    |M            |    |
+//        closed              |             |   /              |   /
+//                            |             |  /               |  /
+//                            |             | /                | /
+//                           X|_____________|/V                |/
+//                                 AIOU
+//
+//                                        back
+//                             _____________
+//                            |             |
+//                            |             |
+//                            |             |
+//                            |             |
+//                            |    front    |
+//                            |             |
+//                            |             |
+//                            |             |
+//                            |_____________|
+//
+
+// TODO(chowie): This should be automated by pre-proceessor at startup!
+// STUDY(chowie): For many compilers e.g. gcc, clang, msvc, "$" isn't a
+// reserved symbol!
+#define $ttf   0xc8512 // ToRadix40(CONST_STRING(".ttf"))
+#define $bmp   0xc1384 // ToRadix40(CONST_STRING(".bmp")) // NOTE(chowie): Test format
+#define $png   0xc6b23 // ToRadix40(CONST_STRING(".png"))
+#define $wav   ToRadix40(CONST_STRING(".wav"))
+#define $obj   ToRadix40(CONST_STRING(".obj"))
+#define $csv   ToRadix40(CONST_STRING(".csv")) // NOTE(chowie): Localization
+#define $gltf  ToRadix40(CONST_STRING(".gltf"))
+#define $glsl  ToRadix40(CONST_STRING(".glsl"))
+#define $slang ToRadix40(CONST_STRING(".slang"))
+
+// NOTE(chowie): Internal formats
+#define $rui   ToRadix40(CONST_STRING(".rui")) // NOTE(chowie): Binary asset packer format
+#define $rsg   ToRadix40(CONST_STRING(".rsg")) // NOTE(chowie): Saved Game
+#define $rpl   ToRadix40(CONST_STRING(".rpl")) // NOTE(chowie): Animation (Repligram)
+#define $kpl   ToRadix40(CONST_STRING(".klp")) // NOTE(chowie): Narrative
 
 //
 //
@@ -1059,7 +1678,6 @@ struct gap_buffer
     buffer Buffer;
     umm Start;
     umm End;
-    // TODO(chowie): Include memory arena
 };
 
 internal umm
@@ -1079,26 +1697,27 @@ GapLen(gap_buffer *GapBuffer)
 #define INITIAL_GAP 16
 
 internal gap_buffer *
-InitGap(void)
+InitGap(memory_arena *Arena)
 {
-    gap_buffer *GapBuffer = (gap_buffer *)malloc(sizeof(gap_buffer));
-    GapBuffer->Buffer.Size = INITIAL_GAP;
-    GapBuffer->Buffer.Data = (u8 *)malloc(GapBuffer->Buffer.Size);
-    GapBuffer->Start = 0;
-    GapBuffer->End = GapBuffer->Buffer.Size;
-    return(GapBuffer);
+    gap_buffer *Result = PushStruct(Arena, gap_buffer);
+    Result->Buffer.Size = INITIAL_GAP;
+    Result->Buffer.Data = PushArray(Arena, Result->Buffer.Size, u8);
+    Result->Start = 0;
+    Result->End = Result->Buffer.Size;
+
+    return(Result);
 }
 
 internal gap_buffer *
-InitGapWrapZ(char *String)
+InitGapWrapZ(memory_arena *Arena, string String)
 {
-    gap_buffer *GapBuffer = InitGap();
-    while(*String)
+    gap_buffer *Result = InitGap(Arena);
+    foreachN(u32, i, String.Size)
     {
-        GapBuffer->Buffer.Data[GapBuffer->Start++] = *String++;
+        Result->Buffer.Data[Result->Start++] = *String.Data++;
     }
 
-    return(GapBuffer);
+    return(Result);
 }
 
 internal void
@@ -1141,7 +1760,6 @@ InsertChar(gap_buffer *GapBuffer, umm Cursor, char C)
 }
 
 // COULDDO(chowie): Implement gap buffer replace string?
-// TODO(chowie): Double check replace char works
 internal void
 ReplaceChar(gap_buffer *GapBuffer, umm Cursor, char C)
 {
@@ -1151,12 +1769,12 @@ ReplaceChar(gap_buffer *GapBuffer, umm Cursor, char C)
 }
 
 internal void
-InsertString(gap_buffer *GapBuffer, umm Cursor, char *String)
+InsertString(gap_buffer *GapBuffer, umm Cursor, string String)
 {
     ShiftGapTo(GapBuffer, Cursor);
-    while(*String)
+    foreachN(u32, i, String.Size)
     {
-        InsertCharInternal(GapBuffer, *String++);
+        InsertCharInternal(GapBuffer, *String.Data++);
     }
 }
 
@@ -1200,15 +1818,29 @@ GetGapBuffer(gap_buffer *GapBuffer, umm Cursor)
 }
 
 internal char *
-GapBufferToString(gap_buffer *GapBuffer)
+GapBufferToStringZ(memory_arena *Arena, gap_buffer *GapBuffer)
 {
     umm Len = GapLen(GapBuffer);
-    char *Result = (char *)malloc(Len + 1);
+    char *Result = PushArray(Arena, Len + 1, char);
 
     memcpy(Result, GapBuffer->Buffer.Data, GapBuffer->Start);
     umm Right = GapBuffer->Buffer.Size - GapBuffer->End;
     memcpy(Result + GapBuffer->Start, GapBuffer->Buffer.Data + GapBuffer->End, Right);
     Result[Len] = '\0';
+
+    return(Result);
+}
+
+internal string
+GapBufferToWrapZ(memory_arena *Arena, gap_buffer *GapBuffer)
+{
+    umm Len = GapLen(GapBuffer);
+    string Result = BundleString(PushArray(Arena, Len + 1, u8), Len + 1);
+
+    memcpy(Result.Data, GapBuffer->Buffer.Data, GapBuffer->Start);
+    umm Right = GapBuffer->Buffer.Size - GapBuffer->End;
+    memcpy(Result.Data + GapBuffer->Start, GapBuffer->Buffer.Data + GapBuffer->End, Right);
+    Result.Data[Len] = '\0';
 
     return(Result);
 }
@@ -1271,6 +1903,66 @@ internal void
 CalcLines()
 {
 }
+
+//
+//
+//
+
+// TODO(chowie): Include this into the asset packer as a separate
+// pack file so that everything can be localised/converted to .csv!
+enum symgenerator_radix40_type
+{
+    SymGeneratorRadix40Type_General,
+    SymGeneratorRadix40Type_Conword,
+    SymGeneratorRadix40Type_GapBuffer,
+    SymGeneratorRadix40Type_Repligram,
+
+    SymGeneratorRadix40Type_Count,
+};
+
+struct symgenerator_radix40_source_general
+{
+    string String;
+};
+
+struct symgenerator_radix40_source_conword
+{
+    u8 Family;
+    string POS;
+    string Word; // NOTE(chowie): Max 9 chars
+};
+
+struct symgenerator_radix40_source_repligram
+{
+    u64 RepligramRadix40;
+    u64 ConwordShortDevMeaningRadix40;
+};
+
+struct symgenerator_radix40_source_gapbuffer
+{
+    gap_buffer *Gap;
+};
+
+struct symgenerator_radix40_source
+{
+    symgenerator_radix40_type Type;
+    union
+    {
+        symgenerator_radix40_source_general General;
+        symgenerator_radix40_source_conword Conword;
+        symgenerator_radix40_source_repligram Repligram;
+        symgenerator_radix40_source_gapbuffer GapBuffer; // NOTE(chowie): Multiline conword
+    };
+};
+
+// TODO(chowie): Split between gamemode_world and editor. Notably,
+// conword and gapbuffer will be used for gameplay lots. However, char
+// and env art, font and sound will probably not need to be parsed!
+// Just default to basic hashing/references.
+struct added_radix40
+{
+    symgenerator_radix40_source Source;
+};
 
 //
 //
@@ -1345,69 +2037,357 @@ Substring(string Source, string Needle) // NOTE(chowie): Needle can be of any si
     return(999999);
 }
 
-int
-main()
+enum con_writingdir
 {
-    gap_buffer *Gap = InitGapWrapZ("Hello world");
+    ConWritingDir_Ltr,
+    ConWritingDir_Rtl,
+    ConWritingDir_Boustrophedon,
+    ConWritingDir_Vertical,
+};
+
+enum con_writingsys
+{
+    ConWritingSys_Alphabet,
+    ConWritingSys_AlphabeticSyllabary,
+    ConWritingSys_Syllabary,
+};
+
+// NOTE(chowie): Card game notation
+enum panelpuzzle_type
+{
+    PanelPuzzleType_Hand,
+    PanelPuzzleType_Board,
+    PanelPuzzleType_SideBoard,
+    PanelPuzzleType_Gizmo, // NOTE(chowie): Interactables (not text)
+};
+
+// NOTE(chowie): E.g. Layout = (3),(3)
+// Brackets = player-facing punctation
+// Numbers = spaces + demi-spaces
+// , = newline
+struct panelpuzzle
+{
+    panelpuzzle_type Type;
+    confamily_mode Mode;
+    rect2i Dim;
+    u64 LayoutRadix40; // NOTE(chowie): Layout for punctuation and characters
+};
+
+enum panel_mode
+{
+    PanelMode_World,
+    PanelMode_UI,
+    PanelMode_Conword, // NOTE(chowie): Some panels are attached to certain words like verbs
+};
+
+// TODO(chowie): Pack and unpack radix40 in FieldArray .E loop
+struct panel
+{
+    panelpuzzle *Puzzle;
+    panel_mode Mode;
+    b32x IsPlayerEditable;
+
+    u64 *ConwordsByLineRadix40;
+    u32 ConwordsByLineRadix40Count;
+
+    // TODO(chowie): Make this a UI lister-panel implementation with filters like the Witness game
+    union
+    {
+        FIELD_ARRAY(u64,
+        {
+            u64 LongNameRadix40; // NOTE(chowie): PanelID (hashed)
+            u64 ShortNameRadix40; // NOTE(chowie): PanelID (hashed)
+        });
+    };
+
+    string Desc; // TODO(chowie): Pre-processed via DJB2Hash()
+};
+
+// TODO(chowie): Do I need this?
+struct panel_radix40string
+{
+    FIELD_ARRAY(string,
+    {
+        string LongName;
+        string ShortName;
+    });
+};
+
+// TODO(chowie): Pack and unpack radix40 in FieldArray .E loop
+// RESOURCE(): https://www.degruyterbrill.com/document/doi/10.1515/lingty-2019-0030/html
+// RESOURCE(): https://www.reddit.com/r/conlangs/comments/15qabie/origins_of_root_words/
+struct conword_slot
+{
+    FIELD_ARRAY(u64,
+    {
+        u64 NameRadix40; // NOTE(chowie): conpos_tag is baked into NameRadix40
+        u64 ArchiacNameRadix40; // NOTE(chowie): Optional
+        u64 ShortDevMeaningRadix40;
+    });
+    string LongMeaning; // TODO(chowie): Pre-processed via DJB2Hash()
+    u64 Flags;
+    u8 FairmathAssociation; // NOTE(chowie): 0 = -tive, 1 = +tive
+    u8 FairmathRarity; // IMPORTANT(chowie): Rarity changes throughout game
+    // NOTE(chowie): 0 = common words (e.g. I/Me, He, Go, Names, Places)
+    //               1 = specific/archiac words (activities, objects, some Places)
+};
+
+struct conword
+{
+    FIELD_ARRAY(conword_slot,
+    {
+        conword_slot Primary;
+        conword_slot Secondary;
+    });
+
+    // NOTE(chowie): Optional
+    b32x HasPanel;
+    u8 PanelSlotIndex; // NOTE(chowie): Either slot 0 or 1
+    panel *Panel;
+};
+
+struct conword_origin
+{
+    // COULDDO(chowie): Branching origin instead of linear?
+    FIELD_ARRAY(conword,
+    {
+        conword Euro;
+        conword Asia;
+        conword Calc;
+    });
+};
+
+internal panelpuzzle
+PanelPuzzleParams(panelpuzzle_type Type, confamily_mode Mode, rect2i Dim, u64 LayoutRadix40)
+{
+    panelpuzzle Result = {};
+    Result.Type = Type;
+    Result.Mode = Mode;
+    Result.Dim = Dim;
+    Result.LayoutRadix40 = LayoutRadix40;
+    // TODO(chowie): Don't know how to write this assert yet with radix40
+    // Assert(Result.Layout.Size <= GetArea(Result.Dim));
+    // NOTE(chowie): Parity of a 3-size panel is ._._._.
+    // Dots = punctuation
+    // Underscores = character
+    // Thus, there should be (number of punctuation + 1) than characters
+    return(Result);
+}
+
+internal panel
+InitPanel(panelpuzzle *Params, panel_mode Mode, b32x IsPlayerEditable = true)
+{
+    panel Result = {};
+    Result.Puzzle = Params;
+    Result.Mode = Mode;
+    Result.IsPlayerEditable = IsPlayerEditable;
+}
+
+// NOTE(chowie): Compare definition is the same by hash of radix40
+// to test if has same definition (by origin)
+// COULDDO(chowie): Loop always runs once, skip? What about secondary?
+//           foreach(u32, SlotIndex, Origin.E->E)
+//           {
+//               conword_slot *Slot = Origin.E->E + SlotIndex;
+//           }
+internal u32
+LengthOfShareConwordMeaningByOrigin(conword_origin *Origin)
+{
+    u32 Result = 0;
+    u64 Compare = Origin->Euro.Primary.ShortDevMeaningRadix40;
+    if(Compare != 0)
+    {
+        foreach(u32, OriginIndex, Origin->E)
+        {
+            conword *Conword = Origin->E + OriginIndex;
+            if((Compare == Conword->Primary.ShortDevMeaningRadix40) || (Compare == Conword->Secondary.ShortDevMeaningRadix40))
+            {
+                Result += 1;
+            }
+            else
+            {
+                break;
+            }
+        }
+    }
+
+    return(Result);
+}
+
+// COULDDO(chowie): Specific by tag e.g. verb switches to secondary slot meaning?
+internal void
+ShareConwordMeaningByOrigin(conword_origin *Origin, u64 MeaningRadix40)
+{
+    foreach(u32, OriginIndex, Origin->E)
+    {
+        conword *Conword = Origin->E + OriginIndex;
+        Conword->Primary.ShortDevMeaningRadix40 = MeaningRadix40;
+    }
+}
+
+// TODO(chowie): Parse/Walk backwards, then forwards! Just like FromRadix40!
+enum token_radix40_type
+{
+    // Shared
+    TokenRadix40_VariantCode,
+
+    // 3D Environment Art
+    TokenRadix40_Env_Basekit,
+    // TokenRadix40_Env_Subkit,
+    TokenRadix40_Env_Piece,
+    TokenRadix40_Env_Spatial,
+    TokenRadix40_Env_TilingDir,
+    TokenRadix40_Env_AnimTrigger,
+
+    // 2D Texture Art
+    TokenRadix40_Tex_Category,
+    // TokenRadix40_Tex_Name,
+    TokenRadix40_Tex_Map,
+    TokenRadix40_Tex_Shape,
+    TokenRadix40_Tex_FaceDir,
+
+    // 2D/3D Character Art
+    TokenRadix40_Char_Category,
+    // TokenRadix40_Char_Name,
+    TokenRadix40_Char_AnimTrigger,
+
+    // Conword
+    TokenRadix40_Con_Family,
+    TokenRadix40_Con_POS,
+
+    // Font
+    TokenRadix40_Font_Category,
+    // TokenRadix40_Font_Name,
+    TokenRadix40_Font_Hierarchy,
+    TokenRadix40_Font_Flesh,
+    TokenRadix40_Font_Model,
+
+    // Sound
+    TokenRadix40_Sound_Category,
+    // TokenRadix40_Sound_Name,
+    TokenRadix40_Sound_Spatial,
+    TokenRadix40_Sound_Dist,
+    TokenRadix40_Sound_AnimTrigger,
+};
+struct token_radix40
+{
+    token_radix40_type Token;
+    string Text;
+};
+
+struct tokenizer_radix40
+{
+    symgenerator_radix40_source Source;
+    string At;
+};
+
+// IMPORTANT(chowie): Assumes strings will be parsed in piecemeal, and
+// not as a whole file that needs stripping whitespaces etc. Because
+// radix40 is limited to only 12 chars max!
+internal token_radix40
+GetRadix40Token(tokenizer_radix40 *Tokenizer)
+{
+    token_radix40 Token = {};
+    Token.Text.Size = 1;
+    Token.Text.Data = Tokenizer->At.Data;
+
+    u8 C = Tokenizer->At.Data[0];
+    ++Tokenizer->At.Data;
+    switch(C)
+    {
+        // TODO(chowie): Not implemented!
+        case 'C':
+        {
+        } break;
+
+        InvalidDefaultCase;
+    }
+
+    return(Token);
+}
+
+internal void
+ParseConword(tokenizer_radix40 *Tokenizer)
+{
+}
+
+internal void
+FromRadix40Bundle(memory_arena *Arena, string *Bundle, conword_slot *Slot)
+{
+    foreach(u32, SlotIndex, Slot->E)
+    {
+        u64 *Radix = Slot->E + SlotIndex;
+        string Unpack = FromRadix40(Arena, *Radix);
+
+        string *Stock = Bundle + SlotIndex;
+        *Stock = PushString(Arena, Unpack);
+    }
+}
+
+// TODO(chowie): Fix this because I think there's pointer-aliasing going on!
+internal void
+FromRadix40Bundle(memory_arena *Arena, string *Bundle, conword Conword)
+{
+    u32 Count = 0;
+    foreach(u32, DefinitionIndex, Conword.E)
+    {
+        for(u32 SlotIndex = 0;
+            SlotIndex < Len(Conword.Primary.E);
+            SlotIndex++, Count++)
+        {
+            u64 *Radix = &Conword.E[DefinitionIndex].E[SlotIndex];
+            string Unpack = FromRadix40(Arena, *Radix);
+
+            Bundle[Count] = PushString(Arena, Unpack);
+        }
+    }
+}
+
+//
+//
+//
+
+int CALLBACK
+WinMain(HINSTANCE Instance,
+        HINSTANCE PrevInstance,
+        LPSTR     CommandLine,
+        int       ShowCode)
+{
+    LPVOID BaseAddress = 0;
+
+    memory_arena TextArena;
+    InitArena(&TextArena, Megabytes(64), (u8 *)VirtualAlloc(BaseAddress, Megabytes(64),
+                                                            MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE));
+
+    gap_buffer *Gap = InitGapWrapZ(&TextArena, CONST_STRING("Hello world"));
     GapBufferDump(Gap);
 
-    InsertString(Gap, 5, " bb");
+    InsertString(Gap, 5, CONST_STRING(" bb"));
     GapBufferDump(Gap);
 
-    GapDelete(Gap, GapLen(Gap), 5, true);
+    umm GapCursor = GapLen(Gap);
+    GapDelete(Gap, GapCursor, 5, true);
+    ReplaceChar(Gap, 1, 'a');
 
-    char *s = GapBufferToString(Gap);
+    string GapString = GapBufferToWrapZ(&TextArena, Gap);
+
     char TextBufferHeader[64];
     _snprintf_s(TextBufferHeader, sizeof(TextBufferHeader),
-                "Final: \"%s\"\n", s);
+                "Final~ \"%s\"\n", GapString.Data);
     OutputDebugStringA(TextBufferHeader);
 
-    // TODO(chowie): Cut gap?
-
-    free(Gap->Buffer.Data);
-    free(Gap);
+    // TODO(chowie): Way to save out gap to be reused later?
 
     //
     //
     //
 
-    ToLower(s, StringLen(s));
+    ToLower(GapString);
+
     char LowerTextBuffer[64];
     _snprintf_s(LowerTextBuffer, sizeof(LowerTextBuffer),
-                "To Lower Test: \"%s\"\n", s);
+                "To Lower Test~ \"%s\"\n", GapString.Data);
     OutputDebugStringA(LowerTextBuffer);
-
-    //
-    //
-    //
-
-    string Word = CONSTANT_STRING("rebase");
-    string Misspelled = CONSTANT_STRING("revase");
-
-    u32 h1[ASCII_BYTE_HISTOGRAM_MAX] = {};
-    ByteHistogram(h1, Word);
-
-    u32 h2[ASCII_BYTE_HISTOGRAM_MAX] = {};
-    ByteHistogram(h2, Misspelled);
-
-    u32 Diff = FuzzyMatch(h1, h2);
-
-    char HistogramTextBuffer[32];
-    _snprintf_s(HistogramTextBuffer, sizeof(HistogramTextBuffer),
-                "Histogram Test: %u\n", Diff);
-    OutputDebugStringA(HistogramTextBuffer);
-    
-    //
-    //
-    //
-
-    string Needle = CONSTANT_STRING("as");
-    umm Found = Substring(Word, Needle);
-
-    char SubstringTextBuffer[128];
-    _snprintf_s(SubstringTextBuffer, sizeof(SubstringTextBuffer),
-                "Substring Test, found at CursorP: %d\n", Found);
-    OutputDebugStringA(SubstringTextBuffer);
 
     //
     //
@@ -1415,19 +2395,12 @@ main()
 
     // NOTE(chowie): For long strings only like file paths or asset
     // naming? Otherwise, just use radix string (below)
-    // COULDDO(chowie): Figure out if this hash should be used? I
-    // believe radix40 is good enough.
     u32 h0Test = Hash("str");
     u32 h1Test = Hash(h0Test, "ing");
     u32 h2Test = Hash("string");
 
     Assert(h1Test == h2Test);
     CheckHash(h1Test, "string");
-
-    char HashTextBuffer[128];
-    _snprintf_s(HashTextBuffer, sizeof(HashTextBuffer),
-                "Hash Test, h1: %d and h2: %d\n", h1Test, h2Test);
-    OutputDebugStringA(HashTextBuffer);
 
     switch(h1Test)
     {
@@ -1451,218 +2424,338 @@ main()
     // 1) hashed strings (can't retrieve original string value)
     // 2) string interning (only accessible at runtime, not compile time e.g. for switch statements)
 
-    // TODO(chowie): Enforce enum Dictionary Editor vs gapbuffer Player
-    // TODO(chowie): Move to using strings as function input
-    char *ReconstructString;
-
-    b32x IsEditor = true;
-    if(IsEditor)
-    {
-        conlang_radix40 Radix40 = ConlangRadix40(Conlang_Family_Eurolang, Conlang_POS_Nm,
-                                                 WrapZ("chrisgreen"));
-        // COULDDO(chowie): Can I skip this step (concat to convert to string)?
-        // Hopefully this should get covered by the gap buffer?
-        ReconstructString = d7sam_concat((char)Radix40.Family)((char)Radix40.POS)((char *)Radix40.Word.Data);
-    }
-    else
-    {
-        ReconstructString = "27chrisgreen";
-    }
-
-    string RadixStringTest = WrapZ(ReconstructString);
+    // TODO(chowie): Enforce enum Dictionary Editor vs gapbuffer In-game
 
     // TODO(chowie):
     // - Read in each gapbuff string/line
     // - Convert each to u64 radix
     // - De/Compress array of u64
 
-    u64 nValue = ToRadix40(RadixStringTest);
+    u64 nValue = 0;
 
-    // COULDDO(chowie): Remove "char FormatTextBuffer" and use "string FormatTextBuffer"?
-    char FormatTextBuffer[15];
-    string FromRadixStringTest = FromRadix40(nValue, BundleString(FormatTextBuffer, sizeof(FormatTextBuffer)));
+    symgenerator_radix40_source Source = {};
+    Source.Type = SymGeneratorRadix40Type_Conword;
+    switch(Source.Type)
+    {
+        //
+        // IMPORTANT(chowie): Editor
+        //
 
+        case SymGeneratorRadix40Type_General:
+        {
+            // TODO(chowie): Use this for code to shaders/material pipeline
+
+            // NOTE(chowie): Below is an example for gameplay code
+            // NOTE(chowie): Allows suffixes
+            nValue = ToRadix40(WrapZ("MA_")); // Ex. Group/Folder
+            nValue = ToRadix40(nValue, WrapZ("Rarity")); // Ex. Property
+
+            Assert(nValue == ToRadix40(WrapZ("MA_Rarity")));
+
+            // NOTE(chowie): Allows prefixes
+//            u64 nValuePrefix = ToRadix40(WrapZ("Lister"));
+//            u64 nValueSuffix = ToRadix40(WrapZ("Panel"));
+//
+//            nValue = ToRadix40Mult(&TextArena, nValuePrefix, nValueSuffix);
+        } break;
+
+        // COULDDO(chowie): Generalise? Just concat.. really?
+        case SymGeneratorRadix40Type_Conword:
+        {
+            // NOTE(chowie): Typical situation, developers/modders typing in-editor
+            nValue = ConwordNameToRadix40(ConFamily_Euro, WrapZ("Vb"), WrapZ("(chrisgr)"));
+        } break;
+        
+        case SymGeneratorRadix40Type_Repligram:
+        {
+            // TODO(chowie): Fill in proper
+// - byte 0-1   = Basekit Name e.g. Ut (Utility = kits made of other kits, e.g. arch walls with pipes), Pi (Pipe), In (Industrial), De (Deco = MultiLevel Interior/Exterior), Bu (Building), Tu (Steam Tunnel = Vertical), Cav (Cave), Pr (Prop/Set Piece), Gl (Glue = Doorframes, blending between different kits/tiles), He (Hero = Inflexible custom set pieces)
+// - byte 2-5   = Subkit Name e.g. In Pr Basekit: Mach (Machine), Foli (Foliage), Gree (Greebles/Decals), Hole (Hole e.g. Wall with punched holes)
+// - byte 6     = Piece Type e.g. 1 (1 way corridor), 2 (hallway turn/corner), 3 (junction), 4 (junction)
+// - byte 7     = Spatial Type e.g. I (Indoor), O (Outdoor), S (Semi-enclosed/Threshold spaces e.g. porches, verandahs)
+// - byte 8     = Tiling Direction e.g. 0 (None), V (Vertically), H (Horizontally), N, S, E, W (Cardinal Directions)
+// - byte 9     = Animation Repligram Trigger e.g. 0 (None, Static/Decal), P (on proximity of player/mob entity), N (autonomously = waits for nature/time e.g. tree shrivelling), F (Fire), R (Rain), W (Water), O (Oxygen), D (Damage), I (Illness)
+// - byte 10-11 = Variant Code e.g. a1, b1, c1 etc (instead of 00, 01, 02 etc), nicer to view for artist
+//            nValue = ConwordNameToRadix40(ConFamily_Euro, WrapZ("Vb"), WrapZ("(chrisgr)"));;
+        } break;
+
+        //
+        // IMPORTANT(chowie): Game
+        //
+
+        case SymGeneratorRadix40Type_GapBuffer:
+        {
+            // NOTE(chowie): Typical situation, players typing in-game
+            nValue = ToRadix40Chop(BundleString(Gap->Buffer.Data, GapLen(Gap)), GapLen(Gap));
+        } break;
+
+        InvalidDefaultCase;
+    }
+
+    //
+    //
+    //
+
+    // IMPORTANT TODO(chowie): Parse/extract data from string file formats!
+
+    string FromRadixStringTest = FromRadix40(&TextArena, nValue, false);
+
+    char FormatTextBuffer[64];
     _snprintf_s(FormatTextBuffer, sizeof(FormatTextBuffer),
-                "%s\n", FromRadixStringTest.Data);
+                "Reconstructed String~ %s\n", FromRadixStringTest.Data);
     OutputDebugStringA(FormatTextBuffer);
 
+    string ParseString = StripSymIndicatorRadix40IfPossible(FromRadixStringTest);
+    switch(Source.Type)
+    {
+        case SymGeneratorRadix40Type_Conword:
+        {
+            // TODO(chowie): Convert to struct? With output types?
+            u64 ParseRadix40 = ToRadix40Range(ParseString, 0, 1);
+            switch(ToDigit(Radix40ToAscii.Data[ParseRadix40]))
+            {
+                case ConFamily_InDev:
+                {
+                } break;
+
+                case ConFamily_Euro:
+                {
+                } break;
+
+                case ConFamily_Asia:
+                {
+                } break;
+
+                case ConFamily_Calc:
+                {
+                } break;
+
+                case ConFamily_Base10:
+                {
+                } break;
+
+                InvalidDefaultCase;
+            }
+
+            // NOTE(chowie): Conword Tag
+            ParseRadix40 = ToRadix40Range(ParseString, 1, 3);
+            string TestEnumString = FromRadix40(&TextArena, ParseRadix40);
+            switch(ParseRadix40)
+            {
+                case $ConPos_Nn:
+                {
+                } break;
+
+                case $ConPos_Vb:
+                {
+                } break;
+
+                case $ConPos_Qn:
+                {
+                } break;
+
+                InvalidDefaultCase;
+            }
+
+            char ConwordTagTextBuffer[64];
+            _snprintf_s(ConwordTagTextBuffer, sizeof(ConwordTagTextBuffer),
+                        "ConwordTag~ %s\n", TestEnumString.Data);
+            OutputDebugStringA(ConwordTagTextBuffer);
+
+            // NOTE(chowie): String Name
+            ParseRadix40 = ToRadix40Range(ParseString, 3, ParseString.Size);
+            string ConwordString = FromRadix40(&TextArena, ParseRadix40, false, ConlangRadix40ToAscii);
+
+            char ConwordTextBuffer[32];
+            _snprintf_s(ConwordTextBuffer, sizeof(ConwordTextBuffer),
+                        "Conword~ %s\n", ConwordString.Data);
+            OutputDebugStringA(ConwordTextBuffer);
+        } break;
+
+        case SymGeneratorRadix40Type_Repligram:
+        {
+        };
+
+        default:
+        {
+            // TODO(chowie): Log unrecognised type
+        } break;
+    }
+
+    // TODO(chowie): Parse string into args, exported to symgenerator_source
+    // And exported depending on state! Switch is used to render ordinarily.
+
+    //
+    //
+    //
+
+    // COULDDO(chowie): Convert all Conword with conword_slots for FIELD_ARRAY .E?
+    conword *Conword = PushStruct(&TextArena, conword);
+
+    conword_slot *Primary = &Conword->Primary;
+    Primary->NameRadix40 = nValue;
+    Primary->ArchiacNameRadix40 = 0; // Intentionally blank string
+    Primary->ShortDevMeaningRadix40 = ToRadix40(WrapZ("to go"));
+
+    conword_slot *Secondary = &Conword->Secondary;
+    Secondary->NameRadix40 = ToRadix40(WrapZ("0nnVHAIYA")); // TODO(chowie): Strip brackets from primary?
+    Secondary->ArchiacNameRadix40 = 0; // Intentionally blank string
+    Secondary->ShortDevMeaningRadix40 = ToRadix40(WrapZ("rain"));
+
+    //
+
+    // COULDDO(chowie): API to show both? Change to 'string **Bundle'?
+    u32 SlotCount = Len(Primary->E); // NOTE(chowie): Because field array, any Len(E) will do
+
+    string *PrimaryBundle = PushArray(&TextArena, SlotCount, string);
+    FromRadix40Bundle(&TextArena, PrimaryBundle, Primary);
+
+    foreachN(u32, BundleIndex, SlotCount)
+    {
+        string *Stock = PrimaryBundle + BundleIndex;
+
+        char BundleBuffer[64];
+        _snprintf_s(BundleBuffer, sizeof(BundleBuffer),
+                    "Bundle String~ %s\n", Stock->Data);
+        OutputDebugStringA(BundleBuffer);
+    }
+
+    string *SecondaryBundle = PushArray(&TextArena, SlotCount, string);
+    FromRadix40Bundle(&TextArena, SecondaryBundle, Secondary);
+
+    foreachN(u32, BundleIndex, SlotCount)
+    {
+        string *Stock = SecondaryBundle + BundleIndex;
+
+        char BundleBuffer[64];
+        _snprintf_s(BundleBuffer, sizeof(BundleBuffer),
+                    "Bundle String~ %s\n", Stock->Data);
+        OutputDebugStringA(BundleBuffer);
+    }
+
+    //
+
+    // NOTE(chowie): Fuzzy match criteria
+//    1. remove i-th character,
+//    2. replace i-th with an ASCII letters,
+//    3. swap i-th and j-th characters,
+//    4. insert at i-th position an ASCII letter.
+
+//    string Word = CONST_STRING("rebase");
+//    string Misspelled = CONST_STRING("rebsae");
+//
+//    u32 h1[ASCII_BYTE_HISTOGRAM_MAX] = {};
+//    ByteHistogram(h1, Word);
+//
+//    u32 h2[ASCII_BYTE_HISTOGRAM_MAX] = {};
+//    ByteHistogram(h2, Misspelled);
+//
+//    u32 Diff = FuzzyMatch(h1, h2);
+//
+//    char HistogramTextBuffer[64];
+//    _snprintf_s(HistogramTextBuffer, sizeof(HistogramTextBuffer),
+//                "Fuzzy Match Test~ %u\n", Diff);
+//    OutputDebugStringA(HistogramTextBuffer);
+
+    u32 SlotHistogram1[ASCII_BYTE_HISTOGRAM_MAX] = {};
+    string *PrimaryStock = PrimaryBundle + 0;
+    ByteHistogram(SlotHistogram1, *PrimaryStock);
+
+    u32 SlotHistogram2[ASCII_BYTE_HISTOGRAM_MAX] = {};
+    string *SecondaryStock = SecondaryBundle + 0;
+    ByteHistogram(SlotHistogram2, *SecondaryStock);
+
+    u32 SlotHistogramDiff = FuzzyMatch(SlotHistogram1, SlotHistogram2);
+    
+    char SlotHistogramTextBuffer[64];
+    _snprintf_s(SlotHistogramTextBuffer, sizeof(SlotHistogramTextBuffer),
+                "Slot Fuzzy Match~ %u\n", SlotHistogramDiff);
+    OutputDebugStringA(SlotHistogramTextBuffer);
+
+    string SlotNeedle = PushString(&TextArena, WrapZ("IYA"));
+    ToLower(SlotNeedle);
+    umm SlotSubstringPosition = Substring(*SecondaryStock, SlotNeedle);
+
+    char SlotSubstringTextBuffer[128];
+    _snprintf_s(SlotSubstringTextBuffer, sizeof(SlotSubstringTextBuffer),
+                "SlotSubstring Test at CursorP~ %d\n", SlotSubstringPosition);
+    OutputDebugStringA(SlotSubstringTextBuffer);
+
+    //
+    //
+    //
+
+    // NOTE(chowie): For any asset
+    string File = CONST_STRING("folder/texture/LaLogDLHa1.png");
+
+    // NOTE(chowie): Cleanup file path
+    string LastSlash = SkipLastSlash(File);
+    string TextureFileType = SkipLastDot(File);
+
+    char LastDotBuffer[64];
+    _snprintf_s(LastDotBuffer, sizeof(LastDotBuffer),
+                "FileType~ %s\n", TextureFileType.Data);
+    OutputDebugStringA(LastDotBuffer);
+
+    //
+
+    // IMPORTANT(chowie): Chop() finds position, reducing its size and
+    // "doesn't chop"
+
+    // TODO(chowie): Store FileNameHash to asset packer struct, then
+    // you can convert to radix40 on-demand.
+    u64 TextureFileTypeRadix40 = ToRadix40(TextureFileType);
+
+    string FileDotTest = ChopLastDot(LastSlash);
+    u64 FileNameRadix40 = ToRadix40Range(FileDotTest, 1, FileDotTest.Size); // NOTE(chowie): Optimisation to remove first slash, but would otherwise ignore it
+
+    switch(TextureFileTypeRadix40)
+    {
+        case $ttf:
+        {
+        } break;
+
+        case $bmp:
+        {
+        } break;
+
+        case $png:
+        {
+        } break;
+
+        InvalidDefaultCase;
+    }
+
+    string StringFileName = FromRadix40(&TextArena, FileNameRadix40);
+
+    char ConvertBuffer[64];
+    _snprintf_s(ConvertBuffer, sizeof(ConvertBuffer),
+                "Cut Radix40~ %s\n", StringFileName.Data);
+    OutputDebugStringA(ConvertBuffer);
+
+    // COULDDO(chowie): String undo stack?
+
+    //
+    //
+    //
+
+    // TODO(chowie):
+    // - Parser/tokenizer
+    // - Save string hash radix40 in asset packer struct
+
+    // COULDDO(chowie):
+    // - Timeline (tag time with string)?
+    // - Instead of X for shape in texture format naming convention,
+    //   use Y? Need to update blockbench!
+
+    //
+    //
+    //
+
+    ClearArena(&TextArena);
+
     return(0);
 }
-
-/*
-// TODO(chowie): I wonder if I should split the maxsize of the buffer inside of the gapbuffer itself?
-//global_variable umm BufferPosition;
-struct gap_buffer
-{
-    u8 *Buffer;
-    umm Length;
-    umm Start;
-    umm End; // STUDY(chowie): Could use start and len/gap
-    // TODO(chowie): Pass an arena allocator in! Check back in at 15:28!
-};
-
-internal umm
-GetGapBufferLength(gap_buffer *GapBuffer)
-{
-    umm Result = Len(GapBuffer) - (GapBuffer->End - GapBuffer->Start); // NOTE(chowie): Does not include gap
-    return(Result);
-}
-
-#define GapBufferLenWithGap(GapBuffer) (GapBuffer->Length + GapBufferLength)
-
-internal void
-GapBufferInit(gap_buffer *GapBuffer, umm Size)
-{
-    GapBuffer->Buffer = (u8 *)malloc(Size);
-    GapBuffer->Length = 0;
-    GapBuffer->Start = 0;
-    GapBuffer->End = Size;
-}
-
-// NOTE(chowie): Moves the Gap to the cursor position. Cursors are clamped [0,n) where n is the filled count of the buffer.
-internal void
-ShiftGapTo(gap_buffer *GapBuffer, umm Cursor)
-{
-    umm GapLength = GapBuffer->End - GapBuffer->Start;
-    Cursor = Clamp(0, Cursor, GapBuffer->Length - GapLength); // TODO(chowie): Check if clamped is correct?
-    //printf("GapLength: %d, Cursor: %d\n", GapLength, Cursor); // NOTE(chowie): Accounts for expansion
-    if(Cursor != GapBuffer->Start) // NOTE(chowie): Something inside
-    {
-        if(GapBuffer->Start < Cursor)
-        {
-            // NOTE(chowie): Gap is before the cursor
-            //   v~~~v
-            //[12]              [3456789abc]
-            //--------|----------------------------------- Gap is BEFORE Cursor
-            //[123456]              [789abc]
-            umm Delta = Cursor - GapBuffer->Start;
-            memcpy(&GapBuffer->Buffer[GapBuffer->Start], &GapBuffer->Buffer[GapBuffer->End], Delta);
-            GapBuffer->Start += Delta; // NOTE(chowie): Both buffers must move to the right
-            GapBuffer->End += Delta;
-        }
-        else if(GapBuffer->Start > Cursor)
-        {
-            // NOTE(chowie): Gap is after the cursor
-            //   v~~~v
-            //[123456]              [789abc]
-            //---|---------------------------------------- Gap is AFTER Cursor
-            //[12]              [3456789abc]
-            umm Delta = GapBuffer->Start - Cursor;
-            memcpy(&GapBuffer->Buffer[GapBuffer->End - Delta], &GapBuffer->Buffer[GapBuffer->Start - Delta], Delta);
-            GapBuffer->Start -= Delta; // NOTE(chowie): Both buffers must move to the left
-            GapBuffer->End -= Delta;
-        }
-    }
-}
-
-// NOTE(chowie): Verifies the buffer can hold the needed write. Resizes the array if not. By default doubles array size.
-internal void
-CheckGapSize(gap_buffer *GapBuffer, umm Required)
-{
-    umm GapLength = GapBuffer->End - GapBuffer->Start;
-    if(GapLength < Required)
-    {
-        ShiftGapTo(GapBuffer, GapBuffer->Length - GapLength);
-        umm RequiredBufferSize = Required + GapBuffer->Length - GapLength; // NOTE(chowie): Optimisation, as you know the gap buffer len is the end size!
-        u8 *NewBuffer = (u8 *)malloc((2 * RequiredBufferSize) * sizeof(u8)); // NOTE(chowie): Maximum to account for big writes // TODO(chowie): Check if it's correct! TIMESTAMP: 12:44
-        memcpy(NewBuffer, GapBuffer->Buffer, GapBuffer->Length); // TODO(chowie): Check if it's correct! It should only take until the end. Off by one?
-        GapBuffer->Length = (2 * RequiredBufferSize);
-        free(GapBuffer->Buffer);
-        GapBuffer->Buffer = NewBuffer;
-        GapBuffer->End = GapBuffer->Length; // NOTE(chowie): All of the good data is in the start-to-middle. IMPORTANT: Gap start does not change here!
-    }
-}
-
-// NOTE(chowie): Moves the gap to the cursor, then moves the gap pointer beyond count, effectively deleting it.
-// NOTE: Do not rely on the gap being 0, remove will leave as-is values behind in the gap  
-// IMPORTANT: Does not protect for unicode at present, simply deletes bytes  
-internal void
-Remove(gap_buffer *GapBuffer, umm Cursor, u32 Count)
-{
-    u32 Delete = Abs(Count);
-    umm NewCursor = Cursor;
-    if(Count < 0)
-    {
-        NewCursor = Max(0, NewCursor - Delete);
-    }
-    ShiftGapTo(GapBuffer, NewCursor);
-    GapBuffer->End = Min(GapBuffer->End + Delete, GapBuffer->Length); // NOTE(chowie): Protect from runoff!
-    //--------|-----------------------------------
-    //[123456]              [789abc]
-
-    char RemTextLengthBuffer[256];
-    _snprintf_s(RemTextLengthBuffer, sizeof(RemTextLengthBuffer),
-                "\nInside Gap Buffer Cursor: %d, Contents: %s, Len: %d, Start: %d, End: %d",
-                Cursor, GapBuffer->Buffer, GapBuffer->Length, GapBuffer->Start, GapBuffer->End);
-    OutputDebugStringA(RemTextLengthBuffer);
-}
-
-internal void
-InsertChar(gap_buffer *GapBuffer, umm Cursor, u8 Char)
-{
-    CheckGapSize(GapBuffer, 1);
-    ShiftGapTo(GapBuffer, Cursor);
-    GapBuffer->Buffer[GapBuffer->Start++] = Char;
-    GapBuffer->Length++;
-
-    char AddTextLengthBuffer[256];
-    _snprintf_s(AddTextLengthBuffer, sizeof(AddTextLengthBuffer),
-                "\nInside Gap Buffer Cursor: %d, Contents: %s, Len: %d, Start: %d, End: %d",
-                Cursor, GapBuffer->Buffer, GapBuffer->Length, GapBuffer->Start, GapBuffer->End);
-    OutputDebugStringA(AddTextLengthBuffer);
-}
-
-
-// internal void
-// InsertString(gap_buffer *GapBuffer, umm Cursor, char *String)
-// {
-//     CheckGapSize(GapBuffer, StringLen(String));
-//     ShiftGapTo(GapBuffer, Cursor);
-//     strcpy((char *)GapBuffer->Buffer, String); // TODO(chowie): This is totally not correct!
-//     GapBuffer->Start += StringLen(String);
-// }
-// TODO(chowie): utf-8 support? How does one encode a rune in C? TIMESTAMP: 17:00-18:00
-// internal void
-// InsertRune(gap_buffer *GapBuffer, umm Cursor, u8 Char)
-// {
-//     CheckGapSize(GapBuffer, 1);
-//     ShiftGapTo(GapBuffer, Cursor);
-//     GapBuffer->Buffer[GapBuffer->Start] = Char;
-//     GapBuffer->Start += 1;
-// }
-// 
-// // TODO(chowie): How does one insert a string in C? TIMESTAMP: 17:00-18:00
-// internal void
-// InsertString(gap_buffer *GapBuffer, umm Cursor, char *String)
-// {
-//     CheckGapSize(GapBuffer, StringLength(String));
-//     ShiftGapTo(GapBuffer, Cursor);
-//     strcpy(GapBuffer->Buffer, *String); // TODO(chowie): This is totally not correct!
-//     GapBuffer->Start += StringLength(String);
-// }
-
-int
-main(void)
-{
-    gap_buffer GapBuffer = {};
-
-    GapBufferInit(&GapBuffer, 32);
-    InsertChar(&GapBuffer, 0, '0');
-    InsertChar(&GapBuffer, 1, '1');
-    InsertChar(&GapBuffer, 2, '2');
-    InsertChar(&GapBuffer, 3, '3');
-    InsertChar(&GapBuffer, 4, '4');
-    InsertChar(&GapBuffer, 2, 'A');
-    InsertChar(&GapBuffer, 5, '5');
-
-    Remove(&GapBuffer, 2, 2);
-    // TODO(chowie): Insertion/Removal of the character is wrong LOL
-
-    //InsertString(&GapBuffer, 4, "Hello");
-
-    return(0);
-}
-*/
 
 /*
 // NOTE(chowie): For scaling with other data types with a union (avoids casting).
